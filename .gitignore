@@ -82,3 +82,6 @@ fabric.properties
 # SonarQube
 .scannerwork/
 .sonar/
+ServicesDashboard/bin/
+ServicesDashboard/obj/
+
