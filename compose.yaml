@@ -1,0 +1,7 @@
+﻿services:
+  servicesdashboard:
+    image: servicesdashboard
+    build:
+      context: .
+      dockerfile: ServicesDashboard/Dockerfile
+
