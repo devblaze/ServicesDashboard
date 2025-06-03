@@ -75,31 +75,24 @@
     ]
   },
   "packageFolders": {
-    "C:\\Users\\nikos\\.nuget\\packages\\": {},
-    "C:\\Program Files (x86)\\Microsoft Visual Studio\\Shared\\NuGetPackages": {}
+    "/Users/nickantoniadis/.nuget/packages/": {}
   },
   "project": {
     "version": "1.0.0",
     "restore": {
-      "projectUniqueName": "D:\\Rider Projects\\ServicesDashboard\\ServicesDashboard\\ServicesDashboard.csproj",
+      "projectUniqueName": "/Users/nickantoniadis/Documents/Repositories/ServicesDashboard/ServicesDashboard/ServicesDashboard.csproj",
       "projectName": "ServicesDashboard",
-      "projectPath": "D:\\Rider Projects\\ServicesDashboard\\ServicesDashboard\\ServicesDashboard.csproj",
-      "packagesPath": "C:\\Users\\nikos\\.nuget\\packages\\",
-      "outputPath": "D:\\Rider Projects\\ServicesDashboard\\ServicesDashboard\\obj\\",
+      "projectPath": "/Users/nickantoniadis/Documents/Repositories/ServicesDashboard/ServicesDashboard/ServicesDashboard.csproj",
+      "packagesPath": "/Users/nickantoniadis/.nuget/packages/",
+      "outputPath": "/Users/nickantoniadis/Documents/Repositories/ServicesDashboard/ServicesDashboard/obj/",
       "projectStyle": "PackageReference",
-      "fallbackFolders": [
-        "C:\\Program Files (x86)\\Microsoft Visual Studio\\Shared\\NuGetPackages"
-      ],
       "configFilePaths": [
-        "C:\\Users\\nikos\\AppData\\Roaming\\NuGet\\NuGet.Config",
-        "C:\\Program Files (x86)\\NuGet\\Config\\Microsoft.VisualStudio.FallbackLocation.config",
-        "C:\\Program Files (x86)\\NuGet\\Config\\Microsoft.VisualStudio.Offline.config"
+        "/Users/nickantoniadis/.nuget/NuGet/NuGet.Config"
       ],
       "originalTargetFrameworks": [
         "net9.0"
       ],
       "sources": {
-        "C:\\Program Files (x86)\\Microsoft SDKs\\NuGetPackages\\": {},
         "https://api.nuget.org/v3/index.json": {}
       },
       "frameworks": {
@@ -118,7 +111,7 @@
         "auditLevel": "low",
         "auditMode": "direct"
       },
-      "SdkAnalysisLevel": "9.0.200"
+      "SdkAnalysisLevel": "9.0.300"
     },
     "frameworks": {
       "net9.0": {
@@ -148,7 +141,7 @@
             "privateAssets": "all"
           }
         },
-        "runtimeIdentifierGraphPath": "C:\\Program Files\\dotnet\\sdk\\9.0.200/PortableRuntimeIdentifierGraph.json"
+        "runtimeIdentifierGraphPath": "/usr/local/share/dotnet/sdk/9.0.300/PortableRuntimeIdentifierGraph.json"
       }
     }
   }
