@@ -47,6 +47,10 @@
             "Microsoft.AspNetCore.OpenApi": {
               "target": "Package",
               "version": "[9.0.2, )"
+            },
+            "SSH.NET": {
+              "target": "Package",
+              "version": "[2025.0.0, )"
             }
           },
           "imports": [

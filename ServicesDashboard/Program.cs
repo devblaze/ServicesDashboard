@@ -1,6 +1,7 @@
 using ServicesDashboard.Services.ServiceManagement;
 using ServicesDashboard.Services.LogCollection;
 using ServicesDashboard.Services.AIAnalysis;
+using ServicesDashboard.Services.ServerConnection;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -13,6 +14,8 @@ builder.Services.AddOpenApi();
 builder.Services.AddSingleton<IServiceManager, ServiceManager>();
 builder.Services.AddSingleton<ILogCollector, DockerLogCollector>();
 builder.Services.AddSingleton<ILogAnalyzer, OllamaLogAnalyzer>();
+builder.Services.AddSingleton<IServerConnectionManager, ServerConnectionManager>();
+builder.Services.AddScoped<IRemoteLogCollector, RemoteDockerLogCollector>();
 builder.Services.AddHttpClient();
 
 // Configure CORS
