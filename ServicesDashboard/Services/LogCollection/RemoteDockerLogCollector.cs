@@ -1,7 +1,4 @@
-// ServicesDashboard/Services/LogCollection/RemoteDockerLogCollector.cs
-using System.Text;
 using Renci.SshNet;
-using ServicesDashboard.Models;
 using ServicesDashboard.Services.ServerConnection;
 
 namespace ServicesDashboard.Services.LogCollection;
@@ -262,7 +259,7 @@ public class RemoteDockerLogCollector : IRemoteLogCollector
         }
     }
 
-    private SshClient CreateSshClient(ServerConnection connection)
+    private SshClient CreateSshClient(Models.ServerConnection connection)
     {
         if (connection.AuthMethod == "PrivateKey" && !string.IsNullOrEmpty(connection.PrivateKeyPath))
         {

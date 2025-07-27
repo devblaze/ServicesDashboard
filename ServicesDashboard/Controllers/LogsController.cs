@@ -1,4 +1,5 @@
 ﻿using Microsoft.AspNetCore.Mvc;
+using ServicesDashboard.Services;
 using ServicesDashboard.Services.LogCollection;
 using ServicesDashboard.Services.AIAnalysis;
 

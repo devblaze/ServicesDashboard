@@ -26,3 +26,10 @@
 /Users/nickantoniadis/Documents/Repositories/ServicesDashboard/ServicesDashboard/obj/Debug/net9.0/ServicesDashboard.pdb
 /Users/nickantoniadis/Documents/Repositories/ServicesDashboard/ServicesDashboard/obj/Debug/net9.0/ServicesDashboard.genruntimeconfig.cache
 /Users/nickantoniadis/Documents/Repositories/ServicesDashboard/ServicesDashboard/obj/Debug/net9.0/ref/ServicesDashboard.dll
+/Users/nickantoniadis/Documents/Repositories/ServicesDashboard/ServicesDashboard/bin/Debug/net9.0/BouncyCastle.Cryptography.dll
+/Users/nickantoniadis/Documents/Repositories/ServicesDashboard/ServicesDashboard/bin/Debug/net9.0/Renci.SshNet.dll
+/Users/nickantoniadis/Documents/Repositories/ServicesDashboard/ServicesDashboard/bin/Debug/net9.0/ServicesDashboard.xml
+/Users/nickantoniadis/Documents/Repositories/ServicesDashboard/ServicesDashboard/bin/Debug/net9.0/Swashbuckle.AspNetCore.Swagger.dll
+/Users/nickantoniadis/Documents/Repositories/ServicesDashboard/ServicesDashboard/bin/Debug/net9.0/Swashbuckle.AspNetCore.SwaggerGen.dll
+/Users/nickantoniadis/Documents/Repositories/ServicesDashboard/ServicesDashboard/bin/Debug/net9.0/Swashbuckle.AspNetCore.SwaggerUI.dll
+/Users/nickantoniadis/Documents/Repositories/ServicesDashboard/ServicesDashboard/obj/Debug/net9.0/ServicesDashboard.xml

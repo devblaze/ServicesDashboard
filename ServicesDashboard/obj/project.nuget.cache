@@ -1,15 +1,20 @@
 {
   "version": 2,
-  "dgSpecHash": "SD2qyus0aIU=",
+  "dgSpecHash": "cUV6Kncvcxs=",
   "success": true,
   "projectFilePath": "/Users/nickantoniadis/Documents/Repositories/ServicesDashboard/ServicesDashboard/ServicesDashboard.csproj",
   "expectedPackageFiles": [
     "/Users/nickantoniadis/.nuget/packages/bouncycastle.cryptography/2.5.1/bouncycastle.cryptography.2.5.1.nupkg.sha512",
     "/Users/nickantoniadis/.nuget/packages/microsoft.aspnetcore.openapi/9.0.2/microsoft.aspnetcore.openapi.9.0.2.nupkg.sha512",
+    "/Users/nickantoniadis/.nuget/packages/microsoft.extensions.apidescription.server/9.0.0/microsoft.extensions.apidescription.server.9.0.0.nupkg.sha512",
     "/Users/nickantoniadis/.nuget/packages/microsoft.extensions.dependencyinjection.abstractions/8.0.2/microsoft.extensions.dependencyinjection.abstractions.8.0.2.nupkg.sha512",
     "/Users/nickantoniadis/.nuget/packages/microsoft.extensions.logging.abstractions/8.0.3/microsoft.extensions.logging.abstractions.8.0.3.nupkg.sha512",
-    "/Users/nickantoniadis/.nuget/packages/microsoft.openapi/1.6.17/microsoft.openapi.1.6.17.nupkg.sha512",
-    "/Users/nickantoniadis/.nuget/packages/ssh.net/2025.0.0/ssh.net.2025.0.0.nupkg.sha512"
+    "/Users/nickantoniadis/.nuget/packages/microsoft.openapi/1.6.23/microsoft.openapi.1.6.23.nupkg.sha512",
+    "/Users/nickantoniadis/.nuget/packages/ssh.net/2025.0.0/ssh.net.2025.0.0.nupkg.sha512",
+    "/Users/nickantoniadis/.nuget/packages/swashbuckle.aspnetcore/9.0.3/swashbuckle.aspnetcore.9.0.3.nupkg.sha512",
+    "/Users/nickantoniadis/.nuget/packages/swashbuckle.aspnetcore.swagger/9.0.3/swashbuckle.aspnetcore.swagger.9.0.3.nupkg.sha512",
+    "/Users/nickantoniadis/.nuget/packages/swashbuckle.aspnetcore.swaggergen/9.0.3/swashbuckle.aspnetcore.swaggergen.9.0.3.nupkg.sha512",
+    "/Users/nickantoniadis/.nuget/packages/swashbuckle.aspnetcore.swaggerui/9.0.3/swashbuckle.aspnetcore.swaggerui.9.0.3.nupkg.sha512"
   ],
   "logs": []
 }

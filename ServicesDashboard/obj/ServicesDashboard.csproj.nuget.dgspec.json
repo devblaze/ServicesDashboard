@@ -51,6 +51,10 @@
             "SSH.NET": {
               "target": "Package",
               "version": "[2025.0.0, )"
+            },
+            "Swashbuckle.AspNetCore": {
+              "target": "Package",
+              "version": "[9.0.3, )"
             }
           },
           "imports": [
