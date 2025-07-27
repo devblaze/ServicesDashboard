@@ -7,16 +7,19 @@ import { Sun, Moon } from 'lucide-react';
 import './App.css';
 
 function App() {
-  const [darkMode, setDarkMode] = useState(false);
+  const [darkMode, setDarkMode] = useState(true); // Default to dark mode
   const [activeTab, setActiveTab] = useState<'services' | 'discovery'>('services');
 
   // Check for user preference on initial load
   useEffect(() => {
     const savedTheme = localStorage.getItem('darkMode');
-    if (savedTheme) {
+    if (savedTheme !== null) {
+      // If user has explicitly saved a preference, use it
       setDarkMode(JSON.parse(savedTheme));
-    } else if (window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches) {
-      setDarkMode(true);
+    } else {
+      // If no saved preference, check system preference, but default to dark
+      const prefersDark = window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches;
+      setDarkMode(prefersDark !== false); // This will be true unless system explicitly prefers light
     }
   }, []);
 

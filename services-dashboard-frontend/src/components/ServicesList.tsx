@@ -7,7 +7,7 @@ interface ServicesListProps {
   darkMode?: boolean;
 }
 
-export function ServicesList({ darkMode = false }: ServicesListProps) {
+export function ServicesList({ darkMode = true }: ServicesListProps) {
   const { data: services, isLoading, error, refetch } = useServices();
 
   const getStatusConfig = (status: ServiceStatus) => {
@@ -45,7 +45,15 @@ export function ServicesList({ darkMode = false }: ServicesListProps) {
         dotColor: 'bg-gray-400'
       }
     };
-    return configs[status];
+
+    // If the status doesn't match any enum value, default to Unknown
+    const config = configs[status];
+    if (!config) {
+      console.warn(`Unknown service status: "${status}". Defaulting to Unknown.`);
+      return configs[ServiceStatus.Unknown];
+    }
+    
+    return config;
   };
 
   if (isLoading) {
@@ -164,7 +172,9 @@ export function ServicesList({ darkMode = false }: ServicesListProps) {
       {/* Services Grid */}
       <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
         {services.map((service: HostedService) => {
-          const statusConfig = getStatusConfig(service.status);
+          // Normalize the status to ensure it matches our enum
+          const normalizedStatus = service.status || ServiceStatus.Unknown;
+          const statusConfig = getStatusConfig(normalizedStatus);
           const StatusIcon = statusConfig.icon;
           
           return (
@@ -222,7 +232,7 @@ export function ServicesList({ darkMode = false }: ServicesListProps) {
                     <span className={`text-sm font-mono truncate max-w-40 ${
                       darkMode ? 'text-gray-300' : 'text-gray-900'
                     }`}>
-                      {service.dockerImage}
+                      {service.dockerImage || 'N/A'}
                     </span>
                   </div>
                   
@@ -250,7 +260,7 @@ export function ServicesList({ darkMode = false }: ServicesListProps) {
                     <span className={`text-sm capitalize ${
                       darkMode ? 'text-gray-300' : 'text-gray-900'
                     }`}>
-                      {service.environment}
+                      {service.environment || 'N/A'}
                     </span>
                   </div>
                 </div>

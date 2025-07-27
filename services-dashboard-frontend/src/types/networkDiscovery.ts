@@ -18,3 +18,20 @@ export interface HostScanRequest {
   hostAddress: string;
   ports?: number[];
 }
+
+export interface AddDiscoveredServiceRequest {
+  name: string;
+  description?: string;
+  hostAddress: string;
+  port: number;
+  serviceType: string;
+  banner?: string;
+}
+
+// Also export as default for compatibility
+export default {
+  DiscoveredService: {} as DiscoveredService,
+  NetworkScanRequest: {} as NetworkScanRequest,
+  HostScanRequest: {} as HostScanRequest,
+  AddDiscoveredServiceRequest: {} as AddDiscoveredServiceRequest
+};

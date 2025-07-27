@@ -1,73 +1,30 @@
 ﻿using ServicesDashboard.Models;
+using ServicesDashboard.Data;
+using Microsoft.EntityFrameworkCore;
 
 namespace ServicesDashboard.Services;
 
 public class ServiceManager : IServiceManager
 {
+    private readonly ServicesDashboardContext _context;
     private readonly ILogger<ServiceManager> _logger;
-    private readonly List<HostedService> _services;
 
-    public ServiceManager(ILogger<ServiceManager> logger)
+    public ServiceManager(ServicesDashboardContext context, ILogger<ServiceManager> logger)
     {
+        _context = context;
         _logger = logger;
-        
-        // Initialize with mock data for testing
-        _services = new List<HostedService>
-        {
-            new HostedService
-            {
-                Id = Guid.NewGuid(),
-                Name = "Sample Web Service",
-                Description = "A sample web application service",
-                Url = "http://localhost:8080",
-                ContainerId = "web-service-container",
-                IsDockerContainer = true,
-                Status = "Running",
-                LastChecked = DateTime.UtcNow,
-                DateAdded = DateTime.UtcNow.AddDays(-5)
-            },
-            new HostedService
-            {
-                Id = Guid.NewGuid(),
-                Name = "Database Service",
-                Description = "PostgreSQL database service",
-                Url = "postgresql://localhost:5432",
-                ContainerId = "postgres-container",
-                IsDockerContainer = true,
-                Status = "Running",
-                LastChecked = DateTime.UtcNow,
-                DateAdded = DateTime.UtcNow.AddDays(-10)
-            },
-            new HostedService
-            {
-                Id = Guid.NewGuid(),
-                Name = "API Gateway",
-                Description = "Main API gateway service",
-                Url = "http://localhost:3000",
-                ContainerId = "api-gateway-container",
-                IsDockerContainer = true,
-                Status = "Stopped",
-                LastChecked = DateTime.UtcNow.AddMinutes(-30),
-                DateAdded = DateTime.UtcNow.AddDays(-3)
-            }
-        };
     }
 
     public async Task<IEnumerable<HostedService>> GetAllServicesAsync()
     {
         try
         {
-            _logger.LogInformation("Getting all services, count: {Count}", _services.Count);
-            
-            // Simulate async operation
-            await Task.Delay(100);
-            
-            return _services;
+            return await _context.Services.ToListAsync();
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Error getting all services");
-            throw;
+            _logger.LogError(ex, "Error retrieving all services");
+            return new List<HostedService>();
         }
     }
 
@@ -75,13 +32,12 @@ public class ServiceManager : IServiceManager
     {
         try
         {
-            await Task.Delay(50);
-            return _services.FirstOrDefault(s => s.Id == id);
+            return await _context.Services.FindAsync(id);
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Error getting service by id: {Id}", id);
-            throw;
+            _logger.LogError(ex, "Error retrieving service with ID {ServiceId}", id);
+            return null;
         }
     }
 
@@ -92,17 +48,16 @@ public class ServiceManager : IServiceManager
             service.Id = Guid.NewGuid();
             service.DateAdded = DateTime.UtcNow;
             service.LastChecked = DateTime.UtcNow;
-            
-            _services.Add(service);
-            
-            _logger.LogInformation("Added new service: {ServiceName}", service.Name);
-            
-            await Task.Delay(50);
+
+            _context.Services.Add(service);
+            await _context.SaveChangesAsync();
+
+            _logger.LogInformation("Service {ServiceName} added with ID {ServiceId}", service.Name, service.Id);
             return service;
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Error adding service: {ServiceName}", service.Name);
+            _logger.LogError(ex, "Error adding service {ServiceName}", service.Name);
             throw;
         }
     }
@@ -111,7 +66,7 @@ public class ServiceManager : IServiceManager
     {
         try
         {
-            var existingService = _services.FirstOrDefault(s => s.Id == service.Id);
+            var existingService = await _context.Services.FindAsync(service.Id);
             if (existingService == null)
             {
                 return false;
@@ -125,15 +80,13 @@ public class ServiceManager : IServiceManager
             existingService.Status = service.Status;
             existingService.LastChecked = DateTime.UtcNow;
 
-            _logger.LogInformation("Updated service: {ServiceName}", service.Name);
-            
-            await Task.Delay(50);
+            await _context.SaveChangesAsync();
             return true;
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Error updating service: {ServiceId}", service.Id);
-            throw;
+            _logger.LogError(ex, "Error updating service {ServiceId}", service.Id);
+            return false;
         }
     }
 
@@ -141,23 +94,20 @@ public class ServiceManager : IServiceManager
     {
         try
         {
-            var service = _services.FirstOrDefault(s => s.Id == id);
+            var service = await _context.Services.FindAsync(id);
             if (service == null)
             {
                 return false;
             }
 
-            _services.Remove(service);
-            
-            _logger.LogInformation("Deleted service: {ServiceId}", id);
-            
-            await Task.Delay(50);
+            _context.Services.Remove(service);
+            await _context.SaveChangesAsync();
             return true;
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Error deleting service: {ServiceId}", id);
-            throw;
+            _logger.LogError(ex, "Error deleting service {ServiceId}", id);
+            return false;
         }
     }
 
@@ -165,30 +115,41 @@ public class ServiceManager : IServiceManager
     {
         try
         {
-            var service = _services.FirstOrDefault(s => s.Id == id);
+            var service = await _context.Services.FindAsync(id);
             if (service == null)
             {
                 return false;
             }
 
-            // Mock health check logic
-            service.LastChecked = DateTime.UtcNow;
-            
-            // Randomly update status for demo
-            var statuses = new[] { "Running", "Stopped", "Unknown" };
-            var random = new Random();
-            service.Status = statuses[random.Next(statuses.Length)];
+            // Simple HTTP health check
+            if (!string.IsNullOrEmpty(service.Url))
+            {
+                using var client = new HttpClient();
+                client.Timeout = TimeSpan.FromSeconds(5);
+                
+                try
+                {
+                    var response = await client.GetAsync(service.Url);
+                    service.Status = response.IsSuccessStatusCode ? "Healthy" : "Unhealthy";
+                }
+                catch
+                {
+                    service.Status = "Unhealthy";
+                }
+            }
+            else
+            {
+                service.Status = "Unknown";
+            }
 
-            _logger.LogInformation("Health check completed for service: {ServiceName}, Status: {Status}", 
-                service.Name, service.Status);
-            
-            await Task.Delay(100);
+            service.LastChecked = DateTime.UtcNow;
+            await _context.SaveChangesAsync();
             return true;
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Error checking health for service: {ServiceId}", id);
-            throw;
+            _logger.LogError(ex, "Error checking health for service {ServiceId}", id);
+            return false;
         }
     }
 }

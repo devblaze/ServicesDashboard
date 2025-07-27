@@ -3,6 +3,8 @@ using ServicesDashboard.Services.LogCollection;
 using ServicesDashboard.Services.AIAnalysis;
 using ServicesDashboard.Services.ServerConnection;
 using ServicesDashboard.Services.NetworkDiscovery;
+using ServicesDashboard.Data;
+using Microsoft.EntityFrameworkCore;
 using Microsoft.OpenApi.Models;
 
 var builder = WebApplication.CreateBuilder(args);
@@ -10,6 +12,10 @@ var builder = WebApplication.CreateBuilder(args);
 // Add services to the container.
 builder.Services.AddControllers();
 builder.Services.AddEndpointsApiExplorer();
+
+// Add Entity Framework
+builder.Services.AddDbContext<ServicesDashboardContext>(options =>
+    options.UseNpgsql(builder.Configuration.GetConnectionString("DefaultConnection")));
 
 // Add logging to see Swagger generation errors
 builder.Services.AddLogging(builder => builder.AddConsole().SetMinimumLevel(LogLevel.Debug));
@@ -32,7 +38,7 @@ builder.Services.AddSwaggerGen(c =>
 });
 
 // Register our services
-builder.Services.AddSingleton<IServiceManager, ServiceManager>();
+builder.Services.AddScoped<IServiceManager, ServiceManager>();
 builder.Services.AddSingleton<ILogCollector, DockerLogCollector>();
 builder.Services.AddSingleton<ILogAnalyzer, OllamaLogAnalyzer>();
 builder.Services.AddSingleton<IServerConnectionManager, ServerConnectionManager>();
@@ -58,6 +64,13 @@ builder.Services.AddCors(options =>
 });
 
 var app = builder.Build();
+
+// Create database if it doesn't exist
+using (var scope = app.Services.CreateScope())
+{
+    var context = scope.ServiceProvider.GetRequiredService<ServicesDashboardContext>();
+    context.Database.EnsureCreated();
+}
 
 // Debug: List all registered controllers
 var controllerActionDescriptorProvider = app.Services.GetRequiredService<Microsoft.AspNetCore.Mvc.Infrastructure.IActionDescriptorCollectionProvider>();

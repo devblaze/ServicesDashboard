@@ -1,8 +1,8 @@
 import React, { useState } from 'react';
-import { useMutation, useQuery } from '@tanstack/react-query';
-import { Search, Network, Globe, Clock, Server, Shield, AlertCircle } from 'lucide-react';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { Search, Network, Globe, Clock, Server, Shield, AlertCircle, Plus, Check } from 'lucide-react';
 import { networkDiscoveryApi } from '../services/networkDiscoveryApi';
-import type {DiscoveredService} from '../types/networkDiscovery';
+import type { DiscoveredService } from '../types/networkDiscovery';
 
 interface NetworkDiscoveryProps {
   darkMode?: boolean;
@@ -14,6 +14,9 @@ export const NetworkDiscovery: React.FC<NetworkDiscoveryProps> = ({ darkMode = f
   const [customPorts, setCustomPorts] = useState('');
   const [scanType, setScanType] = useState<'network' | 'host'>('network');
   const [discoveredServices, setDiscoveredServices] = useState<DiscoveredService[]>([]);
+  const [addedServices, setAddedServices] = useState<Set<string>>(new Set());
+
+  const queryClient = useQueryClient();
 
   // Get common ports
   const { data: commonPorts = [] } = useQuery({
@@ -26,6 +29,7 @@ export const NetworkDiscovery: React.FC<NetworkDiscoveryProps> = ({ darkMode = f
     mutationFn: networkDiscoveryApi.scanNetwork,
     onSuccess: (data) => {
       setDiscoveredServices(data);
+      setAddedServices(new Set()); // Reset added services when new scan is performed
     },
     onError: (error) => {
       console.error('Network scan failed:', error);
@@ -37,9 +41,27 @@ export const NetworkDiscovery: React.FC<NetworkDiscoveryProps> = ({ darkMode = f
     mutationFn: networkDiscoveryApi.scanHost,
     onSuccess: (data) => {
       setDiscoveredServices(data);
+      setAddedServices(new Set()); // Reset added services when new scan is performed
     },
     onError: (error) => {
       console.error('Host scan failed:', error);
+    }
+  });
+
+  // Add to services mutation
+  const addToServicesMutation = useMutation({
+    mutationFn: networkDiscoveryApi.addToServices,
+    onSuccess: (data, variables) => {
+      console.log('Service added successfully:', data);
+      // Mark this service as added
+      const serviceKey = `${variables.hostAddress}:${variables.port}`;
+      setAddedServices(prev => new Set([...prev, serviceKey]));
+      
+      // Invalidate services query to refresh the services list
+      queryClient.invalidateQueries({ queryKey: ['services'] });
+    },
+    onError: (error) => {
+      console.error('Failed to add service:', error);
     }
   });
 
@@ -55,7 +77,26 @@ export const NetworkDiscovery: React.FC<NetworkDiscoveryProps> = ({ darkMode = f
     }
   };
 
+  const handleAddToServices = (service: DiscoveredService) => {
+    const serviceName = service.banner 
+      ? `${service.serviceType} - ${service.banner}`.substring(0, 50)
+      : `${service.serviceType} on ${service.hostName || service.hostAddress}`;
+
+    addToServicesMutation.mutate({
+      name: serviceName,
+      description: `Discovered ${service.serviceType} service on ${service.hostAddress}:${service.port}${service.banner ? ` - ${service.banner}` : ''}`,
+      hostAddress: service.hostAddress,
+      port: service.port,
+      serviceType: service.serviceType,
+      banner: service.banner
+    });
+  };
+
   const isScanning = networkScanMutation.isPending || hostScanMutation.isPending;
+  const isServiceAdded = (service: DiscoveredService) => {
+    const serviceKey = `${service.hostAddress}:${service.port}`;
+    return addedServices.has(serviceKey);
+  };
 
   const formatResponseTime = (responseTime: string) => {
     try {
@@ -75,12 +116,17 @@ export const NetworkDiscovery: React.FC<NetworkDiscoveryProps> = ({ darkMode = f
     switch (serviceType.toLowerCase()) {
       case 'http':
       case 'https':
+      case 'http alt':
+      case 'https alt':
         return <Globe className="w-4 h-4" />;
       case 'ssh':
         return <Shield className="w-4 h-4" />;
       case 'mysql':
       case 'postgresql':
       case 'sql server':
+      case 'mongodb':
+      case 'redis':
+      case 'elasticsearch':
         return <Server className="w-4 h-4" />;
       default:
         return <Network className="w-4 h-4" />;
@@ -199,12 +245,12 @@ export const NetworkDiscovery: React.FC<NetworkDiscoveryProps> = ({ darkMode = f
         </div>
 
         {/* Error Display */}
-        {(networkScanMutation.error || hostScanMutation.error) && (
+        {(networkScanMutation.error || hostScanMutation.error || addToServicesMutation.error) && (
           <div className="mb-4 p-3 bg-red-50 border border-red-200 rounded-md">
             <div className="flex items-center">
               <AlertCircle className="w-4 h-4 text-red-500 mr-2" />
               <span className="text-red-700">
-                {(networkScanMutation.error || hostScanMutation.error)?.message}
+                {String((networkScanMutation.error || hostScanMutation.error || addToServicesMutation.error))}
               </span>
             </div>
           </div>
@@ -246,6 +292,11 @@ export const NetworkDiscovery: React.FC<NetworkDiscoveryProps> = ({ darkMode = f
                     darkMode ? 'text-gray-300' : 'text-gray-500'
                   }`}>
                     Banner
+                  </th>
+                  <th className={`px-4 py-3 text-left text-xs font-medium uppercase tracking-wider ${
+                    darkMode ? 'text-gray-300' : 'text-gray-500'
+                  }`}>
+                    Action
                   </th>
                 </tr>
               </thead>
@@ -291,6 +342,23 @@ export const NetworkDiscovery: React.FC<NetworkDiscoveryProps> = ({ darkMode = f
                       }`}>
                         {service.banner || '-'}
                       </div>
+                    </td>
+                    <td className="px-4 py-3 whitespace-nowrap">
+                      {isServiceAdded(service) ? (
+                        <div className="flex items-center text-green-600">
+                          <Check className="w-4 h-4 mr-1" />
+                          <span className="text-sm">Added</span>
+                        </div>
+                      ) : (
+                        <button
+                          onClick={() => handleAddToServices(service)}
+                          disabled={addToServicesMutation.isPending}
+                          className="flex items-center px-3 py-1 bg-green-600 text-white rounded-md hover:bg-green-700 disabled:opacity-50 disabled:cursor-not-allowed text-sm"
+                        >
+                          <Plus className="w-3 h-3 mr-1" />
+                          Add to Services
+                        </button>
+                      )}
                     </td>
                   </tr>
                 ))}

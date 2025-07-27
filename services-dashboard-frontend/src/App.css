@@ -1,262 +1,56 @@
-/* Base styles */
-:root {
-  --bg-primary: #ffffff;
-  --bg-secondary: #f9fafb;
-  --text-primary: #374151;
-  --text-secondary: #6b7280;
-  --text-muted: #9ca3af;
-  --border-color: #e5e7eb;
-  --card-bg: #ffffff;
-  --shadow-color: rgba(0, 0, 0, 0.1);
-  --primary-color: #4f46e5;
-  --primary-hover: #4338ca;
-  --success-bg: #d1fae5;
-  --success-text: #047857;
-  --danger-bg: #fee2e2;
-  --danger-text: #b91c1c;
-  --warning-bg: #e5e7eb;
-  --warning-text: #4b5563;
+/* This file is now mainly for any custom animations or specific overrides */
+
+/* Enhanced animations */
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
 }
 
-.dark-mode {
-  --bg-primary: #111827;
-  --bg-secondary: #1f2937;
-  --text-primary: #f9fafb;
-  --text-secondary: #e5e7eb;
-  --text-muted: #9ca3af;
-  --border-color: #374151;
-  --card-bg: #1f2937;
-  --shadow-color: rgba(0, 0, 0, 0.4);
-  --primary-color: #6366f1;
-  --primary-hover: #4f46e5;
-  --success-bg: #064e3b;
-  --success-text: #a7f3d0;
-  --danger-bg: #7f1d1d;
-  --danger-text: #fca5a5;
-  --warning-bg: #4b5563;
-  --warning-text: #e5e7eb;
+.fade-in {
+  animation: fadeIn 0.3s ease-out;
 }
 
-body {
-  margin: 0;
-  padding: 0;
-  font-family: system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, 'Open Sans', 'Helvetica Neue', sans-serif;
-  color: var(--text-primary);
-  background-color: var(--bg-secondary);
-  width: 100%;
-  min-height: 100vh;
-}
-
-#root {
-  width: 100%;
-}
-
-/* Layout */
-.dashboard-container {
-  width: 100%;
-  margin: 0;
-  display: flex;
-  flex-direction: column;
-  min-height: 100vh;
-  background-color: var(--bg-secondary);
-}
-
-.dashboard-header {
-  background-color: var(--bg-primary);
-  padding: 1rem 2rem;
-  box-shadow: 0 2px 10px var(--shadow-color);
-  position: sticky;
-  top: 0;
-  z-index: 10;
-  width: 100%;
-  box-sizing: border-box;
-}
-
-.header-content {
-  max-width: 1280px;
-  margin: 0 auto;
-  width: 100%;
-}
-
-.dashboard-header h1 {
-  font-size: 1.75rem;
-  color: var(--text-primary);
-  margin-bottom: 1rem;
-}
-
-main {
-  flex: 1;
-  padding: 0;
-  background-color: var(--bg-secondary);
-  width: 100%;
-}
-
-.dashboard-footer {
-  background-color: var(--bg-primary);
-  padding: 1.5rem 2rem;
-  text-align: center;
-  border-top: 1px solid var(--border-color);
-  color: var(--text-secondary);
-  font-size: 0.875rem;
-  width: 100%;
-  box-sizing: border-box;
-}
-
-/* Button styles */
-.btn-primary {
-  background-color: var(--primary-color);
-  color: white;
-  border-radius: 0.375rem;
-  padding: 0.5rem 1rem;
-  font-weight: 500;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  transition: all 0.2s;
-  border: none;
-}
-
-.btn-primary:hover {
-  background-color: var(--primary-hover);
-}
-
-.btn-secondary {
-  background-color: var(--bg-primary);
-  color: var(--text-secondary);
-  border: 1px solid var(--border-color);
-  border-radius: 0.375rem;
-  padding: 0.5rem 1rem;
-  font-weight: 500;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  transition: all 0.2s;
-}
-
-.btn-secondary:hover {
-  background-color: var(--bg-secondary);
-  border-color: var(--text-muted);
-}
-
-/* Status badge styles */
-.status-healthy {
-  display: inline-flex;
-  align-items: center;
-  padding: 0.25rem 0.5rem;
-  background-color: var(--success-bg);
-  color: var(--success-text);
-  border-radius: 9999px;
-  font-size: 0.75rem;
-  font-weight: 500;
-}
-
-.status-unhealthy {
-  display: inline-flex;
-  align-items: center;
-  padding: 0.25rem 0.5rem;
-  background-color: var(--danger-bg);
-  color: var(--danger-text);
-  border-radius: 9999px;
-  font-size: 0.75rem;
-  font-weight: 500;
-}
-
-.status-unknown {
-  display: inline-flex;
-  align-items: center;
-  padding: 0.25rem 0.5rem;
-  background-color: var(--warning-bg);
-  color: var(--warning-text);
-  border-radius: 9999px;
-  font-size: 0.75rem;
-  font-weight: 500;
-}
-
-/* Card styles */
-.card {
-  background-color: var(--card-bg);
-  border-radius: 0.5rem;
-  box-shadow: 0 1px 3px var(--shadow-color);
-  overflow: hidden;
-}
-
-/* Form elements */
-input, select {
-  background-color: var(--bg-primary);
-  color: var(--text-primary);
-  border-color: var(--border-color);
-}
-
-input::placeholder {
-  color: var(--text-muted);
-}
-
-/* Animation */
-@keyframes pulse {
+@keyframes pulse-slow {
   0%, 100% {
     opacity: 1;
   }
   50% {
-    opacity: 0.5;
+    opacity: 0.7;
   }
 }
 
-.animate-pulse {
-  animation: pulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+.pulse-slow {
+  animation: pulse-slow 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
 }
 
-/* Dark mode toggle */
-.theme-toggle {
-  position: fixed;
-  bottom: 1.5rem;
-  right: 1.5rem;
-  background-color: var(--primary-color);
-  color: white;
-  width: 3rem;
-  height: 3rem;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  border-radius: 9999px;
-  box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
-  cursor: pointer;
-  transition: all 0.2s;
-  z-index: 20;
-  padding: 0;
+/* Custom gradient backgrounds */
+.gradient-bg-light {
+  background: linear-gradient(135deg, #f9fafb 0%, #f3f4f6 100%);
 }
 
-.theme-toggle:hover {
-  transform: scale(1.05);
+.gradient-bg-dark {
+  background: linear-gradient(135deg, #1f2937 0%, #111827 100%);
 }
 
-.theme-toggle svg {
-  width: 1.25rem;
-  height: 1.25rem;
+/* Enhanced shadows for cards */
+.card-shadow-light {
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1), 0 1px 2px rgba(0, 0, 0, 0.06);
 }
 
-/* API Test component styles */
-.api-test-container {
-  background-color: var(--bg-primary);
-  border: 1px solid var(--border-color);
-  border-radius: 0.5rem;
-  padding: 1rem;
-  margin-bottom: 1rem;
+.card-shadow-light:hover {
+  box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1), 0 2px 4px rgba(0, 0, 0, 0.06);
 }
 
-/* Notification styles */
-.notification {
-  background-color: var(--success-bg);
-  color: var(--success-text);
-  border: 1px solid var(--success-text);
+.card-shadow-dark {
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.3), 0 1px 2px rgba(0, 0, 0, 0.2);
 }
 
-/* Media queries */
-@media (max-width: 768px) {
-  .dashboard-header {
-    padding: 1rem;
-  }
-
-  .dashboard-footer {
-    padding: 1rem;
-  }
+.card-shadow-dark:hover {
+  box-shadow: 0 4px 6px rgba(0, 0, 0, 0.4), 0 2px 4px rgba(0, 0, 0, 0.3);
 }
