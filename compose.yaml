@@ -1,7 +1,80 @@
 ﻿services:
-  servicesdashboard:
-    image: servicesdashboard
-    build:
-      context: .
-      dockerfile: ServicesDashboard/Dockerfile
+  # PostgreSQL Database
+  database:
+    image: postgres:15-alpine
+    container_name: services-dashboard-db
+    environment:
+      POSTGRES_DB: servicesdashboard
+      POSTGRES_USER: admin
+      POSTGRES_PASSWORD: admin123
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./database/init:/docker-entrypoint-initdb.d
+    networks:
+      - services-dashboard-network
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U admin -d servicesdashboard"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+    restart: unless-stopped
 
+  # .NET Backend API
+  backend:
+    build:
+      context: ./ServicesDashboard
+      dockerfile: Dockerfile
+    container_name: services-dashboard-backend
+    environment:
+      - ASPNETCORE_ENVIRONMENT=Development
+      - ASPNETCORE_URLS=http://+:8080
+      - ConnectionStrings__DefaultConnection=Host=database;Database=servicesdashboard;Username=admin;Password=admin123
+    ports:
+      - "5001:8080"  # Changed from 5000 to 5001
+    depends_on:
+      database:
+        condition: service_healthy
+    networks:
+      - services-dashboard-network
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+    healthcheck:
+      test: ["CMD-SHELL", "curl -f http://localhost:8080/swagger/index.html || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 40s
+    restart: unless-stopped
+
+  # React Frontend with Vite
+  frontend:
+    build:
+      context: ./services-dashboard-frontend
+      dockerfile: Dockerfile
+    container_name: services-dashboard-frontend
+    ports:
+      - "8080:80"
+    depends_on:
+      backend:
+        condition: service_healthy
+    networks:
+      - services-dashboard-network
+    environment:
+      - VITE_API_URL=/api  # Use relative URL since nginx will proxy
+    healthcheck:
+      test: ["CMD-SHELL", "curl -f http://localhost/health || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 30s
+    restart: unless-stopped
+
+volumes:
+  postgres_data:
+    driver: local
+
+networks:
+  services-dashboard-network:
+    driver: bridge

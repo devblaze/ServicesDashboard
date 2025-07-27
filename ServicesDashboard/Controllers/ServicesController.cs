@@ -1,6 +1,6 @@
 ﻿using Microsoft.AspNetCore.Mvc;
 using ServicesDashboard.Models;
-using ServicesDashboard.Services.ServiceManagement;
+using ServicesDashboard.Services;
 
 namespace ServicesDashboard.Controllers;
 

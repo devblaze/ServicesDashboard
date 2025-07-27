@@ -1,21 +1,24 @@
 ﻿FROM mcr.microsoft.com/dotnet/aspnet:9.0 AS base
-USER $APP_UID
 WORKDIR /app
 EXPOSE 8080
-EXPOSE 8081
+
+# Install curl for health checks
+RUN apt-get update && apt-get install -y curl && rm -rf /var/lib/apt/lists/*
 
 FROM mcr.microsoft.com/dotnet/sdk:9.0 AS build
-ARG BUILD_CONFIGURATION=Release
 WORKDIR /src
-COPY ["ServicesDashboard/ServicesDashboard.csproj", "ServicesDashboard/"]
-RUN dotnet restore "ServicesDashboard/ServicesDashboard.csproj"
+
+# Copy the project file (now from current directory since context is ServicesDashboard/)
+COPY ["ServicesDashboard.csproj", "."]
+RUN dotnet restore "./ServicesDashboard.csproj"
+
+# Copy all source files
 COPY . .
-WORKDIR "/src/ServicesDashboard"
-RUN dotnet build "./ServicesDashboard.csproj" -c $BUILD_CONFIGURATION -o /app/build
+WORKDIR "/src/."
+RUN dotnet build "ServicesDashboard.csproj" -c Release -o /app/build
 
 FROM build AS publish
-ARG BUILD_CONFIGURATION=Release
-RUN dotnet publish "./ServicesDashboard.csproj" -c $BUILD_CONFIGURATION -o /app/publish /p:UseAppHost=false
+RUN dotnet publish "ServicesDashboard.csproj" -c Release -o /app/publish /p:UseAppHost=false
 
 FROM base AS final
 WORKDIR /app

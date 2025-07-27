@@ -1,5 +1,4 @@
 using ServicesDashboard.Services;
-using ServicesDashboard.Services.ServiceManagement;
 using ServicesDashboard.Services.LogCollection;
 using ServicesDashboard.Services.AIAnalysis;
 using ServicesDashboard.Services.ServerConnection;
@@ -39,14 +38,20 @@ builder.Services.AddSingleton<IServerConnectionManager, ServerConnectionManager>
 builder.Services.AddScoped<IRemoteLogCollector, RemoteDockerLogCollector>();
 builder.Services.AddHttpClient();
 
-// Configure CORS
+// Configure CORS for frontend
 builder.Services.AddCors(options =>
 {
     options.AddDefaultPolicy(policy =>
     {
-        policy.AllowAnyOrigin()
+        policy.WithOrigins(
+                "http://localhost:3000",    // Vite dev server
+                "http://localhost:5173",    // Alternative Vite port
+                "http://frontend:80",       // Docker container
+                "http://localhost:8080"     // Frontend container on host
+            )
             .AllowAnyMethod()
-            .AllowAnyHeader();
+            .AllowAnyHeader()
+            .AllowCredentials();
     });
 });
 
@@ -91,7 +96,9 @@ if (app.Environment.IsDevelopment())
     }
 }
 
-app.UseHttpsRedirection();
+// Don't redirect to HTTPS in Docker container
+// app.UseHttpsRedirection();
+
 app.UseCors();
 app.UseAuthorization();
 

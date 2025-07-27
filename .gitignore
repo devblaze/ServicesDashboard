@@ -85,3 +85,5 @@ fabric.properties
 ServicesDashboard/bin/
 ServicesDashboard/obj/
 
+
+.idea/.idea.ServicesDashboard/Docker/

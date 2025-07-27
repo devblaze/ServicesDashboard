@@ -1,6 +1,6 @@
 ﻿using ServicesDashboard.Models;
 
-namespace ServicesDashboard.Services.ServiceManagement;
+namespace ServicesDashboard.Services;
 
 public interface IServiceManager
 {
