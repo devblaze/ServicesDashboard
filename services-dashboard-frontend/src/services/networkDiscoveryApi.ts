@@ -1,5 +1,5 @@
 import axios from 'axios';
-import { DiscoveredService, NetworkScanRequest, HostScanRequest } from '../types/networkDiscovery';
+import type {DiscoveredService, NetworkScanRequest, HostScanRequest} from '../types/networkDiscovery';
 
 const API_BASE_URL = import.meta.env.VITE_API_URL || '/api';
 
