@@ -32,7 +32,7 @@
       - ASPNETCORE_URLS=http://+:8080
       - ConnectionStrings__DefaultConnection=Host=database;Database=servicesdashboard;Username=admin;Password=admin123
     ports:
-      - "5001:8080"  # Changed from 5000 to 5001
+      - "5001:8080"
     depends_on:
       database:
         condition: service_healthy
@@ -48,23 +48,25 @@
       start_period: 40s
     restart: unless-stopped
 
-  # React Frontend with Vite
+  # React Frontend with Vite Dev Server
   frontend:
     build:
       context: ./services-dashboard-frontend
       dockerfile: Dockerfile
     container_name: services-dashboard-frontend
     ports:
-      - "8080:80"
+      - "5173:5173"  # Vite dev server port
     depends_on:
       backend:
         condition: service_healthy
     networks:
       - services-dashboard-network
+    volumes:
+      - ./services-dashboard-frontend/src:/app/src  # Hot reload for development
     environment:
-      - VITE_API_URL=/api  # Use relative URL since nginx will proxy
+      - VITE_API_URL=http://localhost:5001/api  # Direct backend URL
     healthcheck:
-      test: ["CMD-SHELL", "curl -f http://localhost/health || exit 1"]
+      test: ["CMD-SHELL", "wget --no-verbose --tries=1 --spider http://localhost:5173 || exit 1"]
       interval: 30s
       timeout: 10s
       retries: 3

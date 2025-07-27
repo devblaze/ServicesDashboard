@@ -1,39 +1,23 @@
-# Multi-stage build for React app with Vite
-FROM node:18-alpine AS build
+# Use Node.js for development
+FROM node:18-alpine
 
 # Set working directory
 WORKDIR /app
+
+# Install wget for health checks
+RUN apk add --no-cache wget
 
 # Copy package files
 COPY package.json yarn.lock ./
 
 # Install dependencies
-RUN yarn install --frozen-lockfile
+RUN yarn install
 
 # Copy source code
 COPY . .
 
-# Build the app (ignore TS warnings for unused variables)
-RUN CI=false yarn build
+# Expose Vite dev server port
+EXPOSE 5173
 
-# Production stage with Nginx
-FROM nginx:alpine AS production
-
-# Remove default nginx static assets
-RUN rm -rf /usr/share/nginx/html/*
-
-# Copy built app from build stage
-COPY --from=build /app/dist /usr/share/nginx/html
-
-# Copy nginx configuration
-COPY nginx.conf /etc/nginx/nginx.conf
-
-# Expose port 80
-EXPOSE 80
-
-# Add healthcheck
-HEALTHCHECK --interval=30s --timeout=3s --start-period=5s --retries=3 \
-  CMD curl -f http://localhost/health || exit 1
-
-# Start nginx
-CMD ["nginx", "-g", "daemon off;"]
+# Start Vite dev server
+CMD ["yarn", "dev", "--host", "0.0.0.0", "--port", "5173"]
