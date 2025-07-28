@@ -82,24 +82,15 @@ public class NetworkDiscoveryController : ControllerBase
             };
 
             var addedService = await _serviceManager.AddServiceAsync(service);
-            return CreatedAtAction(nameof(GetService), new { id = addedService.Id }, addedService);
+            
+            // Return Ok instead of CreatedAtAction to avoid routing issues
+            return Ok(addedService);
         }
         catch (Exception ex)
         {
             _logger.LogError(ex, "Error adding discovered service to services");
             return BadRequest($"Failed to add service: {ex.Message}");
         }
-    }
-
-    [HttpGet("services/{id}")]
-    public async Task<ActionResult<HostedService>> GetService(Guid id)
-    {
-        var service = await _serviceManager.GetServiceByIdAsync(id);
-        if (service == null)
-        {
-            return NotFound();
-        }
-        return Ok(service);
     }
 
     [HttpGet("common-ports")]

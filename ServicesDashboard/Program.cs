@@ -3,7 +3,9 @@ using ServicesDashboard.Services.LogCollection;
 using ServicesDashboard.Services.AIAnalysis;
 using ServicesDashboard.Services.ServerConnection;
 using ServicesDashboard.Services.NetworkDiscovery;
+using ServicesDashboard.Services.AIServiceRecognition;
 using ServicesDashboard.Data;
+using ServicesDashboard.Models;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.OpenApi.Models;
 
@@ -12,6 +14,9 @@ var builder = WebApplication.CreateBuilder(args);
 // Add services to the container.
 builder.Services.AddControllers();
 builder.Services.AddEndpointsApiExplorer();
+
+// Add configuration
+builder.Services.Configure<AppSettings>(builder.Configuration.GetSection("AppSettings"));
 
 // Add Entity Framework
 builder.Services.AddDbContext<ServicesDashboardContext>(options =>
@@ -44,6 +49,8 @@ builder.Services.AddSingleton<ILogAnalyzer, OllamaLogAnalyzer>();
 builder.Services.AddSingleton<IServerConnectionManager, ServerConnectionManager>();
 builder.Services.AddScoped<IRemoteLogCollector, RemoteDockerLogCollector>();
 builder.Services.AddScoped<INetworkDiscoveryService, NetworkDiscoveryService>();
+builder.Services.AddScoped<IAIServiceRecognitionService, AIServiceRecognitionService>();
+builder.Services.AddScoped<ISettingsService, SettingsService>(); // Add this line
 builder.Services.AddHttpClient();
 
 // Configure CORS for frontend
@@ -72,24 +79,6 @@ using (var scope = app.Services.CreateScope())
     context.Database.EnsureCreated();
 }
 
-// Debug: List all registered controllers
-var controllerActionDescriptorProvider = app.Services.GetRequiredService<Microsoft.AspNetCore.Mvc.Infrastructure.IActionDescriptorCollectionProvider>();
-var routes = controllerActionDescriptorProvider.ActionDescriptors.Items
-    .Where(x => x is Microsoft.AspNetCore.Mvc.Controllers.ControllerActionDescriptor)
-    .Cast<Microsoft.AspNetCore.Mvc.Controllers.ControllerActionDescriptor>()
-    .Select(x => new { 
-        Controller = x.ControllerName, 
-        Action = x.ActionName, 
-        Route = x.AttributeRouteInfo?.Template 
-    }).ToList();
-
-Console.WriteLine("=== Registered Controllers and Actions ===");
-foreach (var route in routes)
-{
-    Console.WriteLine($"Controller: {route.Controller}, Action: {route.Action}, Route: {route.Route}");
-}
-Console.WriteLine("==========================================");
-
 // Configure the HTTP request pipeline.
 if (app.Environment.IsDevelopment())
 {
@@ -110,9 +99,6 @@ if (app.Environment.IsDevelopment())
         Console.WriteLine($"Stack trace: {ex.StackTrace}");
     }
 }
-
-// Don't redirect to HTTPS in Docker container
-// app.UseHttpsRedirection();
 
 app.UseCors();
 app.UseAuthorization();

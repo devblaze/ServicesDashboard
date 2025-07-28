@@ -1,89 +1,74 @@
+using System.Collections.Concurrent;
 using System.Net;
 using System.Net.NetworkInformation;
 using System.Net.Sockets;
 using System.Text;
+using ServicesDashboard.Services.AIServiceRecognition;
 
 namespace ServicesDashboard.Services.NetworkDiscovery;
 
 public class NetworkDiscoveryService : INetworkDiscoveryService
 {
     private readonly ILogger<NetworkDiscoveryService> _logger;
-    private readonly HttpClient _httpClient;
+    private readonly IAIServiceRecognitionService _aiService;
 
-    // Common service ports to scan
-    private readonly Dictionary<int, string> _commonPorts = new()
-    {
-        { 21, "FTP" },
-        { 22, "SSH" },
-        { 23, "Telnet" },
-        { 25, "SMTP" },
-        { 53, "DNS" },
-        { 80, "HTTP" },
-        { 110, "POP3" },
-        { 143, "IMAP" },
-        { 443, "HTTPS" },
-        { 993, "IMAPS" },
-        { 995, "POP3S" },
-        { 1433, "SQL Server" },
-        { 3306, "MySQL" },
-        { 5432, "PostgreSQL" },
-        { 6379, "Redis" },
-        { 8080, "HTTP Alt" },
-        { 8443, "HTTPS Alt" },
-        { 9200, "Elasticsearch" },
-        { 27017, "MongoDB" }
-    };
-
-    public NetworkDiscoveryService(ILogger<NetworkDiscoveryService> logger, HttpClient httpClient)
+    public NetworkDiscoveryService(ILogger<NetworkDiscoveryService> logger, IAIServiceRecognitionService aiService)
     {
         _logger = logger;
-        _httpClient = httpClient;
-        _httpClient.Timeout = TimeSpan.FromSeconds(5);
+        _aiService = aiService;
     }
 
-    public async Task<IEnumerable<DiscoveredService>> ScanNetworkAsync(string networkRange, int[] ports, CancellationToken cancellationToken = default)
+    public async Task<IEnumerable<DiscoveredService>> ScanNetworkAsync(string networkRange, int[] ports, CancellationToken cancellationToken)
     {
-        var discoveredServices = new List<DiscoveredService>();
-        var hosts = GetNetworkHosts(networkRange);
+        _logger.LogInformation("Starting network scan for {NetworkRange}", networkRange);
+        
+        var hosts = ParseNetworkRange(networkRange);
+        var services = new ConcurrentBag<DiscoveredService>(); // Use ConcurrentBag instead
+        
+        var semaphore = new SemaphoreSlim(20); // Limit concurrent scans
+        var tasks = new List<Task>();
 
-        _logger.LogInformation("Starting network scan for {NetworkRange} with {HostCount} hosts", networkRange, hosts.Count());
-
-        // Parallel scan with controlled concurrency
-        var semaphore = new SemaphoreSlim(20); // Limit concurrent operations
-        var tasks = hosts.Select(async host =>
+        foreach (var host in hosts)
         {
-            await semaphore.WaitAsync(cancellationToken);
-            try
+            if (cancellationToken.IsCancellationRequested) break;
+            
+            tasks.Add(Task.Run(async () => // Fix the Task.Run signature
             {
-                var services = await ScanHostAsync(host, ports, cancellationToken);
-                return services;
-            }
-            finally
-            {
-                semaphore.Release();
-            }
-        });
+                await semaphore.WaitAsync(cancellationToken);
+                try
+                {
+                    var hostServices = await ScanHostAsync(host, ports, cancellationToken);
+                    foreach (var service in hostServices) // Add services individually
+                    {
+                        services.Add(service);
+                    }
+                }
+                finally
+                {
+                    semaphore.Release();
+                }
+            }, cancellationToken));
+        }
 
-        var results = await Task.WhenAll(tasks);
-        discoveredServices.AddRange(results.SelectMany(r => r));
-
-        _logger.LogInformation("Network scan completed. Found {ServiceCount} services", discoveredServices.Count);
-        return discoveredServices;
+        await Task.WhenAll(tasks);
+        
+        _logger.LogInformation("Network scan completed. Found {ServiceCount} services", services.Count);
+        return services.OrderBy(s => s.HostAddress).ThenBy(s => s.Port).ToList();
     }
 
-    public async Task<IEnumerable<DiscoveredService>> ScanHostAsync(string hostAddress, int[] ports, CancellationToken cancellationToken = default)
+    public async Task<IEnumerable<DiscoveredService>> ScanHostAsync(string hostAddress, int[] ports, CancellationToken cancellationToken)
     {
-        var discoveredServices = new List<DiscoveredService>();
-
+        var services = new List<DiscoveredService>();
+        
         // First, check if host is reachable
         if (!await IsHostReachableAsync(hostAddress, cancellationToken))
         {
-            return discoveredServices;
+            _logger.LogDebug("Host {HostAddress} is not reachable", hostAddress);
+            return services;
         }
 
         var hostName = await GetHostNameAsync(hostAddress);
-
-        // Scan each port
+        
         var portTasks = ports.Select(async port =>
         {
             try
@@ -93,15 +78,15 @@ public class NetworkDiscoveryService : INetworkDiscoveryService
             }
             catch (Exception ex)
             {
-                _logger.LogDebug("Error scanning {Host}:{Port} - {Error}", hostAddress, port, ex.Message);
+                _logger.LogDebug(ex, "Error scanning port {Port} on {HostAddress}", port, hostAddress);
                 return null;
             }
         });
 
-        var portResults = await Task.WhenAll(portTasks);
-        discoveredServices.AddRange(portResults.Where(s => s != null)!);
+        var results = await Task.WhenAll(portTasks);
+        services.AddRange(results.Where(s => s != null).Cast<DiscoveredService>());
 
-        return discoveredServices;
+        return services;
     }
 
     private async Task<bool> IsHostReachableAsync(string hostAddress, CancellationToken cancellationToken)
@@ -109,7 +94,7 @@ public class NetworkDiscoveryService : INetworkDiscoveryService
         try
         {
             using var ping = new Ping();
-            var reply = await ping.SendPingAsync(hostAddress, 2000);
+            var reply = await ping.SendPingAsync(hostAddress, 3000);
             return reply.Status == IPStatus.Success;
         }
         catch
@@ -134,110 +119,164 @@ public class NetworkDiscoveryService : INetworkDiscoveryService
     private async Task<DiscoveredService?> ScanPortAsync(string hostAddress, string hostName, int port, CancellationToken cancellationToken)
     {
         var stopwatch = System.Diagnostics.Stopwatch.StartNew();
-
+        
         try
         {
             using var tcpClient = new TcpClient();
-            var connectTask = tcpClient.ConnectAsync(hostAddress, port);
-            var timeoutTask = Task.Delay(3000, cancellationToken);
-
-            var completedTask = await Task.WhenAny(connectTask, timeoutTask);
+            using var timeoutCts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+            timeoutCts.CancelAfter(TimeSpan.FromMilliseconds(5000));
             
-            if (completedTask == timeoutTask || cancellationToken.IsCancellationRequested)
-            {
+            await tcpClient.ConnectAsync(hostAddress, port, timeoutCts.Token);
+            stopwatch.Stop();
+
+            if (!tcpClient.Connected)
                 return null;
+
+            var service = new DiscoveredService
+            {
+                HostAddress = hostAddress,
+                HostName = hostName,
+                Port = port,
+                IsReachable = true,
+                ResponseTime = stopwatch.Elapsed,
+                ServiceType = GetServiceType(port),
+                DiscoveredAt = DateTime.UtcNow
+            };
+
+            // Try to get banner
+            try
+            {
+                service.Banner = await GetServiceBannerAsync(tcpClient, timeoutCts.Token);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogDebug(ex, "Could not get banner for {HostAddress}:{Port}", hostAddress, port);
             }
 
-            if (tcpClient.Connected)
+            // For now, we'll skip AI-based service recognition since the method doesn't exist
+            // You can implement this later when the AI service interface is updated
+
+            return service;
+        }
+        catch (OperationCanceledException)
+        {
+            return null;
+        }
+        catch (Exception ex)
+        {
+            _logger.LogDebug(ex, "Port {Port} on {HostAddress} is not reachable", port, hostAddress);
+            return null;
+        }
+    }
+
+    private async Task<string?> GetServiceBannerAsync(TcpClient tcpClient, CancellationToken cancellationToken)
+    {
+        try
+        {
+            var stream = tcpClient.GetStream();
+            var buffer = new byte[1024];
+            
+            using var timeoutCts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+            timeoutCts.CancelAfter(TimeSpan.FromMilliseconds(3000));
+            
+            var bytesRead = await stream.ReadAsync(buffer, 0, buffer.Length, timeoutCts.Token);
+            if (bytesRead > 0)
             {
-                stopwatch.Stop();
-                
-                var service = new DiscoveredService
-                {
-                    HostAddress = hostAddress,
-                    HostName = hostName,
-                    Port = port,
-                    IsReachable = true,
-                    ServiceType = _commonPorts.TryGetValue(port, out var serviceType) ? serviceType : "Unknown",
-                    ResponseTime = stopwatch.Elapsed
-                };
-
-                // Try to get service banner for HTTP services
-                if (port == 80 || port == 8080 || port == 443 || port == 8443)
-                {
-                    service.Banner = await GetHttpBannerAsync(hostAddress, port, cancellationToken);
-                }
-
-                return service;
+                return Encoding.UTF8.GetString(buffer, 0, bytesRead).Trim();
             }
         }
         catch (Exception ex)
         {
-            _logger.LogDebug("Port scan failed for {Host}:{Port} - {Error}", hostAddress, port, ex.Message);
+            _logger.LogDebug(ex, "Could not read banner from service");
         }
-
+        
         return null;
     }
 
-    private async Task<string?> GetHttpBannerAsync(string hostAddress, int port, CancellationToken cancellationToken)
+    private string GetServiceType(int port)
     {
-        try
+        return port switch
         {
-            var scheme = port == 443 || port == 8443 ? "https" : "http";
-            var url = $"{scheme}://{hostAddress}:{port}";
-            
-            using var response = await _httpClient.GetAsync(url, cancellationToken);
-            var server = response.Headers.Server?.ToString();
-            var title = await ExtractTitleFromHtmlAsync(response, cancellationToken);
-            
-            return !string.IsNullOrEmpty(title) ? $"{title} ({server})" : server;
-        }
-        catch
-        {
-            return null;
-        }
+            21 => "FTP",
+            22 => "SSH",
+            23 => "Telnet",
+            25 => "SMTP",
+            53 => "DNS",
+            80 => "HTTP",
+            110 => "POP3",
+            143 => "IMAP",
+            443 => "HTTPS",
+            993 => "IMAPS",
+            995 => "POP3S",
+            3306 => "MySQL",
+            5432 => "PostgreSQL",
+            6379 => "Redis",
+            27017 => "MongoDB",
+            3389 => "RDP",
+            5900 => "VNC",
+            _ => "Unknown"
+        };
     }
 
-    private async Task<string?> ExtractTitleFromHtmlAsync(HttpResponseMessage response, CancellationToken cancellationToken)
+    private IEnumerable<string> ParseNetworkRange(string networkRange)
     {
-        try
-        {
-            if (!response.Content.Headers.ContentType?.MediaType?.Contains("text/html") == true)
-                return null;
-
-            var content = await response.Content.ReadAsStringAsync(cancellationToken);
-            var titleMatch = System.Text.RegularExpressions.Regex.Match(content, @"<title[^>]*>([^<]+)</title>", 
-                System.Text.RegularExpressions.RegexOptions.IgnoreCase);
-            
-            return titleMatch.Success ? titleMatch.Groups[1].Value.Trim() : null;
-        }
-        catch
-        {
-            return null;
-        }
-    }
-
-    private IEnumerable<string> GetNetworkHosts(string networkRange)
-    {
-        // Parse CIDR notation (e.g., "192.168.4.0/24")
-        var parts = networkRange.Split('/');
-        if (parts.Length != 2 || !IPAddress.TryParse(parts[0], out var baseAddress) || !int.TryParse(parts[1], out var prefixLength))
-        {
-            throw new ArgumentException("Invalid network range format. Use CIDR notation (e.g., 192.168.4.0/24)");
-        }
-
         var hosts = new List<string>();
-        var baseBytes = baseAddress.GetAddressBytes();
-        var hostBits = 32 - prefixLength;
-        var maxHosts = (1 << hostBits) - 2; // Exclude network and broadcast addresses
-
-        for (int i = 1; i <= maxHosts && i <= 254; i++) // Limit to reasonable range
+        
+        if (networkRange.Contains('/'))
         {
-            var hostBytes = (byte[])baseBytes.Clone();
-            hostBytes[3] = (byte)i;
-            hosts.Add(new IPAddress(hostBytes).ToString());
+            // CIDR notation
+            var parts = networkRange.Split('/');
+            if (parts.Length == 2 && IPAddress.TryParse(parts[0], out var baseIp) && int.TryParse(parts[1], out var prefixLength))
+            {
+                hosts.AddRange(GetHostsFromCidr(baseIp, prefixLength));
+            }
         }
+        else if (networkRange.Contains('-'))
+        {
+            // Range notation (e.g., 192.168.1.1-254)
+            var parts = networkRange.Split('-');
+            if (parts.Length == 2)
+            {
+                var baseParts = parts[0].Split('.');
+                if (baseParts.Length == 4 && int.TryParse(baseParts[3], out var startRange) && int.TryParse(parts[1], out var endRange))
+                {
+                    var networkBase = string.Join(".", baseParts.Take(3));
+                    for (int i = startRange; i <= endRange; i++)
+                    {
+                        hosts.Add($"{networkBase}.{i}");
+                    }
+                }
+            }
+        }
+        else
+        {
+            // Single IP or hostname
+            hosts.Add(networkRange);
+        }
+        
+        return hosts;
+    }
 
+    private IEnumerable<string> GetHostsFromCidr(IPAddress baseIp, int prefixLength)
+    {
+        var hosts = new List<string>();
+        var ipBytes = baseIp.GetAddressBytes();
+        
+        if (ipBytes.Length != 4) return hosts; // Only IPv4 for now
+        
+        var hostBits = 32 - prefixLength;
+        var hostCount = (int)Math.Pow(2, hostBits) - 2; // Exclude network and broadcast addresses
+        
+        var baseInt = BitConverter.ToUInt32(ipBytes.Reverse().ToArray(), 0);
+        
+        for (uint i = 1; i <= hostCount && i < 254; i++) // Limit to reasonable range
+        {
+            var hostInt = baseInt + i;
+            var hostBytes = BitConverter.GetBytes(hostInt).Reverse().ToArray();
+            var hostIp = new IPAddress(hostBytes);
+            hosts.Add(hostIp.ToString());
+        }
+        
         return hosts;
     }
 }

@@ -1,8 +1,6 @@
 ﻿services:
-  # PostgreSQL Database
   database:
-    image: postgres:15-alpine
-    container_name: services-dashboard-db
+    image: postgres:16
     environment:
       POSTGRES_DB: servicesdashboard
       POSTGRES_USER: admin
@@ -11,72 +9,43 @@
       - "5432:5432"
     volumes:
       - postgres_data:/var/lib/postgresql/data
-      - ./database/init:/docker-entrypoint-initdb.d
-    networks:
-      - services-dashboard-network
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U admin -d servicesdashboard"]
       interval: 30s
       timeout: 10s
-      retries: 5
-    restart: unless-stopped
+      retries: 3
 
-  # .NET Backend API
   backend:
     build:
       context: ./ServicesDashboard
-      dockerfile: Dockerfile
-    container_name: services-dashboard-backend
+      dockerfile: Dockerfile.dev
+    ports:
+      - "8080:8080"
     environment:
       - ASPNETCORE_ENVIRONMENT=Development
       - ASPNETCORE_URLS=http://+:8080
       - ConnectionStrings__DefaultConnection=Host=database;Database=servicesdashboard;Username=admin;Password=admin123
-    ports:
-      - "5001:8080"
+    volumes:
+      - ./ServicesDashboard:/app/src
+      - /app/src/bin
+      - /app/src/obj
     depends_on:
       database:
         condition: service_healthy
-    networks:
-      - services-dashboard-network
-    volumes:
-      - /var/run/docker.sock:/var/run/docker.sock:ro
-    healthcheck:
-      test: ["CMD-SHELL", "curl -f http://localhost:8080/swagger/index.html || exit 1"]
-      interval: 30s
-      timeout: 10s
-      retries: 5
-      start_period: 40s
-    restart: unless-stopped
+    command: ["dotnet", "watch", "run", "--project", "/app/src", "--urls", "http://0.0.0.0:8080"]
 
-  # React Frontend with Vite Dev Server
   frontend:
     build:
       context: ./services-dashboard-frontend
-      dockerfile: Dockerfile
-    container_name: services-dashboard-frontend
+      dockerfile: Dockerfile.dev
     ports:
-      - "5173:5173"  # Vite dev server port
-    depends_on:
-      backend:
-        condition: service_healthy
-    networks:
-      - services-dashboard-network
+      - "5173:5173"
     volumes:
-      - ./services-dashboard-frontend/src:/app/src  # Hot reload for development
+      - ./services-dashboard-frontend:/app
+      - /app/node_modules
     environment:
-      - VITE_API_URL=http://localhost:5001/api  # Direct backend URL
-    healthcheck:
-      test: ["CMD-SHELL", "wget --no-verbose --tries=1 --spider http://localhost:5173 || exit 1"]
-      interval: 30s
-      timeout: 10s
-      retries: 3
-      start_period: 30s
-    restart: unless-stopped
+      - VITE_API_URL=http://localhost:8080/api
+    command: ["npm", "run", "dev", "--", "--host", "0.0.0.0"]
 
 volumes:
   postgres_data:
-    driver: local
-
-networks:
-  services-dashboard-network:
-    driver: bridge

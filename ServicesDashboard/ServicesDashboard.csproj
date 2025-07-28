@@ -13,6 +13,7 @@
     </PropertyGroup>
 
     <ItemGroup>
+        <PackageReference Include="HtmlAgilityPack" Version="1.12.2" />
         <PackageReference Include="Microsoft.AspNetCore.OpenApi" Version="9.0.2"/>
         <PackageReference Include="Microsoft.EntityFrameworkCore" Version="9.0.7" />
         <PackageReference Include="Microsoft.EntityFrameworkCore.Design" Version="9.0.7">
@@ -20,6 +21,8 @@
           <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
         </PackageReference>
         <PackageReference Include="Npgsql.EntityFrameworkCore.PostgreSQL" Version="9.0.4" />
+        <PackageReference Include="OllamaSharp" Version="5.3.3" />
+        <PackageReference Include="PuppeteerSharp" Version="20.2.2" />
         <PackageReference Include="SSH.NET" Version="2025.0.0" />
         <PackageReference Include="Swashbuckle.AspNetCore" Version="9.0.3" />
     </ItemGroup>
@@ -33,6 +36,8 @@
     <ItemGroup>
       <Folder Include="Controllers\" />
       <Folder Include="Data\" />
+      <Folder Include="Services\AIServiceRecognition\" />
+      <Folder Include="Services\Settings\" />
     </ItemGroup>
 
 </Project>
