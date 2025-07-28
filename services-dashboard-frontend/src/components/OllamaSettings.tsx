@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { Settings, TestTube2, Check, AlertCircle, Loader2, Bot } from 'lucide-react';
+import { Settings, TestTube2, Check, AlertCircle, Loader2, Bot, ChevronDown, ChevronUp } from 'lucide-react';
 import { settingsApi } from '../services/networkDiscoveryApi';
 import type { OllamaSettings as OllamaSettingsType } from '../types/networkDiscovery';
 
@@ -8,7 +8,7 @@ interface OllamaSettingsProps {
     darkMode?: boolean;
 }
 
-export const OllamaSettings: React.FC<OllamaSettingsProps> = ({ darkMode = false }) => {
+export const OllamaSettings: React.FC<OllamaSettingsProps> = ({ darkMode = true }) => {
     const [isOpen, setIsOpen] = useState(false);
     const [testResult, setTestResult] = useState<{ success: boolean; message: string } | null>(null);
 
@@ -74,77 +74,142 @@ export const OllamaSettings: React.FC<OllamaSettingsProps> = ({ darkMode = false
         testMutation.mutate();
     };
 
+    const toggleSettings = () => {
+        setIsOpen(!isOpen);
+        // Clear test result when closing
+        if (isOpen) {
+            setTestResult(null);
+        }
+    };
+
     if (isLoading) {
         return (
-            <div className="flex items-center justify-center p-4">
-                <Loader2 className="w-6 h-6 animate-spin" />
+            <div className={`flex items-center justify-center p-8 rounded-2xl border ${
+                darkMode 
+                    ? 'bg-gray-800/50 border-gray-700/50 backdrop-blur-sm' 
+                    : 'bg-white/80 border-gray-200/50 backdrop-blur-sm shadow-lg'
+            }`}>
+                <div className="text-center">
+                    <Loader2 className={`w-8 h-8 animate-spin mx-auto mb-3 ${
+                        darkMode ? 'text-blue-400' : 'text-blue-600'
+                    }`} />
+                    <p className={`${darkMode ? 'text-gray-300' : 'text-gray-600'}`}>
+                        Loading AI settings...
+                    </p>
+                </div>
             </div>
         );
     }
 
     return (
-        <div className={`p-6 rounded-lg border ${darkMode ? 'bg-gray-800 border-gray-700' : 'bg-white border-gray-200'}`}>
-            <div className="flex items-center justify-between mb-4">
-                <div className="flex items-center">
-                    <Bot className="w-5 h-5 mr-2" />
-                    <h2 className={`text-xl font-semibold ${darkMode ? 'text-white' : 'text-gray-900'}`}>
-                        AI Service Recognition
-                    </h2>
+        <div className={`rounded-2xl border backdrop-blur-sm transition-all duration-300 ${
+            darkMode 
+                ? 'bg-gray-800/50 border-gray-700/50 shadow-lg shadow-gray-900/20' 
+                : 'bg-white/80 border-gray-200/50 shadow-lg shadow-gray-200/20'
+        }`}>
+            {/* Header */}
+            <div className="p-6">
+                <div className="flex items-center justify-between">
+                    <div className="flex items-center space-x-4">
+                        <div className={`p-3 rounded-xl ${
+                            darkMode ? 'bg-purple-900/50' : 'bg-purple-100/50'
+                        }`}>
+                            <Bot className={`w-6 h-6 ${
+                                darkMode ? 'text-purple-400' : 'text-purple-600'
+                            }`} />
+                        </div>
+                        <div>
+                            <h2 className={`text-xl font-semibold ${
+                                darkMode ? 'text-white' : 'text-gray-900'
+                            }`}>
+                                AI Service Recognition
+                            </h2>
+                            <p className={`text-sm ${
+                                darkMode ? 'text-gray-400' : 'text-gray-600'
+                            }`}>
+                                Configure Ollama for intelligent service detection
+                            </p>
+                        </div>
+                    </div>
+                    
+                    <button
+                        onClick={toggleSettings}
+                        className={`flex items-center space-x-2 px-4 py-2 rounded-xl font-medium transition-all duration-300 group ${
+                            darkMode
+                                ? 'bg-gray-700/50 hover:bg-gray-600/50 text-gray-300 hover:text-white'
+                                : 'bg-gray-100/50 hover:bg-gray-200/50 text-gray-600 hover:text-gray-900'
+                        } hover:scale-105 active:scale-95`}
+                    >
+                        <Settings className="w-4 h-4 transition-transform group-hover:rotate-12" />
+                        <span>{isOpen ? 'Hide' : 'Configure'}</span>
+                        {isOpen ? (
+                            <ChevronUp className="w-4 h-4 transition-transform" />
+                        ) : (
+                            <ChevronDown className="w-4 h-4 transition-transform" />
+                        )}
+                    </button>
                 </div>
-                <button
-                    onClick={() => setIsOpen(!isOpen)}
-                    className={`p-2 rounded-md ${darkMode ? 'hover:bg-gray-700' : 'hover:bg-gray-100'}`}
-                >
-                    <Settings className="w-5 h-5" />
-                </button>
             </div>
 
+            {/* Settings Form */}
             {isOpen && settings && (
-                <form onSubmit={handleSubmit} className="space-y-4">
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                        <div>
-                            <label className={`block text-sm font-medium mb-1 ${darkMode ? 'text-gray-300' : 'text-gray-700'}`}>
-                                Ollama Server URL
-                            </label>
-                            <input
-                                type="url"
-                                name="baseUrl"
-                                defaultValue={settings.baseUrl}
-                                placeholder="http://localhost:11434"
-                                className={`w-full px-3 py-2 border rounded-md ${
-                                    darkMode
-                                        ? 'bg-gray-700 border-gray-600 text-white placeholder-gray-400'
-                                        : 'bg-white border-gray-300 text-gray-900 placeholder-gray-500'
-                                }`}
-                                required
-                            />
+                <div className={`border-t p-6 ${
+                    darkMode ? 'border-gray-700/50' : 'border-gray-200/50'
+                }`}>
+                    <form onSubmit={handleSubmit} className="space-y-6">
+                        {/* URL and Model Grid */}
+                        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                            <div className="space-y-2">
+                                <label className={`block text-sm font-medium ${
+                                    darkMode ? 'text-gray-300' : 'text-gray-700'
+                                }`}>
+                                    Ollama Server URL
+                                </label>
+                                <input
+                                    type="url"
+                                    name="baseUrl"
+                                    defaultValue={settings.baseUrl}
+                                    placeholder="http://localhost:11434"
+                                    className={`w-full px-4 py-3 border rounded-xl transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent ${
+                                        darkMode
+                                            ? 'bg-gray-700/50 border-gray-600 text-white placeholder-gray-400 focus:bg-gray-700'
+                                            : 'bg-white/50 border-gray-300 text-gray-900 placeholder-gray-500 focus:bg-white'
+                                    }`}
+                                    required
+                                />
+                            </div>
+
+                            <div className="space-y-2">
+                                <label className={`block text-sm font-medium ${
+                                    darkMode ? 'text-gray-300' : 'text-gray-700'
+                                }`}>
+                                    Model
+                                </label>
+                                <select
+                                    name="model"
+                                    defaultValue={settings.model}
+                                    className={`w-full px-4 py-3 border rounded-xl transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent ${
+                                        darkMode
+                                            ? 'bg-gray-700/50 border-gray-600 text-white focus:bg-gray-700'
+                                            : 'bg-white/50 border-gray-300 text-gray-900 focus:bg-white'
+                                    }`}
+                                    required
+                                >
+                                    {availableModels.map(model => (
+                                        <option key={model} value={model}>{model}</option>
+                                    ))}
+                                    {availableModels.length === 0 && (
+                                        <option value={settings.model}>{settings.model}</option>
+                                    )}
+                                </select>
+                            </div>
                         </div>
 
-                        <div>
-                            <label className={`block text-sm font-medium mb-1 ${darkMode ? 'text-gray-300' : 'text-gray-700'}`}>
-                                Model
-                            </label>
-                            <select
-                                name="model"
-                                defaultValue={settings.model}
-                                className={`w-full px-3 py-2 border rounded-md ${
-                                    darkMode
-                                        ? 'bg-gray-700 border-gray-600 text-white'
-                                        : 'bg-white border-gray-300 text-gray-900'
-                                }`}
-                                required
-                            >
-                                {availableModels.map(model => (
-                                    <option key={model} value={model}>{model}</option>
-                                ))}
-                                {availableModels.length === 0 && (
-                                    <option value={settings.model}>{settings.model}</option>
-                                )}
-                            </select>
-                        </div>
-
-                        <div>
-                            <label className={`block text-sm font-medium mb-1 ${darkMode ? 'text-gray-300' : 'text-gray-700'}`}>
+                        {/* Timeout */}
+                        <div className="space-y-2">
+                            <label className={`block text-sm font-medium ${
+                                darkMode ? 'text-gray-300' : 'text-gray-700'
+                            }`}>
                                 Timeout (seconds)
                             </label>
                             <input
@@ -153,90 +218,121 @@ export const OllamaSettings: React.FC<OllamaSettingsProps> = ({ darkMode = false
                                 defaultValue={settings.timeoutSeconds}
                                 min="5"
                                 max="120"
-                                className={`w-full px-3 py-2 border rounded-md ${
+                                className={`w-full max-w-xs px-4 py-3 border rounded-xl transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent ${
                                     darkMode
-                                        ? 'bg-gray-700 border-gray-600 text-white'
-                                        : 'bg-white border-gray-300 text-gray-900'
+                                        ? 'bg-gray-700/50 border-gray-600 text-white focus:bg-gray-700'
+                                        : 'bg-white/50 border-gray-300 text-gray-900 focus:bg-white'
                                 }`}
                                 required
                             />
                         </div>
-                    </div>
 
-                    <div className="flex flex-col space-y-2">
-                        <label className="flex items-center">
-                            <input
-                                type="checkbox"
-                                name="enableServiceRecognition"
-                                defaultChecked={settings.enableServiceRecognition}
-                                className="mr-2"
-                            />
-                            <span className={darkMode ? 'text-gray-300' : 'text-gray-700'}>
-                Enable AI Service Recognition
-              </span>
-                        </label>
+                        {/* Checkboxes */}
+                        <div className="space-y-4">
+                            <div className="flex items-start space-x-3">
+                                <input
+                                    type="checkbox"
+                                    name="enableServiceRecognition"
+                                    defaultChecked={settings.enableServiceRecognition}
+                                    className="mt-0.5 h-4 w-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500"
+                                />
+                                <div className="flex-1">
+                                    <label className={`block text-sm font-medium ${
+                                        darkMode ? 'text-gray-300' : 'text-gray-700'
+                                    }`}>
+                                        Enable AI Service Recognition
+                                    </label>
+                                    <p className={`text-xs mt-1 ${
+                                        darkMode ? 'text-gray-500' : 'text-gray-500'
+                                    }`}>
+                                        Use AI to automatically identify and categorize discovered services
+                                    </p>
+                                </div>
+                            </div>
 
-                        <label className="flex items-center">
-                            <input
-                                type="checkbox"
-                                name="enableScreenshots"
-                                defaultChecked={settings.enableScreenshots}
-                                className="mr-2"
-                            />
-                            <span className={darkMode ? 'text-gray-300' : 'text-gray-700'}>
-                Enable Screenshots (requires additional setup)
-              </span>
-                        </label>
-                    </div>
-
-                    <div className="flex space-x-3">
-                        <button
-                            type="submit"
-                            disabled={updateMutation.isPending}
-                            className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed flex items-center"
-                        >
-                            {updateMutation.isPending ? (
-                                <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                            ) : (
-                                <Check className="w-4 h-4 mr-2" />
-                            )}
-                            Save Settings
-                        </button>
-
-                        <button
-                            type="button"
-                            onClick={handleTest}
-                            disabled={testMutation.isPending}
-                            className="px-4 py-2 bg-green-600 text-white rounded-md hover:bg-green-700 disabled:opacity-50 disabled:cursor-not-allowed flex items-center"
-                        >
-                            {testMutation.isPending ? (
-                                <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                            ) : (
-                                <TestTube2 className="w-4 h-4 mr-2" />
-                            )}
-                            Test Connection
-                        </button>
-                    </div>
-
-                    {testResult && (
-                        <div className={`p-3 rounded-md ${
-                            testResult.success
-                                ? 'bg-green-50 border border-green-200'
-                                : 'bg-red-50 border border-red-200'
-                        }`}>
-                            <div className="flex items-center">
-                                {testResult.success ? (
-                                    <Check className="w-4 h-4 text-green-500 mr-2" />
-                                ) : (
-                                    <AlertCircle className="w-4 h-4 text-red-500 mr-2" />
-                                )}
-                                <span className={testResult.success ? 'text-green-700' : 'text-red-700'}>
-                  {testResult.message}
-                </span>
+                            <div className="flex items-start space-x-3">
+                                <input
+                                    type="checkbox"
+                                    name="enableScreenshots"
+                                    defaultChecked={settings.enableScreenshots}
+                                    className="mt-0.5 h-4 w-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500"
+                                />
+                                <div className="flex-1">
+                                    <label className={`block text-sm font-medium ${
+                                        darkMode ? 'text-gray-300' : 'text-gray-700'
+                                    }`}>
+                                        Enable Screenshots
+                                    </label>
+                                    <p className={`text-xs mt-1 ${
+                                        darkMode ? 'text-gray-500' : 'text-gray-500'
+                                    }`}>
+                                        Capture screenshots of web services (requires additional setup)
+                                    </p>
+                                </div>
                             </div>
                         </div>
-                    )}
-                </form>
+
+                        {/* Action Buttons */}
+                        <div className="flex flex-wrap gap-3 pt-4">
+                            <button
+                                type="submit"
+                                disabled={updateMutation.isPending}
+                                className={`flex items-center px-6 py-3 rounded-xl font-medium transition-all duration-300 disabled:opacity-50 disabled:cursor-not-allowed ${
+                                    darkMode
+                                        ? 'bg-gradient-to-r from-blue-600 to-blue-700 hover:from-blue-700 hover:to-blue-800 text-white shadow-lg shadow-blue-900/25'
+                                        : 'bg-gradient-to-r from-blue-500 to-blue-600 hover:from-blue-600 hover:to-blue-700 text-white shadow-lg shadow-blue-500/25'
+                                } hover:scale-105 active:scale-95`}
+                            >
+                                {updateMutation.isPending ? (
+                                    <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                                ) : (
+                                    <Check className="w-4 h-4 mr-2" />
+                                )}
+                                Save Settings
+                            </button>
+
+                            <button
+                                type="button"
+                                onClick={handleTest}
+                                disabled={testMutation.isPending}
+                                className={`flex items-center px-6 py-3 rounded-xl font-medium transition-all duration-300 disabled:opacity-50 disabled:cursor-not-allowed ${
+                                    darkMode
+                                        ? 'bg-gradient-to-r from-green-600 to-green-700 hover:from-green-700 hover:to-green-800 text-white shadow-lg shadow-green-900/25'
+                                        : 'bg-gradient-to-r from-green-500 to-green-600 hover:from-green-600 hover:to-green-700 text-white shadow-lg shadow-green-500/25'
+                                } hover:scale-105 active:scale-95`}
+                            >
+                                {testMutation.isPending ? (
+                                    <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                                ) : (
+                                    <TestTube2 className="w-4 h-4 mr-2" />
+                                )}
+                                Test Connection
+                            </button>
+                        </div>
+
+                        {/* Test Result */}
+                        {testResult && (
+                            <div className={`p-4 rounded-xl border transition-all duration-300 ${
+                                testResult.success
+                                    ? darkMode
+                                        ? 'bg-green-900/20 border-green-600/50 text-green-300'
+                                        : 'bg-green-50 border-green-200 text-green-700'
+                                    : darkMode
+                                        ? 'bg-red-900/20 border-red-600/50 text-red-300'
+                                        : 'bg-red-50 border-red-200 text-red-700'
+                            }`}>
+                                <div className="flex items-center">
+                                    {testResult.success ? (
+                                        <Check className="w-5 h-5 mr-3 flex-shrink-0" />
+                                    ) : (
+                                        <AlertCircle className="w-5 h-5 mr-3 flex-shrink-0" />
+                                    )}
+                                    <span className="font-medium">{testResult.message}</span>
+                                </div>
+                            </div>
+                        )}
+                    </form>
+                </div>
             )}
         </div>
     );

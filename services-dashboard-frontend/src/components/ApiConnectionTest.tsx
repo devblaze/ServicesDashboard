@@ -1,11 +1,11 @@
 import { useState } from 'react';
-import { CheckCircle, XCircle, Clock, AlertTriangle } from 'lucide-react';
+import { CheckCircle, XCircle, Clock, AlertTriangle, Wifi, WifiOff } from 'lucide-react';
 
 interface ApiConnectionTestProps {
   darkMode?: boolean;
 }
 
-const ApiConnectionTest = ({ darkMode = true }: ApiConnectionTestProps) => { // Default to dark mode
+const ApiConnectionTest = ({ darkMode = true }: ApiConnectionTestProps) => {
   const [status, setStatus] = useState<'idle' | 'testing' | 'success' | 'error'>('idle');
   const [message, setMessage] = useState('');
 
@@ -33,60 +33,113 @@ const ApiConnectionTest = ({ darkMode = true }: ApiConnectionTestProps) => { // 
   const getStatusIcon = () => {
     switch (status) {
       case 'testing':
-        return <Clock className="w-4 h-4 animate-spin" />;
+        return <Clock className="w-5 h-5 animate-spin" />;
       case 'success':
-        return <CheckCircle className="w-4 h-4 text-green-500" />;
+        return <CheckCircle className="w-5 h-5 text-emerald-500" />;
       case 'error':
-        return <XCircle className="w-4 h-4 text-red-500" />;
+        return <XCircle className="w-5 h-5 text-red-500" />;
       default:
-        return <AlertTriangle className="w-4 h-4" />;
+        return <AlertTriangle className="w-5 h-5 text-amber-500" />;
     }
   };
 
-  const getStatusColor = () => {
+  const getMainIcon = () => {
+    switch (status) {
+      case 'success':
+        return <Wifi className="w-6 h-6 text-emerald-500" />;
+      case 'error':
+        return <WifiOff className="w-6 h-6 text-red-500" />;
+      default:
+        return <Wifi className={`w-6 h-6 ${darkMode ? 'text-gray-400' : 'text-gray-500'}`} />;
+    }
+  };
+
+  const getContainerStyle = () => {
+    const baseStyle = `rounded-2xl border backdrop-blur-sm transition-all duration-300 ${
+      darkMode 
+        ? 'bg-gray-800/50 border-gray-700/50' 
+        : 'bg-white/80 border-gray-200/50'
+    }`;
+
     switch (status) {
       case 'testing':
-        return darkMode 
-          ? 'border-blue-600 bg-blue-900/20 text-blue-300' 
-          : 'border-blue-300 bg-blue-50 text-blue-700';
+        return `${baseStyle} ${
+          darkMode 
+            ? 'border-blue-500/50 bg-blue-900/20 shadow-lg shadow-blue-900/20' 
+            : 'border-blue-300/50 bg-blue-50/50 shadow-lg shadow-blue-200/20'
+        }`;
       case 'success':
-        return darkMode 
-          ? 'border-green-600 bg-green-900/20 text-green-300' 
-          : 'border-green-300 bg-green-50 text-green-700';
+        return `${baseStyle} ${
+          darkMode 
+            ? 'border-emerald-500/50 bg-emerald-900/20 shadow-lg shadow-emerald-900/20' 
+            : 'border-emerald-300/50 bg-emerald-50/50 shadow-lg shadow-emerald-200/20'
+        }`;
       case 'error':
-        return darkMode 
-          ? 'border-red-600 bg-red-900/20 text-red-300' 
-          : 'border-red-300 bg-red-50 text-red-700';
+        return `${baseStyle} ${
+          darkMode 
+            ? 'border-red-500/50 bg-red-900/20 shadow-lg shadow-red-900/20' 
+            : 'border-red-300/50 bg-red-50/50 shadow-lg shadow-red-200/20'
+        }`;
       default:
-        return darkMode 
-          ? 'border-gray-700 bg-gray-800 text-gray-300' 
-          : 'border-gray-300 bg-white text-gray-700';
+        return `${baseStyle} ${
+          darkMode 
+            ? 'shadow-lg shadow-gray-900/20' 
+            : 'shadow-lg shadow-gray-200/20'
+        }`;
     }
   };
 
   return (
-    <div className={`rounded-lg border p-4 transition-all duration-200 ${getStatusColor()}`}>
-      <div className="flex items-center justify-between">
-        <div className="flex items-center space-x-3">
-          {getStatusIcon()}
-          <div>
-            <h3 className="font-medium">API Connection</h3>
-            <p className="text-sm opacity-75">
-              {message || 'Click to test API connection'}
-            </p>
+    <div className={getContainerStyle()}>
+      <div className="p-6">
+        <div className="flex items-center justify-between">
+          <div className="flex items-center space-x-4">
+            <div className={`p-3 rounded-xl ${
+              darkMode ? 'bg-gray-700/50' : 'bg-gray-100/50'
+            }`}>
+              {getMainIcon()}
+            </div>
+            
+            <div className="flex-1">
+              <div className="flex items-center space-x-2 mb-1">
+                <h3 className={`font-semibold text-lg ${
+                  darkMode ? 'text-white' : 'text-gray-900'
+                }`}>
+                  API Connection
+                </h3>
+                {getStatusIcon()}
+              </div>
+              
+              <p className={`text-sm ${
+                darkMode ? 'text-gray-400' : 'text-gray-600'
+              }`}>
+                {message || 'Monitor your backend API connection status'}
+              </p>
+            </div>
           </div>
+          
+          <button
+            onClick={testConnection}
+            disabled={status === 'testing'}
+            className={`px-6 py-3 rounded-xl font-medium transition-all duration-300 disabled:opacity-50 disabled:cursor-not-allowed group ${
+              darkMode
+                ? 'bg-gradient-to-r from-gray-700 to-gray-600 hover:from-gray-600 hover:to-gray-500 text-white shadow-lg shadow-gray-900/25'
+                : 'bg-gradient-to-r from-white to-gray-50 hover:from-gray-50 hover:to-gray-100 text-gray-900 shadow-lg shadow-gray-200/50 border border-gray-200'
+            } hover:scale-105 active:scale-95`}
+          >
+            {status === 'testing' ? (
+              <span className="flex items-center">
+                <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-current mr-2"></div>
+                Testing...
+              </span>
+            ) : (
+              <span className="flex items-center">
+                <Wifi className="w-4 h-4 mr-2 transition-transform group-hover:scale-110" />
+                Test Connection
+              </span>
+            )}
+          </button>
         </div>
-        <button
-          onClick={testConnection}
-          disabled={status === 'testing'}
-          className={`px-4 py-2 rounded-md font-medium transition-colors duration-200 disabled:opacity-50 ${
-            darkMode
-              ? 'bg-gray-700 hover:bg-gray-600 text-white border border-gray-600'
-              : 'bg-white hover:bg-gray-50 text-gray-900 border border-gray-300'
-          }`}
-        >
-          {status === 'testing' ? 'Testing...' : 'Test Connection'}
-        </button>
       </div>
     </div>
   );

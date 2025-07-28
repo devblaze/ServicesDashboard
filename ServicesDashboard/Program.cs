@@ -37,7 +37,7 @@ builder.Services.AddSwaggerGen(c =>
 
     // Use full type names to avoid conflicts
     c.CustomSchemaIds(type => type.FullName?.Replace("+", "."));
-    
+        
     // Add more verbose error handling
     c.OperationFilter<SwaggerOperationFilter>();
 });

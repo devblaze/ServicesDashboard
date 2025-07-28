@@ -1,6 +1,23 @@
-import React, { useState } from 'react';
+import React, { useState, useMemo } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { Search, Network, Globe, Clock, Server, Shield, AlertCircle, Plus, Check } from 'lucide-react';
+import { 
+  Search, 
+  Network, 
+  Globe, 
+  Server, 
+  Shield, 
+  AlertCircle, 
+  Plus, 
+  Loader2,
+  Wifi,
+  Target,
+  Activity,
+  CheckCircle2,
+  Eye,
+  Zap,
+  Filter,
+  X
+} from 'lucide-react';
 import { networkDiscoveryApi } from '../services/networkDiscoveryApi';
 import type { DiscoveredService } from '../types/networkDiscovery';
 
@@ -8,13 +25,20 @@ interface NetworkDiscoveryProps {
   darkMode?: boolean;
 }
 
-export const NetworkDiscovery: React.FC<NetworkDiscoveryProps> = ({ darkMode = false }) => {
+export const NetworkDiscovery: React.FC<NetworkDiscoveryProps> = ({ darkMode = true }) => {
   const [networkRange, setNetworkRange] = useState('192.168.4.0/24');
   const [hostAddress, setHostAddress] = useState('');
   const [customPorts, setCustomPorts] = useState('');
   const [scanType, setScanType] = useState<'network' | 'host'>('network');
   const [discoveredServices, setDiscoveredServices] = useState<DiscoveredService[]>([]);
   const [addedServices, setAddedServices] = useState<Set<string>>(new Set());
+  
+  // Filter states
+  const [searchFilter, setSearchFilter] = useState('');
+  const [serviceTypeFilter, setServiceTypeFilter] = useState('');
+  const [portFilter, setPortFilter] = useState('');
+  const [showOnlyAdded, setShowOnlyAdded] = useState(false);
+  const [showFilters, setShowFilters] = useState(false);
 
   const queryClient = useQueryClient();
 
@@ -30,6 +54,11 @@ export const NetworkDiscovery: React.FC<NetworkDiscoveryProps> = ({ darkMode = f
     onSuccess: (data) => {
       setDiscoveredServices(data);
       setAddedServices(new Set()); // Reset added services when new scan is performed
+      // Reset filters when new scan is performed
+      setSearchFilter('');
+      setServiceTypeFilter('');
+      setPortFilter('');
+      setShowOnlyAdded(false);
     },
     onError: (error) => {
       console.error('Network scan failed:', error);
@@ -42,6 +71,11 @@ export const NetworkDiscovery: React.FC<NetworkDiscoveryProps> = ({ darkMode = f
     onSuccess: (data) => {
       setDiscoveredServices(data);
       setAddedServices(new Set()); // Reset added services when new scan is performed
+      // Reset filters when new scan is performed
+      setSearchFilter('');
+      setServiceTypeFilter('');
+      setPortFilter('');
+      setShowOnlyAdded(false);
     },
     onError: (error) => {
       console.error('Host scan failed:', error);
@@ -65,6 +99,53 @@ export const NetworkDiscovery: React.FC<NetworkDiscoveryProps> = ({ darkMode = f
     }
   });
 
+  // Get unique service types for filter dropdown
+  const uniqueServiceTypes = useMemo(() => {
+    const types = discoveredServices.map(service => service.serviceType);
+    return [...new Set(types)].sort();
+  }, [discoveredServices]);
+
+  // Get unique ports for filter dropdown
+  const uniquePorts = useMemo(() => {
+    const ports = discoveredServices.map(service => service.port.toString());
+    return [...new Set(ports)].sort((a, b) => parseInt(a) - parseInt(b));
+  }, [discoveredServices]);
+
+  // Filter services based on current filters
+  const filteredServices = useMemo(() => {
+    return discoveredServices.filter(service => {
+      const serviceKey = `${service.hostAddress}:${service.port}`;
+      
+      // Search filter (matches host address, service type, or banner)
+      if (searchFilter) {
+        const searchLower = searchFilter.toLowerCase();
+        const matchesSearch = 
+          service.hostAddress.toLowerCase().includes(searchLower) ||
+          service.serviceType.toLowerCase().includes(searchLower) ||
+          (service.banner && service.banner.toLowerCase().includes(searchLower));
+        
+        if (!matchesSearch) return false;
+      }
+
+      // Service type filter
+      if (serviceTypeFilter && service.serviceType !== serviceTypeFilter) {
+        return false;
+      }
+
+      // Port filter
+      if (portFilter && service.port.toString() !== portFilter) {
+        return false;
+      }
+
+      // Show only added filter
+      if (showOnlyAdded && !addedServices.has(serviceKey)) {
+        return false;
+      }
+
+      return true;
+    });
+  }, [discoveredServices, searchFilter, serviceTypeFilter, portFilter, showOnlyAdded, addedServices]);
+
   const handleScan = () => {
     const ports = customPorts 
       ? customPorts.split(',').map(p => parseInt(p.trim())).filter(p => !isNaN(p))
@@ -80,7 +161,7 @@ export const NetworkDiscovery: React.FC<NetworkDiscoveryProps> = ({ darkMode = f
   const handleAddToServices = (service: DiscoveredService) => {
     const serviceName = service.banner 
       ? `${service.serviceType} - ${service.banner}`.substring(0, 50)
-      : `${service.serviceType} on ${service.hostName || service.hostAddress}`;
+      : `${service.serviceType} on ${service.hostAddress}`;
 
     addToServicesMutation.mutate({
       name: serviceName,
@@ -92,23 +173,35 @@ export const NetworkDiscovery: React.FC<NetworkDiscoveryProps> = ({ darkMode = f
     });
   };
 
+  const clearAllFilters = () => {
+    setSearchFilter('');
+    setServiceTypeFilter('');
+    setPortFilter('');
+    setShowOnlyAdded(false);
+  };
+
   const isScanning = networkScanMutation.isPending || hostScanMutation.isPending;
   const isServiceAdded = (service: DiscoveredService) => {
     const serviceKey = `${service.hostAddress}:${service.port}`;
     return addedServices.has(serviceKey);
   };
 
-  const formatResponseTime = (responseTime: string) => {
+  const formatResponseTime = (responseTime: string | number) => {
     try {
+      const responseTimeStr = String(responseTime);
       // Parse TimeSpan format (e.g., "00:00:00.123")
-      const parts = responseTime.split(':');
+      const parts = responseTimeStr.split(':');
       if (parts.length === 3) {
         const seconds = parseFloat(parts[2]);
         return `${(seconds * 1000).toFixed(0)}ms`;
       }
-      return responseTime;
+      // If it's already in milliseconds (number)
+      if (typeof responseTime === 'number') {
+        return `${responseTime.toFixed(0)}ms`;
+      }
+      return responseTimeStr;
     } catch {
-      return responseTime;
+      return String(responseTime);
     }
   };
 
@@ -118,59 +211,118 @@ export const NetworkDiscovery: React.FC<NetworkDiscoveryProps> = ({ darkMode = f
       case 'https':
       case 'http alt':
       case 'https alt':
-        return <Globe className="w-4 h-4" />;
+        return <Globe className="w-5 h-5" />;
       case 'ssh':
-        return <Shield className="w-4 h-4" />;
+        return <Shield className="w-5 h-5" />;
       case 'mysql':
       case 'postgresql':
       case 'sql server':
       case 'mongodb':
       case 'redis':
       case 'elasticsearch':
-        return <Server className="w-4 h-4" />;
+        return <Server className="w-5 h-5" />;
       default:
-        return <Network className="w-4 h-4" />;
+        return <Network className="w-5 h-5" />;
     }
   };
 
+  const getServiceTypeColor = (serviceType: string) => {
+    switch (serviceType.toLowerCase()) {
+      case 'http':
+      case 'https':
+      case 'http alt':
+      case 'https alt':
+        return darkMode ? 'text-green-400 bg-green-900/20 border-green-600/30' : 'text-green-600 bg-green-50 border-green-200';
+      case 'ssh':
+        return darkMode ? 'text-purple-400 bg-purple-900/20 border-purple-600/30' : 'text-purple-600 bg-purple-50 border-purple-200';
+      case 'mysql':
+      case 'postgresql':
+      case 'sql server':
+      case 'mongodb':
+      case 'redis':
+      case 'elasticsearch':
+        return darkMode ? 'text-blue-400 bg-blue-900/20 border-blue-600/30' : 'text-blue-600 bg-blue-50 border-blue-200';
+      default:
+        return darkMode ? 'text-gray-400 bg-gray-800/20 border-gray-600/30' : 'text-gray-600 bg-gray-50 border-gray-200';
+    }
+  };
+
+  const error = networkScanMutation.error || hostScanMutation.error || addToServicesMutation.error;
+  const hasActiveFilters = searchFilter || serviceTypeFilter || portFilter || showOnlyAdded;
+
   return (
-    <div className={`p-6 rounded-lg border ${darkMode ? 'bg-gray-800 border-gray-700' : 'bg-white border-gray-200'}`}>
-      <div className="mb-6">
-        <h2 className={`text-xl font-semibold mb-4 ${darkMode ? 'text-white' : 'text-gray-900'}`}>
-          Network Discovery
-        </h2>
+    <div className={`rounded-2xl border backdrop-blur-sm transition-all duration-300 ${
+      darkMode 
+        ? 'bg-gray-800/50 border-gray-700/50 shadow-lg shadow-gray-900/20' 
+        : 'bg-white/80 border-gray-200/50 shadow-lg shadow-gray-200/20'
+    }`}>
+      {/* Header */}
+      <div className="p-6 border-b border-gray-700/50">
+        <div className="flex items-center space-x-4 mb-6">
+          <div className={`p-3 rounded-xl ${
+            darkMode ? 'bg-blue-900/50' : 'bg-blue-100/50'
+          }`}>
+            <Target className={`w-6 h-6 ${
+              darkMode ? 'text-blue-400' : 'text-blue-600'
+            }`} />
+          </div>
+          <div>
+            <h2 className={`text-xl font-semibold ${
+              darkMode ? 'text-white' : 'text-gray-900'
+            }`}>
+              Network Discovery
+            </h2>
+            <p className={`text-sm ${
+              darkMode ? 'text-gray-400' : 'text-gray-600'
+            }`}>
+              Scan your network to discover running services
+            </p>
+          </div>
+        </div>
         
         {/* Scan Type Selection */}
-        <div className="mb-4">
-          <div className="flex space-x-4">
-            <label className="flex items-center">
-              <input
-                type="radio"
-                value="network"
-                checked={scanType === 'network'}
-                onChange={(e) => setScanType(e.target.value as 'network')}
-                className="mr-2"
-              />
-              <span className={darkMode ? 'text-gray-300' : 'text-gray-700'}>Network Range</span>
-            </label>
-            <label className="flex items-center">
-              <input
-                type="radio"
-                value="host"
-                checked={scanType === 'host'}
-                onChange={(e) => setScanType(e.target.value as 'host')}
-                className="mr-2"
-              />
-              <span className={darkMode ? 'text-gray-300' : 'text-gray-700'}>Single Host</span>
-            </label>
-          </div>
+        <div className={`inline-flex p-1 rounded-xl mb-6 ${
+          darkMode ? 'bg-gray-700/50' : 'bg-gray-100/50'
+        }`}>
+          <button
+            onClick={() => setScanType('network')}
+            className={`flex items-center px-4 py-2 rounded-lg font-medium transition-all duration-200 ${
+              scanType === 'network'
+                ? darkMode
+                  ? 'bg-blue-600 text-white shadow-lg'
+                  : 'bg-blue-500 text-white shadow-lg'
+                : darkMode
+                  ? 'text-gray-300 hover:text-white hover:bg-gray-600/50'
+                  : 'text-gray-600 hover:text-gray-900 hover:bg-white/50'
+            }`}
+          >
+            <Wifi className="w-4 h-4 mr-2" />
+            Network Range
+          </button>
+          <button
+            onClick={() => setScanType('host')}
+            className={`flex items-center px-4 py-2 rounded-lg font-medium transition-all duration-200 ${
+              scanType === 'host'
+                ? darkMode
+                  ? 'bg-blue-600 text-white shadow-lg'
+                  : 'bg-blue-500 text-white shadow-lg'
+                : darkMode
+                  ? 'text-gray-300 hover:text-white hover:bg-gray-600/50'
+                  : 'text-gray-600 hover:text-gray-900 hover:bg-white/50'
+            }`}
+          >
+            <Activity className="w-4 h-4 mr-2" />
+            Single Host
+          </button>
         </div>
 
         {/* Input Fields */}
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4">
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
           {scanType === 'network' ? (
-            <div>
-              <label className={`block text-sm font-medium mb-1 ${darkMode ? 'text-gray-300' : 'text-gray-700'}`}>
+            <div className="space-y-2">
+              <label className={`block text-sm font-medium ${
+                darkMode ? 'text-gray-300' : 'text-gray-700'
+              }`}>
                 Network Range (CIDR)
               </label>
               <input
@@ -178,16 +330,18 @@ export const NetworkDiscovery: React.FC<NetworkDiscoveryProps> = ({ darkMode = f
                 value={networkRange}
                 onChange={(e) => setNetworkRange(e.target.value)}
                 placeholder="192.168.4.0/24"
-                className={`w-full px-3 py-2 border rounded-md ${
-                  darkMode 
-                    ? 'bg-gray-700 border-gray-600 text-white placeholder-gray-400' 
-                    : 'bg-white border-gray-300 text-gray-900 placeholder-gray-500'
+                className={`w-full px-4 py-3 border rounded-xl transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent ${
+                  darkMode
+                    ? 'bg-gray-700/50 border-gray-600 text-white placeholder-gray-400 focus:bg-gray-700'
+                    : 'bg-white/50 border-gray-300 text-gray-900 placeholder-gray-500 focus:bg-white'
                 }`}
               />
             </div>
           ) : (
-            <div>
-              <label className={`block text-sm font-medium mb-1 ${darkMode ? 'text-gray-300' : 'text-gray-700'}`}>
+            <div className="space-y-2">
+              <label className={`block text-sm font-medium ${
+                darkMode ? 'text-gray-300' : 'text-gray-700'
+              }`}>
                 Host Address
               </label>
               <input
@@ -195,17 +349,19 @@ export const NetworkDiscovery: React.FC<NetworkDiscoveryProps> = ({ darkMode = f
                 value={hostAddress}
                 onChange={(e) => setHostAddress(e.target.value)}
                 placeholder="192.168.4.1"
-                className={`w-full px-3 py-2 border rounded-md ${
-                  darkMode 
-                    ? 'bg-gray-700 border-gray-600 text-white placeholder-gray-400' 
-                    : 'bg-white border-gray-300 text-gray-900 placeholder-gray-500'
+                className={`w-full px-4 py-3 border rounded-xl transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent ${
+                  darkMode
+                    ? 'bg-gray-700/50 border-gray-600 text-white placeholder-gray-400 focus:bg-gray-700'
+                    : 'bg-white/50 border-gray-300 text-gray-900 placeholder-gray-500 focus:bg-white'
                 }`}
               />
             </div>
           )}
           
-          <div>
-            <label className={`block text-sm font-medium mb-1 ${darkMode ? 'text-gray-300' : 'text-gray-700'}`}>
+          <div className="space-y-2">
+            <label className={`block text-sm font-medium ${
+              darkMode ? 'text-gray-300' : 'text-gray-700'
+            }`}>
               Custom Ports (comma-separated)
             </label>
             <input
@@ -213,10 +369,10 @@ export const NetworkDiscovery: React.FC<NetworkDiscoveryProps> = ({ darkMode = f
               value={customPorts}
               onChange={(e) => setCustomPorts(e.target.value)}
               placeholder={`Default: ${commonPorts.slice(0, 5).join(', ')}...`}
-              className={`w-full px-3 py-2 border rounded-md ${
-                darkMode 
-                  ? 'bg-gray-700 border-gray-600 text-white placeholder-gray-400' 
-                  : 'bg-white border-gray-300 text-gray-900 placeholder-gray-500'
+              className={`w-full px-4 py-3 border rounded-xl transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent ${
+                darkMode
+                  ? 'bg-gray-700/50 border-gray-600 text-white placeholder-gray-400 focus:bg-gray-700'
+                  : 'bg-white/50 border-gray-300 text-gray-900 placeholder-gray-500 focus:bg-white'
               }`}
             />
           </div>
@@ -225,19 +381,21 @@ export const NetworkDiscovery: React.FC<NetworkDiscoveryProps> = ({ darkMode = f
             <button
               onClick={handleScan}
               disabled={isScanning || (scanType === 'network' ? !networkRange : !hostAddress)}
-              className={`w-full px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center ${
-                isScanning ? 'animate-pulse' : ''
-              }`}
+              className={`w-full px-6 py-3 rounded-xl font-medium transition-all duration-300 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center ${
+                darkMode
+                  ? 'bg-gradient-to-r from-blue-600 to-blue-700 hover:from-blue-700 hover:to-blue-800 text-white shadow-lg shadow-blue-900/25'
+                  : 'bg-gradient-to-r from-blue-500 to-blue-600 hover:from-blue-600 hover:to-blue-700 text-white shadow-lg shadow-blue-500/25'
+              } hover:scale-105 active:scale-95`}
             >
               {isScanning ? (
                 <>
-                  <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2"></div>
+                  <Loader2 className="w-4 h-4 mr-2 animate-spin" />
                   Scanning...
                 </>
               ) : (
                 <>
                   <Search className="w-4 h-4 mr-2" />
-                  Scan
+                  Start Scan
                 </>
               )}
             </button>
@@ -245,13 +403,15 @@ export const NetworkDiscovery: React.FC<NetworkDiscoveryProps> = ({ darkMode = f
         </div>
 
         {/* Error Display */}
-        {(networkScanMutation.error || hostScanMutation.error || addToServicesMutation.error) && (
-          <div className="mb-4 p-3 bg-red-50 border border-red-200 rounded-md">
+        {error && (
+          <div className={`mt-4 p-4 rounded-xl border transition-all duration-300 ${
+            darkMode
+              ? 'bg-red-900/20 border-red-600/50 text-red-300'
+              : 'bg-red-50 border-red-200 text-red-700'
+          }`}>
             <div className="flex items-center">
-              <AlertCircle className="w-4 h-4 text-red-500 mr-2" />
-              <span className="text-red-700">
-                {String((networkScanMutation.error || hostScanMutation.error || addToServicesMutation.error))}
-              </span>
+              <AlertCircle className="w-5 h-5 mr-3 flex-shrink-0" />
+              <span className="font-medium">{String(error)}</span>
             </div>
           </div>
         )}
@@ -259,112 +419,313 @@ export const NetworkDiscovery: React.FC<NetworkDiscoveryProps> = ({ darkMode = f
 
       {/* Results */}
       {discoveredServices.length > 0 && (
-        <div>
-          <h3 className={`text-lg font-medium mb-4 ${darkMode ? 'text-white' : 'text-gray-900'}`}>
-            Discovered Services ({discoveredServices.length})
-          </h3>
-          
-          <div className="overflow-x-auto">
-            <table className={`min-w-full divide-y ${darkMode ? 'divide-gray-700' : 'divide-gray-200'}`}>
-              <thead className={darkMode ? 'bg-gray-700' : 'bg-gray-50'}>
-                <tr>
-                  <th className={`px-4 py-3 text-left text-xs font-medium uppercase tracking-wider ${
-                    darkMode ? 'text-gray-300' : 'text-gray-500'
+        <div className="p-6">
+          <div className="flex items-center justify-between mb-6">
+            <div className="flex items-center space-x-3">
+              <div className={`p-2 rounded-lg ${
+                darkMode ? 'bg-green-900/20' : 'bg-green-100'
+              }`}>
+                <Eye className={`w-5 h-5 ${
+                  darkMode ? 'text-green-400' : 'text-green-600'
+                }`} />
+              </div>
+              <div>
+                <h3 className={`text-lg font-semibold ${
+                  darkMode ? 'text-white' : 'text-gray-900'
+                }`}>
+                  Discovered Services
+                </h3>
+                <p className={`text-sm ${
+                  darkMode ? 'text-gray-400' : 'text-gray-600'
+                }`}>
+                  {filteredServices.length !== discoveredServices.length ? (
+                    <>Showing {filteredServices.length} of {discoveredServices.length} services</>
+                  ) : (
+                    <>Found {discoveredServices.length} running services</>
+                  )}
+                </p>
+              </div>
+            </div>
+
+            {/* Filter Toggle Button */}
+            <button
+              onClick={() => setShowFilters(!showFilters)}
+              className={`flex items-center px-4 py-2 rounded-lg font-medium transition-all duration-300 ${
+                hasActiveFilters
+                  ? darkMode
+                    ? 'bg-blue-600 text-white shadow-lg shadow-blue-600/25'
+                    : 'bg-blue-500 text-white shadow-lg shadow-blue-500/25'
+                  : darkMode
+                    ? 'bg-gray-700/50 text-gray-300 hover:bg-gray-700 hover:text-white'
+                    : 'bg-gray-100/50 text-gray-600 hover:bg-gray-200 hover:text-gray-900'
+              } hover:scale-105 active:scale-95`}
+            >
+              <Filter className="w-4 h-4 mr-2" />
+              Filters
+              {hasActiveFilters && (
+                <span className={`ml-2 px-1.5 py-0.5 text-xs rounded-full ${
+                  darkMode ? 'bg-blue-400/20 text-blue-300' : 'bg-blue-400/20 text-blue-700'
+                }`}>
+                  {[searchFilter, serviceTypeFilter, portFilter, showOnlyAdded].filter(Boolean).length}
+                </span>
+              )}
+            </button>
+          </div>
+
+          {/* Filter Panel */}
+          {showFilters && (
+            <div className={`mb-6 p-4 rounded-xl border transition-all duration-300 ${
+              darkMode
+                ? 'bg-gray-700/30 border-gray-600/30'
+                : 'bg-white/50 border-gray-200/50'
+            }`}>
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+                {/* Search Filter */}
+                <div className="space-y-2">
+                  <label className={`block text-sm font-medium ${
+                    darkMode ? 'text-gray-300' : 'text-gray-700'
                   }`}>
-                    Service
-                  </th>
-                  <th className={`px-4 py-3 text-left text-xs font-medium uppercase tracking-wider ${
-                    darkMode ? 'text-gray-300' : 'text-gray-500'
+                    Search
+                  </label>
+                  <div className="relative">
+                    <Search className={`absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 ${
+                      darkMode ? 'text-gray-400' : 'text-gray-500'
+                    }`} />
+                    <input
+                      type="text"
+                      value={searchFilter}
+                      onChange={(e) => setSearchFilter(e.target.value)}
+                      placeholder="Host, service, banner..."
+                      className={`w-full pl-10 pr-4 py-2 border rounded-lg transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent ${
+                        darkMode
+                          ? 'bg-gray-600/50 border-gray-500 text-white placeholder-gray-400'
+                          : 'bg-white/50 border-gray-300 text-gray-900 placeholder-gray-500'
+                      }`}
+                    />
+                  </div>
+                </div>
+
+                {/* Service Type Filter */}
+                <div className="space-y-2">
+                  <label className={`block text-sm font-medium ${
+                    darkMode ? 'text-gray-300' : 'text-gray-700'
                   }`}>
-                    Host
-                  </th>
-                  <th className={`px-4 py-3 text-left text-xs font-medium uppercase tracking-wider ${
-                    darkMode ? 'text-gray-300' : 'text-gray-500'
+                    Service Type
+                  </label>
+                  <select
+                    value={serviceTypeFilter}
+                    onChange={(e) => setServiceTypeFilter(e.target.value)}
+                    className={`w-full px-3 py-2 border rounded-lg transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent ${
+                      darkMode
+                        ? 'bg-gray-600/50 border-gray-500 text-white'
+                        : 'bg-white/50 border-gray-300 text-gray-900'
+                    }`}
+                  >
+                    <option value="">All Types</option>
+                    {uniqueServiceTypes.map(type => (
+                      <option key={type} value={type}>{type}</option>
+                    ))}
+                  </select>
+                </div>
+
+                {/* Port Filter */}
+                <div className="space-y-2">
+                  <label className={`block text-sm font-medium ${
+                    darkMode ? 'text-gray-300' : 'text-gray-700'
                   }`}>
                     Port
-                  </th>
-                  <th className={`px-4 py-3 text-left text-xs font-medium uppercase tracking-wider ${
-                    darkMode ? 'text-gray-300' : 'text-gray-500'
+                  </label>
+                  <select
+                    value={portFilter}
+                    onChange={(e) => setPortFilter(e.target.value)}
+                    className={`w-full px-3 py-2 border rounded-lg transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent ${
+                      darkMode
+                        ? 'bg-gray-600/50 border-gray-500 text-white'
+                        : 'bg-white/50 border-gray-300 text-gray-900'
+                    }`}
+                  >
+                    <option value="">All Ports</option>
+                    {uniquePorts.map(port => (
+                      <option key={port} value={port}>{port}</option>
+                    ))}
+                  </select>
+                </div>
+
+                {/* Status Filter */}
+                <div className="space-y-2">
+                  <label className={`block text-sm font-medium ${
+                    darkMode ? 'text-gray-300' : 'text-gray-700'
                   }`}>
-                    Response Time
-                  </th>
-                  <th className={`px-4 py-3 text-left text-xs font-medium uppercase tracking-wider ${
-                    darkMode ? 'text-gray-300' : 'text-gray-500'
-                  }`}>
-                    Banner
-                  </th>
-                  <th className={`px-4 py-3 text-left text-xs font-medium uppercase tracking-wider ${
-                    darkMode ? 'text-gray-300' : 'text-gray-500'
-                  }`}>
-                    Action
-                  </th>
-                </tr>
-              </thead>
-              <tbody className={`divide-y ${darkMode ? 'bg-gray-800 divide-gray-700' : 'bg-white divide-gray-200'}`}>
-                {discoveredServices.map((service, index) => (
-                  <tr key={index} className={darkMode ? 'hover:bg-gray-700' : 'hover:bg-gray-50'}>
-                    <td className="px-4 py-3 whitespace-nowrap">
-                      <div className="flex items-center">
-                        {getServiceIcon(service.serviceType)}
-                        <span className={`ml-2 text-sm font-medium ${
-                          darkMode ? 'text-white' : 'text-gray-900'
-                        }`}>
-                          {service.serviceType}
-                        </span>
-                      </div>
-                    </td>
-                    <td className="px-4 py-3 whitespace-nowrap">
-                      <div className={`text-sm ${darkMode ? 'text-gray-300' : 'text-gray-700'}`}>
-                        <div>{service.hostAddress}</div>
-                        {service.hostName !== service.hostAddress && (
-                          <div className={`text-xs ${darkMode ? 'text-gray-400' : 'text-gray-500'}`}>
-                            {service.hostName}
-                          </div>
-                        )}
-                      </div>
-                    </td>
-                    <td className="px-4 py-3 whitespace-nowrap">
-                      <span className={`text-sm ${darkMode ? 'text-gray-300' : 'text-gray-700'}`}>
-                        {service.port}
-                      </span>
-                    </td>
-                    <td className="px-4 py-3 whitespace-nowrap">
-                      <div className="flex items-center">
-                        <Clock className="w-3 h-3 mr-1 text-gray-400" />
-                        <span className={`text-sm ${darkMode ? 'text-gray-300' : 'text-gray-700'}`}>
-                          {formatResponseTime(service.responseTime)}
-                        </span>
-                      </div>
-                    </td>
-                    <td className="px-4 py-3">
-                      <div className={`text-sm max-w-xs truncate ${
+                    Status
+                  </label>
+                  <div className="flex items-center space-x-3">
+                    <label className="flex items-center">
+                      <input
+                        type="checkbox"
+                        checked={showOnlyAdded}
+                        onChange={(e) => setShowOnlyAdded(e.target.checked)}
+                        className={`rounded border-2 focus:ring-2 focus:ring-blue-500 ${
+                          darkMode
+                            ? 'bg-gray-600 border-gray-500 text-blue-600'
+                            : 'bg-white border-gray-300 text-blue-600'
+                        }`}
+                      />
+                      <span className={`ml-2 text-sm ${
                         darkMode ? 'text-gray-300' : 'text-gray-700'
                       }`}>
-                        {service.banner || '-'}
+                        Only Added
+                      </span>
+                    </label>
+                  </div>
+                </div>
+              </div>
+
+              {/* Clear Filters Button */}
+              {hasActiveFilters && (
+                <div className="mt-4 pt-4 border-t border-gray-600/30">
+                  <button
+                    onClick={clearAllFilters}
+                    className={`flex items-center px-3 py-1.5 text-sm rounded-lg font-medium transition-all duration-200 ${
+                      darkMode
+                        ? 'text-gray-400 hover:text-white hover:bg-gray-600/50'
+                        : 'text-gray-600 hover:text-gray-900 hover:bg-gray-100/50'
+                    }`}
+                  >
+                    <X className="w-4 h-4 mr-1" />
+                    Clear All Filters
+                  </button>
+                </div>
+              )}
+            </div>
+          )}
+          
+          <div className="grid gap-4">
+            {filteredServices.map((service, index) => (
+              <div
+                key={index}
+                className={`p-4 rounded-xl border transition-all duration-300 hover:scale-[1.02] ${
+                  darkMode
+                    ? 'bg-gray-700/30 border-gray-600/30 hover:bg-gray-700/50 hover:border-gray-600/50'
+                    : 'bg-white/50 border-gray-200/50 hover:bg-white hover:border-gray-300/50'
+                }`}
+              >
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center space-x-4 flex-1">
+                    {/* Service Icon & Type */}
+                    <div className={`flex items-center space-x-3 px-3 py-2 rounded-lg border ${getServiceTypeColor(service.serviceType)}`}>
+                      {getServiceIcon(service.serviceType)}
+                      <span className="font-medium text-sm">
+                        {service.serviceType}
+                      </span>
+                    </div>
+
+                    {/* Host Information */}
+                    <div className="flex-1">
+                      <div className="flex items-center space-x-2">
+                        <span className={`font-medium ${
+                          darkMode ? 'text-white' : 'text-gray-900'
+                        }`}>
+                          {service.hostAddress}:{service.port}
+                        </span>
                       </div>
-                    </td>
-                    <td className="px-4 py-3 whitespace-nowrap">
-                      {isServiceAdded(service) ? (
-                        <div className="flex items-center text-green-600">
-                          <Check className="w-4 h-4 mr-1" />
-                          <span className="text-sm">Added</span>
-                        </div>
-                      ) : (
-                        <button
-                          onClick={() => handleAddToServices(service)}
-                          disabled={addToServicesMutation.isPending}
-                          className="flex items-center px-3 py-1 bg-green-600 text-white rounded-md hover:bg-green-700 disabled:opacity-50 disabled:cursor-not-allowed text-sm"
-                        >
-                          <Plus className="w-3 h-3 mr-1" />
-                          Add to Services
-                        </button>
+                      
+                      {service.banner && (
+                        <p className={`text-sm mt-1 ${
+                          darkMode ? 'text-gray-400' : 'text-gray-600'
+                        }`}>
+                          {service.banner}
+                        </p>
                       )}
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
+                      
+                      <div className="flex items-center mt-2 space-x-4">
+                        <div className="flex items-center space-x-1">
+                          <Zap className={`w-3 h-3 ${
+                            darkMode ? 'text-gray-500' : 'text-gray-400'
+                          }`} />
+                          <span className={`text-xs ${
+                            darkMode ? 'text-gray-500' : 'text-gray-500'
+                          }`}>
+                            {formatResponseTime(service.responseTime)}
+                          </span>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Action Button */}
+                  <div className="ml-4">
+                    {isServiceAdded(service) ? (
+                      <div className={`flex items-center px-4 py-2 rounded-lg ${
+                        darkMode ? 'bg-green-900/20 text-green-400' : 'bg-green-50 text-green-600'
+                      }`}>
+                        <CheckCircle2 className="w-4 h-4 mr-2" />
+                        <span className="text-sm font-medium">Added</span>
+                      </div>
+                    ) : (
+                      <button
+                        onClick={() => handleAddToServices(service)}
+                        disabled={addToServicesMutation.isPending}
+                        className={`flex items-center px-4 py-2 rounded-lg font-medium transition-all duration-300 disabled:opacity-50 disabled:cursor-not-allowed ${
+                          darkMode
+                            ? 'bg-gradient-to-r from-green-600 to-green-700 hover:from-green-700 hover:to-green-800 text-white shadow-lg shadow-green-900/25'
+                            : 'bg-gradient-to-r from-green-500 to-green-600 hover:from-green-600 hover:to-green-700 text-white shadow-lg shadow-green-500/25'
+                        } hover:scale-105 active:scale-95`}
+                      >
+                        <Plus className="w-4 h-4 mr-2" />
+                        <span className="text-sm">Add Service</span>
+                      </button>
+                    )}
+                  </div>
+                </div>
+              </div>
+            ))}
           </div>
+
+          {/* No Results Message */}
+          {filteredServices.length === 0 && discoveredServices.length > 0 && (
+            <div className="text-center py-8">
+              <div className={`w-16 h-16 mx-auto mb-4 rounded-full flex items-center justify-center ${
+                darkMode ? 'bg-gray-700/30' : 'bg-gray-100'
+              }`}>
+                <Search className={`w-8 h-8 ${
+                  darkMode ? 'text-gray-500' : 'text-gray-400'
+                }`} />
+              </div>
+              <h3 className={`text-lg font-medium mb-2 ${
+                darkMode ? 'text-gray-300' : 'text-gray-600'
+              }`}>
+                No Services Match Your Filters
+              </h3>
+              <p className={`text-sm ${
+                darkMode ? 'text-gray-500' : 'text-gray-500'
+              }`}>
+                Try adjusting your search criteria or clearing the filters
+              </p>
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* Empty State */}
+      {!isScanning && discoveredServices.length === 0 && (
+        <div className="p-12 text-center">
+          <div className={`w-16 h-16 mx-auto mb-4 rounded-full flex items-center justify-center ${
+            darkMode ? 'bg-gray-700/30' : 'bg-gray-100'
+          }`}>
+            <Target className={`w-8 h-8 ${
+              darkMode ? 'text-gray-500' : 'text-gray-400'
+            }`} />
+          </div>
+          <h3 className={`text-lg font-medium mb-2 ${
+            darkMode ? 'text-gray-300' : 'text-gray-600'
+          }`}>
+            No Services Discovered Yet
+          </h3>
+          <p className={`text-sm ${
+            darkMode ? 'text-gray-500' : 'text-gray-500'
+          }`}>
+            Configure your scan parameters and click "Start Scan" to discover services on your network
+          </p>
         </div>
       )}
     </div>
