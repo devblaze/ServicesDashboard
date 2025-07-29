@@ -15,7 +15,7 @@
       timeout: 10s
       retries: 3
 
-  backend:
+  servicesdashboard:
     build:
       context: ./ServicesDashboard
       dockerfile: Dockerfile.dev
