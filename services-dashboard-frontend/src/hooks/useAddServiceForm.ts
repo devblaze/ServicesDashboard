@@ -1,0 +1,60 @@
+
+import { useState } from 'react';
+import { useMutation, useQueryClient } from '@tanstack/react-query';
+import { apiClient } from '../services/servicesApi';
+import type {CreateServiceDto} from '../types/ServiceInterfaces';
+
+interface FormData extends CreateServiceDto {
+  hostAddress?: string;
+  serviceType?: string;
+  banner?: string;
+}
+
+const initialFormData: FormData = {
+  name: '',
+  description: '',
+  dockerImage: '',
+  port: undefined,
+  environment: '',
+  hostAddress: '',
+  serviceType: '',
+  banner: ''
+};
+
+export const useAddServiceForm = () => {
+  const [formData, setFormData] = useState<FormData>(initialFormData);
+  const queryClient = useQueryClient();
+
+  const resetForm = () => {
+    setFormData(initialFormData);
+  };
+
+  const updateFormData = (data: Partial<FormData>) => {
+    setFormData(prev => ({ ...prev, ...data }));
+  };
+
+  const addServiceMutation = useMutation({
+    mutationFn: (serviceData: CreateServiceDto) => apiClient.createService(serviceData),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['services'] });
+      resetForm();
+    },
+    onError: (error) => {
+      console.error('Failed to add service:', error);
+    }
+  });
+
+  const handleSubmit = (serviceData: CreateServiceDto) => {
+    addServiceMutation.mutate(serviceData);
+  };
+
+  return {
+    formData,
+    updateFormData,
+    resetForm,
+    handleSubmit,
+    isLoading: addServiceMutation.isPending,
+    error: addServiceMutation.error,
+    isSuccess: addServiceMutation.isSuccess
+  };
+};
