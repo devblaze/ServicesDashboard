@@ -18,6 +18,21 @@ jobs:
       run:
         working-directory: ./ServicesDashboard
     
+    services:
+      postgres:
+        image: postgres:15
+        env:
+          POSTGRES_PASSWORD: testpassword
+          POSTGRES_USER: testuser
+          POSTGRES_DB: servicesdashboard_test
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+        ports:
+          - 5432:5432
+    
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
@@ -41,28 +56,31 @@ jobs:
       - name: Build backend
         run: dotnet build --configuration Release --no-restore
 
-      - name: Check if backend can start (dry run)
+      - name: Check if backend can start (with database)
         run: |
-          # Set minimal configuration for dry run
+          # Set configuration with proper PostgreSQL connection string
           export ASPNETCORE_ENVIRONMENT=Development
-          export ConnectionStrings__DefaultConnection="Server=localhost;Database=test;User Id=test;Password=test;"
+          export ConnectionStrings__DefaultConnection="Host=localhost;Port=5432;Database=servicesdashboard_test;Username=testuser;Password=testpassword"
           
-          # Try to build and validate the application can start
+          # Try to start the application
           timeout 30s dotnet run --no-build --configuration Release --urls="http://localhost:5000" &
           APP_PID=$!
           
-          # Wait a bit for startup
-          sleep 10
+          # Wait for startup and test basic functionality
+          echo "Waiting for application to start..."
+          for i in {1..15}; do
+            if curl -f http://localhost:5000/api/Services > /dev/null 2>&1; then
+              echo "✅ Backend application started successfully and API is responding"
+              kill $APP_PID
+              exit 0
+            fi
+            sleep 2
+          done
           
-          # Check if process is still running (indicates successful startup)
-          if kill -0 $APP_PID 2>/dev/null; then
-            echo "✅ Backend application started successfully"
-            kill $APP_PID
-            exit 0
-          else
-            echo "❌ Backend application failed to start"
-            exit 1
-          fi
+          # If we get here, the app didn't respond in time
+          echo "❌ Backend application failed to respond within timeout"
+          kill $APP_PID || true
+          exit 1
 
   frontend-build:
     name: Frontend Build & Test
@@ -176,7 +194,7 @@ jobs:
           npm ci
           npm run build
 
-      - name: Start backend with real database
+      - name: Start backend with database
         working-directory: ./ServicesDashboard
         run: |
           export ASPNETCORE_ENVIRONMENT=Development
@@ -188,6 +206,7 @@ jobs:
           echo $BACKEND_PID > backend.pid
           
           # Wait for backend to start
+          echo "Waiting for backend to start..."
           for i in {1..30}; do
             if curl -f http://localhost:5000/api/Services > /dev/null 2>&1; then
               echo "✅ Backend started and responding to API calls"
@@ -205,13 +224,28 @@ jobs:
         run: |
           # Test basic API endpoints
           echo "Testing Services API..."
-          curl -f http://localhost:5000/api/Services || exit 1
+          if curl -f http://localhost:5000/api/Services; then
+            echo "✅ Services API working"
+          else
+            echo "❌ Services API failed"
+            exit 1
+          fi
           
           echo "Testing Settings API..."
-          curl -f http://localhost:5000/api/Settings/ollama || exit 1
+          if curl -f http://localhost:5000/api/Settings/ollama; then
+            echo "✅ Settings API working"
+          else
+            echo "❌ Settings API failed"
+            exit 1
+          fi
           
           echo "Testing NetworkDiscovery API..."
-          curl -f http://localhost:5000/api/NetworkDiscovery/common-ports || exit 1
+          if curl -f http://localhost:5000/api/NetworkDiscovery/common-ports; then
+            echo "✅ NetworkDiscovery API working"
+          else
+            echo "❌ NetworkDiscovery API failed"
+            exit 1
+          fi
           
           echo "✅ All API endpoints responding correctly"
 
@@ -220,9 +254,6 @@ jobs:
         run: |
           # Install http-server
           npm install -g http-server
-          
-          # Create a simple test environment file
-          echo "VITE_API_BASE_URL=http://localhost:5000/api" > dist/.env
           
           # Start frontend server
           cd dist
