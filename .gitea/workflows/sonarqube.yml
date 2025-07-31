@@ -14,7 +14,6 @@ jobs:
       - name: Checking out
         uses: actions/checkout@v4
         with:
-          # Disabling shallow clone is recommended for improving relevancy of reporting
           fetch-depth: 0
 
       - name: Set up .NET
@@ -28,14 +27,18 @@ jobs:
           java-version: '17'
           distribution: 'temurin'
 
-      - name: Install SonarQube scanner for .NET
-        run: dotnet tool install --global dotnet-sonarscanner
+      - name: Install and setup SonarQube scanner
+        run: |
+          dotnet tool install --global dotnet-sonarscanner
+          export PATH="$PATH:$HOME/.dotnet/tools"
+          echo "$HOME/.dotnet/tools" >> $GITHUB_PATH
 
       - name: Run SonarQube analysis
         env:
           SONAR_HOST_URL: ${{ secrets.SONARQUBE_HOST }}
           SONAR_TOKEN: ${{ secrets.SONARQUBE_TOKEN }}
         run: |
+          export PATH="$PATH:$HOME/.dotnet/tools"
           dotnet sonarscanner begin \
             /k:"ServicesDashboard" \
             /d:sonar.host.url="$SONAR_HOST_URL" \
