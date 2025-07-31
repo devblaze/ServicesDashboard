@@ -38,7 +38,7 @@ jobs:
       - name: Enable Corepack and setup Yarn
         run: |
           corepack enable
-          corepack prepare yarn@stable --activate
+          corepack prepare yarn@1.22.22 --activate
 
       - name: Build Frontend
         working-directory: ./services-dashboard-frontend
