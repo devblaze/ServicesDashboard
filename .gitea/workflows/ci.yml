@@ -43,5 +43,5 @@ jobs:
       - name: Build Frontend
         working-directory: ./services-dashboard-frontend
         run: |
-          yarn install --immutable
+          yarn install --frozen-lockfile
           yarn build
