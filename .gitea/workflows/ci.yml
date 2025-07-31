@@ -34,14 +34,9 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: '20'
-
-      - name: Enable Corepack and setup Yarn
-        run: |
-          corepack enable
-          corepack prepare yarn@1.22.22 --activate
-
+          
       - name: Build Frontend
         working-directory: ./services-dashboard-frontend
         run: |
-          yarn install --immutable --immutable-cache
-          yarn build
+          npm install
+          npm run build
