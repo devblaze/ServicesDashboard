@@ -17,32 +17,31 @@ jobs:
           # Disabling shallow clone is recommended for improving relevancy of reporting
           fetch-depth: 0
 
+      - name: Set up .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '9.0.x'
+
       - name: Set up JDK 17
-        uses: actions/setup-java@v3
+        uses: actions/setup-java@v4
         with:
           java-version: '17'
           distribution: 'temurin'
 
-      - name: Download and set up SonarScanner
-        run: |
-          wget https://binaries.sonarsource.com/Distribution/sonar-scanner-cli/sonar-scanner-cli-5.0.1.3006-linux.zip
-          unzip sonar-scanner-cli-5.0.1.3006-linux.zip
-          echo "SONAR_SCANNER_HOME=$PWD/sonar-scanner-5.0.1.3006-linux" >> $GITHUB_ENV
-          echo "$PWD/sonar-scanner-5.0.1.3006-linux/bin" >> $GITHUB_PATH
+      - name: Install SonarQube scanner for .NET
+        run: dotnet tool install --global dotnet-sonarscanner
 
-      - name: Run SonarQube scan
+      - name: Run SonarQube analysis
         env:
           SONAR_HOST_URL: ${{ secrets.SONARQUBE_HOST }}
           SONAR_TOKEN: ${{ secrets.SONARQUBE_TOKEN }}
         run: |
-          sonar-scanner \
-            -Dsonar.projectKey=PtixiakiReservations \
-            -Dsonar.projectName="Ptixiaki Reservations" \
-            -Dsonar.projectVersion=1.0 \
-            -Dsonar.sources=. \
-            -Dsonar.host.url=$SONAR_HOST_URL \
-            -Dsonar.login=$SONAR_TOKEN \
-            -Dsonar.exclusions=**/.env,**/appsettings*.json,**/docker_compose*.yml,**/compose.yaml,**/*.Development.json,**/wwwroot/js/**,**/wwwroot/lib/**,**/*.js \
-            -Dsonar.javascript.node.maxspace=8192 \
-            -Dsonar.javascript.analyzeTypeScript=false \
-            -Dsonar.java.source=17
+          dotnet sonarscanner begin \
+            /k:"ServicesDashboard" \
+            /d:sonar.host.url="$SONAR_HOST_URL" \
+            /d:sonar.token="$SONAR_TOKEN"
+          
+          dotnet build
+          
+          dotnet sonarscanner end \
+            /d:sonar.token="$SONAR_TOKEN"
