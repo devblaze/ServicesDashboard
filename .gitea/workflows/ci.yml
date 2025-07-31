@@ -35,8 +35,13 @@ jobs:
         with:
           node-version: '20'
 
+      - name: Enable Corepack and setup Yarn
+        run: |
+          corepack enable
+          corepack prepare yarn@stable --activate
+
       - name: Build Frontend
         working-directory: ./services-dashboard-frontend
         run: |
-          yarn install
-          yarn start
+          yarn install --frozen-lockfile
+          yarn build
