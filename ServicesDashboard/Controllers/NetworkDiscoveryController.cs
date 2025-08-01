@@ -73,23 +73,32 @@ public class NetworkDiscoveryController : ControllerBase
 
             var service = new HostedService
             {
+                Id = Guid.NewGuid(), // Explicitly set the ID
                 Name = request.Name,
                 Description = request.Description ?? $"Discovered {request.ServiceType} service on {request.HostAddress}:{request.Port}",
                 Url = GenerateServiceUrl(request.HostAddress, request.Port, request.ServiceType),
                 ContainerId = string.Empty,
                 IsDockerContainer = false,
-                Status = "Discovered"
+                Status = "Discovered",
+                LastChecked = DateTime.UtcNow, // Set required DateTime fields
+                DateAdded = DateTime.UtcNow
             };
 
             var addedService = await _serviceManager.AddServiceAsync(service);
             
-            // Return Ok instead of CreatedAtAction to avoid routing issues
             return Ok(addedService);
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Error adding discovered service to services");
-            return BadRequest($"Failed to add service: {ex.Message}");
+            _logger.LogError(ex, "Error adding discovered service to services: {Error}", ex.Message);
+            _logger.LogError(ex, "Stack trace: {StackTrace}", ex.StackTrace);
+            
+            // Return more detailed error information
+            return BadRequest(new { 
+                error = "Failed to add service", 
+                message = ex.Message,
+                innerException = ex.InnerException?.Message
+            });
         }
     }
 
