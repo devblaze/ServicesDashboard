@@ -105,7 +105,7 @@ const ApiConnectionTest = ({ darkMode = true }: ApiConnectionTestProps) => {
                 <h3 className={`font-semibold text-lg ${
                   darkMode ? 'text-white' : 'text-gray-900'
                 }`}>
-                  API Connection
+                  Backend API Connection
                 </h3>
                 {getStatusIcon()}
               </div>

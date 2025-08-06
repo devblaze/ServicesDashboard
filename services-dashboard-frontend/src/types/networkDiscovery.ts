@@ -1,12 +1,12 @@
 export interface DiscoveredService {
   hostAddress: string;
+  hostName: string;
   port: number;
+  isReachable: boolean;
+  responseTime: string | number; // Can be TimeSpan format or number
   serviceType: string;
   banner?: string;
-  isResponding: boolean;
-  responseTime: number;
-  detectedService?: string;
-  confidence?: number;
+  discoveredAt: string;
 }
 
 export interface NetworkScanRequest {
@@ -19,19 +19,11 @@ export interface HostScanRequest {
   ports?: number[];
 }
 
-export interface AddDiscoveredServiceRequest {
+export interface AddToServicesRequest {
   name: string;
-  description?: string;
+  description: string;
   hostAddress: string;
   port: number;
   serviceType: string;
   banner?: string;
-}
-
-export interface OllamaSettings {
-  baseUrl: string;
-  model: string;
-  enableServiceRecognition: boolean;
-  enableScreenshots: boolean;
-  timeoutSeconds: number;
 }

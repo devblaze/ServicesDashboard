@@ -3,6 +3,7 @@ using Microsoft.Extensions.Logging;
 using Moq;
 using ServicesDashboard.Controllers;
 using ServicesDashboard.Models;
+using ServicesDashboard.Models.Requests; // Add this using statement
 using ServicesDashboard.Services;
 using ServicesDashboard.Services.NetworkDiscovery;
 using Xunit;
@@ -49,7 +50,7 @@ public class NetworkDiscoveryControllerTests
             .ReturnsAsync(expectedServices);
 
         // Act
-        var result = await _controller.ScanNetwork(request, CancellationToken.None);
+        var result = await _controller.ScanNetwork(request); // Remove CancellationToken.None
 
         // Assert
         var okResult = Assert.IsType<OkObjectResult>(result.Result);
@@ -58,7 +59,7 @@ public class NetworkDiscoveryControllerTests
     }
 
     [Fact]
-    public async Task ScanNetwork_WithException_ReturnsBadRequest()
+    public async Task ScanNetwork_WithException_ReturnsServerError()
     {
         // Arrange
         var request = new NetworkScanRequest { NetworkRange = "invalid" };
@@ -67,11 +68,12 @@ public class NetworkDiscoveryControllerTests
             .ThrowsAsync(new Exception("Network scan failed"));
 
         // Act
-        var result = await _controller.ScanNetwork(request, CancellationToken.None);
+        var result = await _controller.ScanNetwork(request); // Remove CancellationToken.None
 
         // Assert
-        var badRequestResult = Assert.IsType<BadRequestObjectResult>(result.Result);
-        Assert.Contains("Network scan failed", badRequestResult.Value?.ToString());
+        var statusResult = Assert.IsType<ObjectResult>(result.Result);
+        Assert.Equal(500, statusResult.StatusCode);
+        Assert.Equal("Error during network scan", statusResult.Value);
     }
 
     [Fact]
@@ -95,7 +97,7 @@ public class NetworkDiscoveryControllerTests
             .ReturnsAsync(expectedServices);
 
         // Act
-        var result = await _controller.ScanHost(request, CancellationToken.None);
+        var result = await _controller.ScanHost(request); // Remove CancellationToken.None
 
         // Assert
         var okResult = Assert.IsType<OkObjectResult>(result.Result);

@@ -3,6 +3,7 @@ using System.Net.Http.Json;
 using System.Text.Json;
 using Microsoft.VisualStudio.TestPlatform.TestHost;
 using ServicesDashboard.Controllers;
+using ServicesDashboard.Models.Requests;
 using Xunit;
 
 namespace ServicesDashboard.Tests.Integration;

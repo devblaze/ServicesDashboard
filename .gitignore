@@ -446,3 +446,6 @@ TestResults/
 coverage*.xml
 coverage*.json
 *.trx
+
+*/bin/
+*/obj/
