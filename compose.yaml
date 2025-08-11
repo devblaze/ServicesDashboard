@@ -35,6 +35,7 @@
     command: ["dotnet", "watch", "run", "--project", "/app/src", "--urls", "http://0.0.0.0:8080"]
 
   frontend:
+    platform: linux/amd64  # or linux/arm64 depending on your needs
     build:
       context: ./services-dashboard-frontend
       dockerfile: Dockerfile.dev

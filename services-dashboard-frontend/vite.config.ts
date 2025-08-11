@@ -13,6 +13,7 @@ export default defineConfig({
     port: 5173,
     allowedHosts: [
       'test.ncatechsolutions.org',
+      'frontend.servicesdashboard.orb.local',
       'localhost',
       '127.0.0.1',
       '0.0.0.0'
