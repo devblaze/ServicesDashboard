@@ -10,6 +10,7 @@ Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "Solution Items", "Solution 
 		.gitea\workflows\ci.yml = .gitea\workflows\ci.yml
 		coverage.sh = coverage.sh
 		sonar-project.properties = sonar-project.properties
+		README.md = README.md
 	EndProjectSection
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "ServicesDashboard.Tests", "ServicesDashboard.Tests\ServicesDashboard.Tests.csproj", "{1176BFC6-185A-4ADE-B537-18E22CD0F2CD}"
@@ -51,5 +52,7 @@ Global
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE
+	EndGlobalSection
+	GlobalSection(NestedProjects) = preSolution
 	EndGlobalSection
 EndGlobal
