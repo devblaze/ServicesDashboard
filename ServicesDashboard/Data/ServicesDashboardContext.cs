@@ -12,7 +12,7 @@ public class ServicesDashboardContext : DbContext
 
     // Existing DbSets
     public DbSet<HostedService> HostedServices { get; set; }
-    public DbSet<OllamaSettings> OllamaSettings { get; set; }
+    public DbSet<OllamaSettingsEntity> OllamaSettings { get; set; }
 
     // New Server Management DbSets
     public DbSet<ManagedServer> ManagedServers { get; set; }
@@ -24,37 +24,75 @@ public class ServicesDashboardContext : DbContext
     {
         base.OnModelCreating(modelBuilder);
 
-        // Configure relationships
-        modelBuilder.Entity<ServerHealthCheck>()
-            .HasOne(h => h.Server)
-            .WithMany(s => s.HealthChecks)
-            .HasForeignKey(h => h.ServerId)
-            .OnDelete(DeleteBehavior.Cascade);
+        // Configure ManagedServer
+        modelBuilder.Entity<ManagedServer>(entity =>
+        {
+            entity.HasKey(e => e.Id);
+            entity.Property(e => e.Name).IsRequired().HasMaxLength(100);
+            entity.Property(e => e.HostAddress).IsRequired().HasMaxLength(255);
+            entity.Property(e => e.Username).HasMaxLength(100);
+            entity.Property(e => e.Type).HasConversion<string>();
+            entity.Property(e => e.Status).HasConversion<string>();
+            entity.Property(e => e.CreatedAt).HasDefaultValueSql("CURRENT_TIMESTAMP");
+            entity.Property(e => e.UpdatedAt).HasDefaultValueSql("CURRENT_TIMESTAMP");
+            entity.HasIndex(s => s.HostAddress).IsUnique();
+        });
 
-        modelBuilder.Entity<UpdateReport>()
-            .HasOne(u => u.Server)
-            .WithMany(s => s.UpdateReports)
-            .HasForeignKey(u => u.ServerId)
-            .OnDelete(DeleteBehavior.Cascade);
+        // Configure ServerHealthCheck
+        modelBuilder.Entity<ServerHealthCheck>(entity =>
+        {
+            entity.HasKey(e => e.Id);
+            entity.HasOne(e => e.Server)
+                  .WithMany(e => e.HealthChecks)
+                  .HasForeignKey(e => e.ServerId)
+                  .OnDelete(DeleteBehavior.Cascade);
+            entity.Property(e => e.CheckTime).HasDefaultValueSql("CURRENT_TIMESTAMP");
+            entity.HasIndex(h => h.CheckTime);
+        });
 
-        modelBuilder.Entity<ServerAlert>()
-            .HasOne(a => a.Server)
-            .WithMany(s => s.Alerts)
-            .HasForeignKey(a => a.ServerId)
-            .OnDelete(DeleteBehavior.Cascade);
+        // Configure UpdateReport
+        modelBuilder.Entity<UpdateReport>(entity =>
+        {
+            entity.HasKey(e => e.Id);
+            entity.HasOne(e => e.Server)
+                  .WithMany(e => e.UpdateReports)
+                  .HasForeignKey(e => e.ServerId)
+                  .OnDelete(DeleteBehavior.Cascade);
+            entity.Property(e => e.Status).HasConversion<string>();
+            entity.Property(e => e.ScanTime).HasDefaultValueSql("CURRENT_TIMESTAMP");
+            entity.HasIndex(u => u.ScanTime);
+        });
 
-        // Configure indexes
-        modelBuilder.Entity<ManagedServer>()
-            .HasIndex(s => s.HostAddress)
-            .IsUnique();
+        // Configure ServerAlert
+        modelBuilder.Entity<ServerAlert>(entity =>
+        {
+            entity.HasKey(e => e.Id);
+            entity.HasOne(e => e.Server)
+                  .WithMany(e => e.Alerts)
+                  .HasForeignKey(e => e.ServerId)
+                  .OnDelete(DeleteBehavior.Cascade);
+            entity.Property(e => e.Type).HasConversion<string>();
+            entity.Property(e => e.Severity).HasConversion<string>();
+            entity.Property(e => e.Message).IsRequired().HasMaxLength(500);
+            entity.Property(e => e.CreatedAt).HasDefaultValueSql("CURRENT_TIMESTAMP");
+            entity.HasIndex(a => new { a.ServerId, a.IsResolved });
+        });
 
-        modelBuilder.Entity<ServerHealthCheck>()
-            .HasIndex(h => h.CheckTime);
+        // Configure HostedService if it exists
+        modelBuilder.Entity<HostedService>(entity =>
+        {
+            entity.HasKey(e => e.Id);
+            entity.Property(e => e.Name).IsRequired();
+            entity.Property(e => e.Status).HasConversion<string>();
+        });
 
-        modelBuilder.Entity<UpdateReport>()
-            .HasIndex(u => u.ScanTime);
-
-        modelBuilder.Entity<ServerAlert>()
-            .HasIndex(a => new { a.ServerId, a.IsResolved });
+        modelBuilder.Entity<OllamaSettingsEntity>(entity =>
+        {
+            entity.HasKey(e => e.Id);
+            entity.Property(e => e.BaseUrl).IsRequired().HasMaxLength(255);
+            entity.Property(e => e.Model).IsRequired().HasMaxLength(100);
+            entity.Property(e => e.CreatedAt).HasDefaultValueSql("CURRENT_TIMESTAMP");
+            entity.Property(e => e.UpdatedAt).HasDefaultValueSql("CURRENT_TIMESTAMP");
+        });
     }
 }

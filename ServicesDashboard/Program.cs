@@ -76,19 +76,8 @@ builder.Services.AddCors(options =>
 
 var app = builder.Build();
 
-// Create database if it doesn't exist
-using (var scope = app.Services.CreateScope())
-{
-    var context = scope.ServiceProvider.GetRequiredService<ServicesDashboardContext>();
-    try 
-    {
-        context.Database.EnsureCreated();
-    }
-    catch (Exception ex)
-    {
-        Console.WriteLine($"Database initialization error: {ex.Message}");
-    }
-}
+// Automatic database migration and creation
+await ApplyMigrationsAsync(app.Services);
 
 // Configure the HTTP request pipeline.
 // Move Swagger configuration before other middleware
@@ -122,6 +111,104 @@ Console.WriteLine("   - Health Check: http://localhost:5000/health");
 Console.WriteLine("   - API: http://localhost:5000/api");
 
 await app.RunAsync();
+
+// Method to handle automatic migrations
+static async Task ApplyMigrationsAsync(IServiceProvider services)
+{
+    using var scope = services.CreateScope();
+    var context = scope.ServiceProvider.GetRequiredService<ServicesDashboardContext>();
+    var logger = scope.ServiceProvider.GetRequiredService<ILogger<Program>>();
+    
+    try
+    {
+        logger.LogInformation("🗄️ Checking database connection...");
+        
+        // Check if database can be connected to
+        var canConnect = await context.Database.CanConnectAsync();
+        if (!canConnect)
+        {
+            logger.LogWarning("⚠️ Cannot connect to database, retrying in 5 seconds...");
+            await Task.Delay(5000);
+        }
+        
+        logger.LogInformation("🔄 Applying database migrations...");
+        
+        // Get pending migrations
+        var pendingMigrations = await context.Database.GetPendingMigrationsAsync();
+        var appliedMigrations = await context.Database.GetAppliedMigrationsAsync();
+        
+        logger.LogInformation($"📊 Applied migrations: {appliedMigrations.Count()}");
+        logger.LogInformation($"🆕 Pending migrations: {pendingMigrations.Count()}");
+        
+        if (pendingMigrations.Any())
+        {
+            logger.LogInformation("⚡ Applying pending migrations...");
+            foreach (var migration in pendingMigrations)
+            {
+                logger.LogInformation($"   - {migration}");
+            }
+            
+            await context.Database.MigrateAsync();
+            logger.LogInformation("✅ Migrations applied successfully!");
+        }
+        else
+        {
+            logger.LogInformation("✅ Database is up to date!");
+        }
+        
+        // Optionally seed some initial data
+        await SeedInitialDataAsync(context, logger);
+    }
+    catch (Exception ex)
+    {
+        logger.LogError(ex, "❌ Error during database migration: {ErrorMessage}", ex.Message);
+        
+        // In development, you might want to continue anyway
+        // In production, you might want to throw to prevent startup
+        if (Environment.GetEnvironmentVariable("ASPNETCORE_ENVIRONMENT") != "Development")
+        {
+            throw;
+        }
+        
+        logger.LogWarning("⚠️ Continuing startup despite migration error (Development mode)");
+    }
+}
+
+// Optional: Seed initial data
+static async Task SeedInitialDataAsync(ServicesDashboardContext context, ILogger logger)
+{
+    try
+    {
+        // Check if we need to seed any initial data
+        if (!await context.ManagedServers.AnyAsync())
+        {
+            logger.LogInformation("🌱 Seeding initial data...");
+            
+            // Add any initial data you want here
+            // For example:
+            /*
+            var initialServer = new ManagedServer
+            {
+                Name = "Example Server",
+                HostAddress = "192.168.1.100",
+                Type = ServerType.Server,
+                Status = ServerStatus.Unknown,
+                Username = "admin"
+            };
+            
+            context.ManagedServers.Add(initialServer);
+            await context.SaveChangesAsync();
+            */
+            
+            logger.LogInformation("✅ Initial data seeded!");
+        }
+    }
+    catch (Exception ex)
+    {
+        logger.LogError(ex, "❌ Error seeding initial data: {ErrorMessage}", ex.Message);
+        // Don't throw - seeding is optional
+    }
+}
 
 // Operation filter to help debug Swagger issues
 public class SwaggerOperationFilter : Swashbuckle.AspNetCore.SwaggerGen.IOperationFilter
