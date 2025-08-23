@@ -19,7 +19,7 @@ public class ServiceManager : IServiceManager
     {
         try
         {
-            return await _context.Services.ToListAsync();
+            return await _context.HostedServices.ToListAsync();
         }
         catch (Exception ex)
         {
@@ -32,7 +32,7 @@ public class ServiceManager : IServiceManager
     {
         try
         {
-            return await _context.Services.FindAsync(id);
+            return await _context.HostedServices.FindAsync(id);
         }
         catch (Exception ex)
         {
@@ -49,7 +49,7 @@ public class ServiceManager : IServiceManager
             service.DateAdded = DateTime.UtcNow;
             service.LastChecked = DateTime.UtcNow;
 
-            _context.Services.Add(service);
+            _context.HostedServices.Add(service);
             await _context.SaveChangesAsync();
 
             _logger.LogInformation("Service {ServiceName} added with ID {ServiceId}", service.Name, service.Id);
@@ -66,7 +66,7 @@ public class ServiceManager : IServiceManager
     {
         try
         {
-            var existingService = await _context.Services.FindAsync(service.Id);
+            var existingService = await _context.HostedServices.FindAsync(service.Id);
             if (existingService == null)
             {
                 return false;
@@ -94,13 +94,13 @@ public class ServiceManager : IServiceManager
     {
         try
         {
-            var service = await _context.Services.FindAsync(id);
+            var service = await _context.HostedServices.FindAsync(id);
             if (service == null)
             {
                 return false;
             }
 
-            _context.Services.Remove(service);
+            _context.HostedServices.Remove(service);
             await _context.SaveChangesAsync();
             return true;
         }
@@ -115,7 +115,7 @@ public class ServiceManager : IServiceManager
     {
         try
         {
-            var service = await _context.Services.FindAsync(id);
+            var service = await _context.HostedServices.FindAsync(id);
             if (service == null)
             {
                 return false;
@@ -129,6 +129,7 @@ public class ServiceManager : IServiceManager
                 
                 try
                 {
+                    // Fix the ambiguous GetAsync call by ensuring service.Url is a string
                     var response = await client.GetAsync(service.Url);
                     service.Status = response.IsSuccessStatusCode ? "Healthy" : "Unhealthy";
                 }

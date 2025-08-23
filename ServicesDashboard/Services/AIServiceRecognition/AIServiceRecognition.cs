@@ -11,10 +11,10 @@ using System.Text;
 
 namespace ServicesDashboard.Services.AIServiceRecognition;
 
-public class AIServiceRecognitionService : IAIServiceRecognitionService
+public class AIServiceRecognition : IAIServiceRecognitionService
 {
     private readonly IOllamaApiClient _ollamaClient;
-    private readonly ILogger<AIServiceRecognitionService> _logger;
+    private readonly ILogger<AIServiceRecognition> _logger;
     private readonly OllamaSettings _settings;
     private readonly HttpClient _httpClient;
 
@@ -54,9 +54,9 @@ public class AIServiceRecognitionService : IAIServiceRecognitionService
         { "unknown", "server" }
     };
 
-    public AIServiceRecognitionService(
+    public AIServiceRecognition(
         IOptions<AppSettings> settings,
-        ILogger<AIServiceRecognitionService> logger,
+        ILogger<AIServiceRecognition> logger,
         HttpClient httpClient)
     {
         _settings = settings.Value.Ollama;

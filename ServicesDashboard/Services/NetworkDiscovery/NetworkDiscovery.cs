@@ -7,12 +7,12 @@ using ServicesDashboard.Services.AIServiceRecognition;
 
 namespace ServicesDashboard.Services.NetworkDiscovery;
 
-public class NetworkDiscoveryService : INetworkDiscoveryService
+public class NetworkDiscovery : INetworkDiscoveryService
 {
-    private readonly ILogger<NetworkDiscoveryService> _logger;
+    private readonly ILogger<NetworkDiscovery> _logger;
     private readonly IAIServiceRecognitionService _aiService;
 
-    public NetworkDiscoveryService(ILogger<NetworkDiscoveryService> logger, IAIServiceRecognitionService aiService)
+    public NetworkDiscovery(ILogger<NetworkDiscovery> logger, IAIServiceRecognitionService aiService)
     {
         _logger = logger;
         _aiService = aiService;

@@ -6,17 +6,17 @@ using Xunit;
 
 namespace ServicesDashboard.Tests.Services;
 
-public class NetworkDiscoveryServiceTests
+public class NetworkDiscoveryTests
 {
-    private readonly Mock<ILogger<NetworkDiscoveryService>> _mockLogger;
+    private readonly Mock<ILogger<NetworkDiscovery>> _mockLogger;
     private readonly Mock<IAIServiceRecognitionService> _mockAiService;
-    private readonly NetworkDiscoveryService _service;
+    private readonly NetworkDiscovery _service;
 
-    public NetworkDiscoveryServiceTests()
+    public NetworkDiscoveryTests()
     {
-        _mockLogger = new Mock<ILogger<NetworkDiscoveryService>>();
+        _mockLogger = new Mock<ILogger<NetworkDiscovery>>();
         _mockAiService = new Mock<IAIServiceRecognitionService>();
-        _service = new NetworkDiscoveryService(_mockLogger.Object, _mockAiService.Object);
+        _service = new NetworkDiscovery(_mockLogger.Object, _mockAiService.Object);
     }
 
     [Fact]

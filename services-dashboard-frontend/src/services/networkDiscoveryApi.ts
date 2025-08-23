@@ -1,7 +1,5 @@
-import axios from 'axios';
+import { BaseApiClient } from './BaseApiClient';
 import type { DiscoveredService } from '../types/networkDiscovery';
-
-const API_BASE_URL = import.meta.env.VITE_API_URL || '/api';
 
 export interface NetworkScanRequest {
   networkRange: string;
@@ -30,36 +28,41 @@ export interface OllamaSettings {
   timeoutSeconds: number;
 }
 
-export const networkDiscoveryApi = {
-  getCommonPorts: async (): Promise<number[]> => {
-    const response = await axios.get(`${API_BASE_URL}/networkdiscovery/common-ports`);
-    return response.data;
-  },
-
-  scanNetwork: async (request: NetworkScanRequest): Promise<DiscoveredService[]> => {
-    const response = await axios.post(`${API_BASE_URL}/networkdiscovery/scan-network`, request);
-    return response.data;
-  },
-
-  scanHost: async (request: HostScanRequest): Promise<DiscoveredService[]> => {
-    const response = await axios.post(`${API_BASE_URL}/networkdiscovery/scan-host`, request);
-    return response.data;
-  },
-
-  addToServices: async (request: AddToServicesRequest): Promise<any> => {
-    const response = await axios.post(`${API_BASE_URL}/networkdiscovery/add-to-services`, request);
-    return response.data;
+class NetworkDiscoveryApiClient extends BaseApiClient {
+  constructor() {
+    super({ serviceName: 'Network Discovery API' });
   }
-};
 
-export const settingsApi = {
-  getOllamaSettings: async (): Promise<OllamaSettings> => {
-    const response = await axios.get(`${API_BASE_URL}/settings/ollama`);
-    return response.data;
-  },
-
-  updateOllamaSettings: async (settings: OllamaSettings): Promise<boolean> => {
-    const response = await axios.put(`${API_BASE_URL}/settings/ollama`, settings);
-    return response.data;
+  async getCommonPorts(): Promise<number[]> {
+    return this.request<number[]>('get', '/api/networkdiscovery/common-ports');
   }
-};
+
+  async scanNetwork(request: NetworkScanRequest): Promise<DiscoveredService[]> {
+    return this.request<DiscoveredService[]>('post', '/api/networkdiscovery/scan-network', request);
+  }
+
+  async scanHost(request: HostScanRequest): Promise<DiscoveredService[]> {
+    return this.request<DiscoveredService[]>('post', '/api/networkdiscovery/scan-host', request);
+  }
+
+  async addToServices(request: AddToServicesRequest): Promise<any> {
+    return this.request<any>('post', '/api/networkdiscovery/add-to-services', request);
+  }
+}
+
+class SettingsApiClient extends BaseApiClient {
+  constructor() {
+    super({ serviceName: 'Settings API' });
+  }
+
+  async getOllamaSettings(): Promise<OllamaSettings> {
+    return this.request<OllamaSettings>('get', '/api/settings/ollama');
+  }
+
+  async updateOllamaSettings(settings: OllamaSettings): Promise<boolean> {
+    return this.request<boolean>('put', '/api/settings/ollama', settings);
+  }
+}
+
+export const networkDiscoveryApi = new NetworkDiscoveryApiClient();
+export const settingsApi = new SettingsApiClient();

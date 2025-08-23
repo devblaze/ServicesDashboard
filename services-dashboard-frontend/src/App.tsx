@@ -6,10 +6,13 @@ import ApiConnectionTest from './components/ApiConnectionTest';
 import { Moon, Sun, Network, Server, Settings, Activity } from 'lucide-react';
 import './App.css';
 import {useState} from "react";
+// Update your App.tsx to include the ServerManagement tab
+import { ServerManagement } from './components/ServerManagement';
 
 function App() {
   const [darkMode, setDarkMode] = useState(true); // Default to dark mode
-  const [activeTab, setActiveTab] = useState<'services' | 'discovery' | 'settings'>('services');
+  // Update the activeTab state type
+  const [activeTab, setActiveTab] = useState<'services' | 'discovery' | 'settings' | 'servers'>('services');
 
   return (
     <QueryProvider>
@@ -138,6 +141,24 @@ function App() {
                   }`} />
                   AI Settings
                 </button>
+                
+                <button
+                  onClick={() => setActiveTab('servers')}
+                  className={`flex items-center px-6 py-3 rounded-xl font-medium transition-all duration-300 group ${
+                    activeTab === 'servers'
+                      ? darkMode
+                        ? 'bg-gradient-to-r from-blue-600 to-purple-600 text-white shadow-lg shadow-blue-600/25'
+                        : 'bg-gradient-to-r from-blue-500 to-purple-500 text-white shadow-lg shadow-blue-500/25'
+                      : darkMode
+                      ? 'text-gray-300 hover:text-white hover:bg-gray-700/50'
+                      : 'text-gray-600 hover:text-gray-900 hover:bg-gray-100/50'
+                  }`}
+                >
+                  <Server className={`w-4 h-4 mr-2 transition-transform ${
+                    activeTab === 'servers' ? 'scale-110' : 'group-hover:scale-105'
+                  }`} />
+                  Servers
+                </button>
               </div>
             </nav>
 
@@ -165,6 +186,12 @@ function App() {
                 {activeTab === 'settings' && (
                   <div className="fade-in">
                     <OllamaSettings darkMode={darkMode} />
+                  </div>
+                )}
+                
+                {activeTab === 'servers' && (
+                  <div className="fade-in">
+                    <ServerManagement darkMode={darkMode} />
                   </div>
                 )}
               </div>

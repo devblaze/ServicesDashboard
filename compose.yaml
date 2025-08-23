@@ -20,22 +20,22 @@
       context: ./ServicesDashboard
       dockerfile: Dockerfile.dev
     ports:
-      - "8080:8080"
+      - "5000:5000"
     environment:
       - ASPNETCORE_ENVIRONMENT=Development
-      - ASPNETCORE_URLS=http://+:8080
+      - ASPNETCORE_URLS=http://+:5000
       - ConnectionStrings__DefaultConnection=Host=database;Database=servicesdashboard;Username=admin;Password=admin123
     volumes:
-      - ./ServicesDashboard:/app/src
-      - /app/src/bin
-      - /app/src/obj
+      - ./ServicesDashboard:/app
+      - /app/bin
+      - /app/obj
     depends_on:
       database:
         condition: service_healthy
-    command: ["dotnet", "watch", "run", "--project", "/app/src", "--urls", "http://0.0.0.0:8080"]
+    command: ["dotnet", "watch", "run", "--urls", "http://0.0.0.0:5000"]
 
   frontend:
-    platform: linux/amd64  # or linux/arm64 depending on your needs
+    platform: linux/amd64
     build:
       context: ./services-dashboard-frontend
       dockerfile: Dockerfile.dev
@@ -45,7 +45,9 @@
       - ./services-dashboard-frontend:/app
       - /app/node_modules
     environment:
-      - VITE_API_URL=http://localhost:8080/api
+      # Use OrbStack domain
+      - VITE_API_BASE_URL=http://servicesdashboard.servicesdashboard.orb.local
+      - VITE_API_URL=http://servicesdashboard.servicesdashboard.orb.local/api
     command: ["npm", "run", "dev", "--", "--host", "0.0.0.0"]
 
 volumes:
