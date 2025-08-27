@@ -1,5 +1,8 @@
 import type {ServiceStatus} from "./ServiceStatus.ts";
 
+// Re-export ServiceStatus so it's available to other modules
+export type { ServiceStatus } from "./ServiceStatus.ts";
+
 export interface HostedService {
   id: number;
   name: string;

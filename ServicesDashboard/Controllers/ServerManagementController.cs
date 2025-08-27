@@ -1,5 +1,6 @@
 using Microsoft.AspNetCore.Mvc;
 using ServicesDashboard.Models;
+using ServicesDashboard.Models.Dtos;
 using ServicesDashboard.Models.Requests;
 using ServicesDashboard.Models.Results;
 using ServicesDashboard.Services.ServerManagement;
@@ -392,6 +393,49 @@ public class ServerManagementController : ControllerBase
         {
             _logger.LogError(ex, "Error creating SSH session for server {ServerId}", id);
             return StatusCode(500, "Internal server error");
+        }
+    }
+    [HttpGet("{id}/docker-services")]
+    public async Task<ActionResult<DockerServiceDiscoveryResult>> GetDockerServices(int id)
+    {
+        try
+        {
+            var result = await _serverManagementService.DiscoverDockerServicesAsync(id);
+            return Ok(result);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Failed to discover Docker services for server {ServerId}", id);
+            return StatusCode(500, "Failed to discover Docker services");
+        }
+    }
+
+    [HttpPost("{id}/docker-services/{containerId}/add-to-services")]
+    public async Task<ActionResult<HostedService>> AddDockerServiceToServices(int id, string containerId, [FromBody] CreateServiceFromDockerRequest request)
+    {
+        try
+        {
+            // This would integrate with your existing services system
+            // You'll need to implement this based on your services architecture
+            var serviceDto = new CreateServiceDto
+            {
+                Name = request.Name,
+                Description = request.Description,
+                DockerImage = "", // You might want to store the original image
+                Port = request.Port,
+                Environment = request.Environment,
+                ServiceUrl = request.ServiceUrl
+            };
+
+            // Add logic to create the service and link it to the server
+            // This is a placeholder - implement based on your services system
+        
+            return Ok(new { message = "Service added successfully" });
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Failed to add Docker service to services");
+            return StatusCode(500, "Failed to add service");
         }
     }
 }

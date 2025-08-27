@@ -31,6 +31,7 @@ public interface IServerManagementService
     Task<LogAnalysisResult> AnalyzeLogsWithAiAsync(int serverId, string logs);
     Task<CommandResult> ExecuteCommandAsync(int serverId, string command);
     Task<SystemDiscoveryResult> PerformSystemDiscoveryAsync(ManagedServer server);
+    Task<DockerServiceDiscoveryResult> DiscoverDockerServicesAsync(int serverId);
 }
 
 public class ServerManagement : IServerManagementService
@@ -248,7 +249,7 @@ public class ServerManagement : IServerManagementService
         return systemInfo;
     }
 
-    private async Task<SystemAiAnalysis> AnalyzeSystemInfoWithAiAsync(Dictionary<string, string> systemInfo)
+    private async Task<SystemAiAnalysisResult> AnalyzeSystemInfoWithAiAsync(Dictionary<string, string> systemInfo)
     {
         try
         {
@@ -296,7 +297,7 @@ If some information cannot be determined, use null or reasonable defaults. Focus
             var jsonMatch = Regex.Match(responseText, @"\{.*\}", RegexOptions.Singleline);
             if (jsonMatch.Success)
             {
-                var analysis = JsonSerializer.Deserialize<SystemAiAnalysis>(jsonMatch.Value, new JsonSerializerOptions
+                var analysis = JsonSerializer.Deserialize<SystemAiAnalysisResult>(jsonMatch.Value, new JsonSerializerOptions
                 {
                     PropertyNameCaseInsensitive = true
                 });
@@ -316,9 +317,9 @@ If some information cannot be determined, use null or reasonable defaults. Focus
         return ParseSystemInfoManually(systemInfo);
     }
 
-    private SystemAiAnalysis ParseSystemInfoManually(Dictionary<string, string> systemInfo)
+    private SystemAiAnalysisResult ParseSystemInfoManually(Dictionary<string, string> systemInfo)
     {
-        var analysis = new SystemAiAnalysis { Confidence = 0.6 };
+        var analysis = new SystemAiAnalysisResult { Confidence = 0.6 };
 
         // Extract OS info
         var osRelease = systemInfo.FirstOrDefault(kv => kv.Key.Contains("os_release") && kv.Value.Contains("PRETTY_NAME"));
@@ -784,7 +785,318 @@ If some information cannot be determined, use null or reasonable defaults. Focus
             return result;
         }
     }
+    
+    public async Task<DockerServiceDiscoveryResult> DiscoverDockerServicesAsync(int serverId)
+    {
+        var server = await GetServerAsync(serverId);
+        if (server == null)
+        {
+            return new DockerServiceDiscoveryResult
+            {
+                Success = false,
+                ErrorMessage = "Server not found"
+            };
+        }
 
+        try
+        {
+            using var client = CreateSshClient(server);
+            client.Connect();
+
+            var dockerServices = await GetDockerServicesAsync(client, server.HostAddress);
+
+            return new DockerServiceDiscoveryResult
+            {
+                Services = dockerServices,
+                Success = true
+            };
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Failed to discover Docker services for server {ServerId}", serverId);
+            return new DockerServiceDiscoveryResult
+            {
+                Success = false,
+                ErrorMessage = ex.Message
+            };
+        }
+    }
+
+    private async Task<List<DockerService>> GetDockerServicesAsync(SshClient client, string hostAddress)
+    {
+        var services = new List<DockerService>();
+
+        try
+        {
+            // Check if Docker is available
+            var dockerVersion = await ExecuteCommandAsync(client, "docker --version");
+            if (string.IsNullOrEmpty(dockerVersion) || dockerVersion.Contains("command not found"))
+            {
+                _logger.LogWarning("Docker not found on the server");
+                return services;
+            }
+
+            // Get running containers with detailed info
+            var dockerPsCommand =
+                "docker ps --format \"table {{.ID}}|{{.Names}}|{{.Image}}|{{.Status}}|{{.Ports}}|{{.CreatedAt}}|{{.Labels}}\" --no-trunc";
+            var dockerPsOutput = await ExecuteCommandAsync(client, dockerPsCommand);
+
+            if (string.IsNullOrEmpty(dockerPsOutput))
+            {
+                return services;
+            }
+
+            var lines = dockerPsOutput.Split('\n', StringSplitOptions.RemoveEmptyEntries);
+
+            // Skip header line
+            for (int i = 1; i < lines.Length; i++)
+            {
+                var line = lines[i].Trim();
+                if (string.IsNullOrEmpty(line)) continue;
+
+                var parts = line.Split('|');
+                if (parts.Length >= 6)
+                {
+                    var containerId = parts[0].Trim();
+                    var containerName = parts[1].Trim();
+                    var image = parts[2].Trim();
+                    var status = parts[3].Trim();
+                    var ports = parts[4].Trim();
+                    var createdAt = parts[5].Trim();
+                    var labels = parts.Length > 6 ? parts[6].Trim() : "";
+
+                    var dockerService = new DockerService
+                    {
+                        ContainerId = containerId,
+                        Name = containerName,
+                        Image = image,
+                        Status = status,
+                        CreatedAt = ParseDockerDate(createdAt),
+                        Ports = ParseDockerPorts(ports),
+                        Labels = ParseDockerLabels(labels)
+                    };
+
+                    // Get environment variables for the container
+                    dockerService.Environment = await GetContainerEnvironmentAsync(client, containerId);
+
+                    // Try to determine if it's a web service and extract description
+                    await EnhanceDockerServiceInfoAsync(client, dockerService, hostAddress);
+
+                    services.Add(dockerService);
+                }
+            }
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error getting Docker services");
+        }
+
+        return services;
+    }
+
+    private async Task<Dictionary<string, string>> GetContainerEnvironmentAsync(SshClient client, string containerId)
+    {
+        var environment = new Dictionary<string, string>();
+
+        try
+        {
+            var envCommand = $"docker inspect {containerId} --format '{{{{range .Config.Env}}}}{{{{.}}}}|{{{{end}}}}'";
+            var envOutput = await ExecuteCommandAsync(client, envCommand);
+
+            if (!string.IsNullOrEmpty(envOutput))
+            {
+                var envVars = envOutput.Split('|', StringSplitOptions.RemoveEmptyEntries);
+                foreach (var envVar in envVars)
+                {
+                    var parts = envVar.Split('=', 2);
+                    if (parts.Length == 2)
+                    {
+                        environment[parts[0]] = parts[1];
+                    }
+                }
+            }
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "Failed to get environment for container {ContainerId}", containerId);
+        }
+
+        return environment;
+    }
+
+    private async Task EnhanceDockerServiceInfoAsync(SshClient client, DockerService service, string hostAddress)
+    {
+        // Check if it's likely a web service based on common ports
+        var webPorts = new[] { 80, 443, 8080, 3000, 5000, 8000, 9000 };
+        var hasWebPort = service.Ports.Any(p => p.HostPort.HasValue && webPorts.Contains(p.HostPort.Value));
+
+        if (hasWebPort)
+        {
+            service.IsWebService = true;
+            var webPort = service.Ports.FirstOrDefault(p => p.HostPort.HasValue && webPorts.Contains(p.HostPort.Value));
+            if (webPort != null)
+            {
+                var protocol = webPort.HostPort == 443 ? "https" : "http";
+                service.ServiceUrl = $"{protocol}://{hostAddress}:{webPort.HostPort}";
+            }
+        }
+
+        // Try to get description from labels
+        service.Description = ExtractDescriptionFromLabels(service.Labels) ??
+                              ExtractDescriptionFromImage(service.Image) ??
+                              $"Docker container running {service.Image}";
+    }
+
+    private string? ExtractDescriptionFromLabels(Dictionary<string, string> labels)
+    {
+        // Common label keys for description
+        var descriptionKeys = new[]
+            { "description", "org.label-schema.description", "org.opencontainers.image.description" };
+
+        foreach (var key in descriptionKeys)
+        {
+            if (labels.TryGetValue(key, out var description) && !string.IsNullOrEmpty(description))
+            {
+                return description;
+            }
+        }
+
+        return null;
+    }
+
+    private string? ExtractDescriptionFromImage(string image)
+    {
+        // Extract service name from image
+        var parts = image.Split(':', '/');
+        var serviceName = parts.LastOrDefault(p => !string.IsNullOrEmpty(p) && !p.Contains("latest"));
+
+        if (!string.IsNullOrEmpty(serviceName))
+        {
+            return $"Container running {serviceName}";
+        }
+
+        return null;
+    }
+
+    private List<DockerPort> ParseDockerPorts(string portsString)
+    {
+        var ports = new List<DockerPort>();
+
+        if (string.IsNullOrEmpty(portsString)) return ports;
+
+        // Parse port mappings like "0.0.0.0:8080->80/tcp, 0.0.0.0:8443->443/tcp"
+        var portMappings = portsString.Split(',', StringSplitOptions.RemoveEmptyEntries);
+
+        foreach (var mapping in portMappings)
+        {
+            var trimmed = mapping.Trim();
+            if (string.IsNullOrEmpty(trimmed)) continue;
+
+            try
+            {
+                // Handle formats like "0.0.0.0:8080->80/tcp" or "80/tcp"
+                if (trimmed.Contains("->"))
+                {
+                    var parts = trimmed.Split("->");
+                    if (parts.Length == 2)
+                    {
+                        var hostPart = parts[0].Trim();
+                        var containerPart = parts[1].Trim();
+
+                        // Parse host part (e.g., "0.0.0.0:8080" or "8080")
+                        var hostPort = 0;
+                        var hostIp = "";
+
+                        if (hostPart.Contains(':'))
+                        {
+                            var hostParts = hostPart.Split(':');
+                            hostIp = hostParts[0];
+                            int.TryParse(hostParts[1], out hostPort);
+                        }
+                        else
+                        {
+                            int.TryParse(hostPart, out hostPort);
+                        }
+
+                        // Parse container part (e.g., "80/tcp")
+                        var containerPortStr = containerPart.Split('/')[0];
+                        if (int.TryParse(containerPortStr, out var containerPort))
+                        {
+                            var protocol = containerPart.Contains("/") ? containerPart.Split('/')[1] : "tcp";
+
+                            ports.Add(new DockerPort
+                            {
+                                ContainerPort = containerPort,
+                                HostPort = hostPort > 0 ? hostPort : null,
+                                Protocol = protocol,
+                                HostIp = !string.IsNullOrEmpty(hostIp) ? hostIp : null
+                            });
+                        }
+                    }
+                }
+                else
+                {
+                    // Handle exposed ports without host mapping (e.g., "80/tcp")
+                    var containerPortStr = trimmed.Split('/')[0];
+                    if (int.TryParse(containerPortStr, out var containerPort))
+                    {
+                        var protocol = trimmed.Contains("/") ? trimmed.Split('/')[1] : "tcp";
+
+                        ports.Add(new DockerPort
+                        {
+                            ContainerPort = containerPort,
+                            Protocol = protocol
+                        });
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                _logger.LogWarning(ex, "Failed to parse port mapping: {Mapping}", trimmed);
+            }
+        }
+
+        return ports;
+    }
+
+    private Dictionary<string, string> ParseDockerLabels(string labelsString)
+    {
+        var labels = new Dictionary<string, string>();
+
+        if (string.IsNullOrEmpty(labelsString)) return labels;
+
+        try
+        {
+            // Labels are typically comma-separated key=value pairs
+            var labelPairs = labelsString.Split(',', StringSplitOptions.RemoveEmptyEntries);
+
+            foreach (var pair in labelPairs)
+            {
+                var parts = pair.Split('=', 2);
+                if (parts.Length == 2)
+                {
+                    labels[parts[0].Trim()] = parts[1].Trim();
+                }
+            }
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "Failed to parse Docker labels: {Labels}", labelsString);
+        }
+
+        return labels;
+    }
+
+    private DateTime ParseDockerDate(string dateString)
+    {
+        if (DateTime.TryParse(dateString, out var result))
+        {
+            return result;
+        }
+
+        return DateTime.UtcNow;
+    }
+    
     // Private helper methods
     private SshClient CreateSshClient(ManagedServer server)
     {
@@ -1062,60 +1374,4 @@ Example: {{""recommendation"": ""Apply security updates immediately, schedule ot
             return encryptedPassword;
         }
     }
-}
-
-// Supporting classes for AI analysis
-public class SystemAiAnalysis
-{
-    public string OperatingSystem { get; set; } = "";
-    public string OsVersion { get; set; } = "";
-    public string Architecture { get; set; } = "";
-    public string KernelVersion { get; set; } = "";
-    public string Hostname { get; set; } = "";
-    public string SystemUptime { get; set; } = "";
-    public string TotalMemory { get; set; } = "";
-    public int InstalledPackages { get; set; }
-    public List<string> RunningServices { get; set; } = new();
-    public List<string> NetworkInterfaces { get; set; } = new();
-    public string SystemLoad { get; set; } = "";
-    public List<string> DiskInfo { get; set; } = new();
-    public double Confidence { get; set; }
-}
-
-public class SystemDiscoveryResult
-{
-    public DateTime DiscoveryTime { get; set; }
-    public bool Success { get; set; }
-    public string? ErrorMessage { get; set; }
-    public string OperatingSystem { get; set; } = "";
-    public string OsVersion { get; set; } = "";
-    public string Architecture { get; set; } = "";
-    public string KernelVersion { get; set; } = "";
-    public string Hostname { get; set; } = "";
-    public string SystemUptime { get; set; } = "";
-    public string TotalMemory { get; set; } = "";
-    public int AvailableUpdates { get; set; }
-    public int SecurityUpdates { get; set; }
-    public string PackageManager { get; set; } = "";
-    public int InstalledPackages { get; set; }
-    public List<string> RunningServices { get; set; } = new();
-    public List<string> NetworkInterfaces { get; set; } = new();
-    public string SystemLoad { get; set; } = "";
-    public List<string> DiskInfo { get; set; } = new();
-    public double AiConfidence { get; set; }
-    public Dictionary<string, string> RawSystemData { get; set; } = new();
-}
-
-public class UpdateInfoResult
-{
-    public int TotalUpdates { get; set; }
-    public int SecurityUpdates { get; set; }
-    public string PackageManager { get; set; } = "";
-    public List<string> Packages { get; set; } = new();
-}
-
-public class AiUpdateResponse
-{
-    public string Recommendation { get; set; } = "";
-    public double Confidence { get; set; }
 }

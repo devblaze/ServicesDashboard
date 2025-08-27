@@ -126,6 +126,44 @@ export interface LogIssue {
   lineNumber: number;
 }
 
+// Add these interfaces to the existing file
+export interface DockerService {
+  containerId: string;
+  name: string;
+  image: string;
+  status: string;
+  ports: DockerPort[];
+  labels: Record<string, string>;
+  environment: Record<string, string>;
+  createdAt: string;
+  description?: string;
+  serviceUrl?: string;
+  isWebService: boolean;
+}
+
+export interface DockerPort {
+  containerPort: number;
+  hostPort?: number;
+  protocol: string;
+  hostIp?: string;
+}
+
+export interface DockerServiceDiscoveryResult {
+  services: DockerService[];
+  discoveryTime: string;
+  success: boolean;
+  errorMessage?: string;
+}
+
+export interface CreateServiceFromDockerRequest {
+  containerId: string;
+  name: string;
+  description: string;
+  serviceUrl?: string;
+  port?: number;
+  environment: string;
+}
+
 class ServerManagementApiClient extends BaseApiClient {
   constructor() {
     super({ serviceName: 'Server Management API' });
@@ -380,6 +418,15 @@ class ServerManagementApiClient extends BaseApiClient {
 
   async getSshSession(id: number): Promise<{ serverId: number; host: string; port: number; username: string }> {
     return this.request<{ serverId: number; host: string; port: number; username: string }>('get', `/servermanagement/${id}/ssh-session`);
+  }
+
+  // Add these methods to the ServerManagementApiClient class
+  async getDockerServices(serverId: number): Promise<DockerServiceDiscoveryResult> {
+    return this.request<DockerServiceDiscoveryResult>('get', `/servermanagement/${serverId}/docker-services`);
+  }
+
+  async addDockerServiceToServices(serverId: number, containerId: string, request: CreateServiceFromDockerRequest): Promise<void> {
+    return this.request<void>('post', `/servermanagement/${serverId}/docker-services/${containerId}/add-to-services`, request);
   }
 }
 

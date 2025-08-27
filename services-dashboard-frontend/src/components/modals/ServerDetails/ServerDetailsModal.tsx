@@ -1,12 +1,13 @@
 import React, { useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
-import { X, Server, Activity, FileText, Terminal, Settings, CheckCircle2, AlertTriangle, XCircle, Clock } from 'lucide-react';
+import { X, Server, Activity, FileText, Terminal, Settings, Container, CheckCircle2, AlertTriangle, XCircle, Clock } from 'lucide-react';
 import type { ManagedServer } from '../../../types/ServerManagement';
 import { serverManagementApi } from '../../../services/serverManagementApi';
 import { OverviewTab } from './OverviewTab';
 import { LogsTab } from './LogsAnalysisTab';
 import { TerminalTab } from './TerminalCommandExecutor';
 import { SettingsTab } from './ServerSettingsTab';
+import { DockerServicesTab } from './DockerServicesTab';
 
 interface ServerDetailsModalProps {
   server: ManagedServer;
@@ -15,10 +16,11 @@ interface ServerDetailsModalProps {
   onUpdate: (updatedServer: ManagedServer) => void;
 }
 
-type TabType = 'overview' | 'logs' | 'terminal' | 'settings';
+type TabType = 'overview' | 'docker' | 'logs' | 'terminal' | 'settings';
 
 const TABS = [
   { id: 'overview' as TabType, label: 'Overview', icon: Activity },
+  { id: 'docker' as TabType, label: 'Docker', icon: Container },
   { id: 'logs' as TabType, label: 'Logs', icon: FileText },
   { id: 'terminal' as TabType, label: 'Terminal', icon: Terminal },
   { id: 'settings' as TabType, label: 'Settings', icon: Settings },
@@ -97,6 +99,8 @@ export const ServerDetailsModal: React.FC<ServerDetailsModalProps> = ({
             latestUpdateReport={latestUpdateReport}
           />
         );
+      case 'docker':
+        return <DockerServicesTab serverId={server.id} darkMode={darkMode} />;
       case 'logs':
         return (
           <LogsTab

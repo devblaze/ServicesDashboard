@@ -1,4 +1,3 @@
-
 import { useState } from 'react';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { apiClient } from '../services/servicesApi';
@@ -6,7 +5,7 @@ import type {CreateServiceDto} from '../types/Service.ts';
 
 interface FormData extends CreateServiceDto {
   hostAddress?: string;
-  serviceType?: string;
+  serviceType?: 'docker' | 'external';
   banner?: string;
 }
 
@@ -15,9 +14,9 @@ const initialFormData: FormData = {
   description: '',
   dockerImage: '',
   port: undefined,
-  environment: '',
+  environment: undefined,
   hostAddress: '',
-  serviceType: '',
+  serviceType: undefined,
   banner: ''
 };
 
