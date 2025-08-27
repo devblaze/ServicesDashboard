@@ -3,7 +3,7 @@ using Microsoft.Extensions.Logging;
 using Moq;
 using ServicesDashboard.Controllers;
 using ServicesDashboard.Models;
-using ServicesDashboard.Services.ServerConnection;
+using ServicesDashboard.Services.Servers;
 using Xunit;
 
 namespace ServicesDashboard.Tests.Controllers;

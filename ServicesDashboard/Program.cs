@@ -1,6 +1,5 @@
 using ServicesDashboard.Services;
 using ServicesDashboard.Services.LogCollection;
-using ServicesDashboard.Services.ServerConnection;
 using ServicesDashboard.Services.NetworkDiscovery;
 using ServicesDashboard.Services.AIServiceRecognition;
 using ServicesDashboard.Data;
@@ -10,6 +9,7 @@ using Microsoft.OpenApi.Models;
 using ServicesDashboard.Services.ServerManagement;
 using OllamaSharp;
 using System.Text.Json.Serialization;
+using ServicesDashboard.Services.Servers;
 using ServicesDashboard.Services.Settings;
 
 var builder = WebApplication.CreateBuilder(args);

@@ -1,7 +1,7 @@
 using Microsoft.AspNetCore.Mvc;
 using ServicesDashboard.Models;
-using ServicesDashboard.Models.Dtos;
 using ServicesDashboard.Models.Requests;
+using ServicesDashboard.Models.Results;
 using ServicesDashboard.Services;
 using ServicesDashboard.Services.NetworkDiscovery;
 
@@ -33,7 +33,7 @@ public class NetworkDiscoveryController : ControllerBase
     }
 
     [HttpPost("scan-network")]
-    public async Task<ActionResult<IEnumerable<DiscoveredService>>> ScanNetwork([FromBody] NetworkScanRequest request)
+    public async Task<ActionResult<IEnumerable<DiscoveredServiceResult>>> ScanNetwork([FromBody] NetworkScanRequest request)
     {
         try
         {
@@ -53,7 +53,7 @@ public class NetworkDiscoveryController : ControllerBase
     }
 
     [HttpPost("scan-host")]
-    public async Task<ActionResult<IEnumerable<DiscoveredService>>> ScanHost([FromBody] HostScanRequest request)
+    public async Task<ActionResult<IEnumerable<DiscoveredServiceResult>>> ScanHost([FromBody] HostScanRequest request)
     {
         try
         {
@@ -73,7 +73,7 @@ public class NetworkDiscoveryController : ControllerBase
     }
 
     [HttpPost("add-to-services")]
-    public async Task<ActionResult<HostedService>> AddDiscoveredServiceToServices([FromBody] AddDiscoveredServiceRequest request)
+    public async Task<ActionResult<HostedService>> AddDiscoveredServiceResultToServices([FromBody] AddDiscoveredServiceRequest request)
     {
         try
         {

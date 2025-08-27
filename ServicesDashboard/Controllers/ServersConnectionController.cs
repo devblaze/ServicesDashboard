@@ -1,7 +1,7 @@
 // ServicesDashboard/Controllers/ServersController.cs
 using Microsoft.AspNetCore.Mvc;
 using ServicesDashboard.Models;
-using ServicesDashboard.Services.ServerConnection;
+using ServicesDashboard.Services.Servers;
 
 namespace ServicesDashboard.Controllers;
 

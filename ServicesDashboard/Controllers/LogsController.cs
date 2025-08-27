@@ -1,5 +1,6 @@
 ﻿using Microsoft.AspNetCore.Mvc;
 using ServicesDashboard.Models;
+using ServicesDashboard.Models.Results;
 using ServicesDashboard.Services;
 using ServicesDashboard.Services.LogCollection;
 

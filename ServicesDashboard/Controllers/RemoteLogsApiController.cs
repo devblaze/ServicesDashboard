@@ -1,4 +1,5 @@
 using Microsoft.AspNetCore.Mvc;
+using ServicesDashboard.Models.Results;
 using ServicesDashboard.Services;
 using ServicesDashboard.Services.LogCollection;
 
@@ -23,7 +24,7 @@ public class RemoteLogsController : ControllerBase
     }
 
     [HttpGet("servers/{serverId}/containers")]
-    public async Task<ActionResult<IEnumerable<RemoteContainer>>> GetContainers(string serverId)
+    public async Task<ActionResult<IEnumerable<RemoteContainerResult>>> GetContainers(string serverId)
     {
         try
         {
@@ -68,7 +69,7 @@ public class RemoteLogsController : ControllerBase
     }
 
     [HttpGet("servers/{serverId}/containers/{containerId}/stats")]
-    public async Task<ActionResult<ContainerStats>> GetContainerStats(string serverId, string containerId)
+    public async Task<ActionResult<ContainerStatsResult>> GetContainerStats(string serverId, string containerId)
     {
         try
         {
@@ -128,14 +129,14 @@ public class RemoteLogsController : ControllerBase
     }
 
     [HttpPost("servers/{serverId}/containers/{containerId}/analyze")]
-    public async Task<ActionResult<Models.LogAnalysisResult>> AnalyzeLogs(string serverId, string containerId)
+    public async Task<ActionResult<LogAnalysisResult>> AnalyzeLogs(string serverId, string containerId)
     {
         try
         {
             var logs = await _logCollector.GetContainerLogsAsync(serverId, containerId, 1000); // Get last 1000 lines for analysis
             var analysisResult = await _logAnalyzer.AnalyzeLogsAsync(logs);
             
-            return Ok(new Models.LogAnalysisResult
+            return Ok(new LogAnalysisResult
             {
                 ServiceId = containerId,
                 Issues = analysisResult.Issues.Select(i => new Models.LogIssue

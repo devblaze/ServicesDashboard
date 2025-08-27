@@ -3,9 +3,16 @@ using System.Net;
 using System.Net.NetworkInformation;
 using System.Net.Sockets;
 using System.Text;
+using ServicesDashboard.Models.Results;
 using ServicesDashboard.Services.AIServiceRecognition;
 
 namespace ServicesDashboard.Services.NetworkDiscovery;
+
+public interface INetworkDiscoveryService
+{
+    Task<IEnumerable<DiscoveredServiceResult>> ScanNetworkAsync(string networkRange, int[] ports, CancellationToken cancellationToken = default);
+    Task<IEnumerable<DiscoveredServiceResult>> ScanHostAsync(string hostAddress, int[] ports, CancellationToken cancellationToken = default);
+}
 
 public class NetworkDiscovery : INetworkDiscoveryService
 {
@@ -18,12 +25,12 @@ public class NetworkDiscovery : INetworkDiscoveryService
         _aiService = aiService;
     }
 
-    public async Task<IEnumerable<DiscoveredService>> ScanNetworkAsync(string networkRange, int[] ports, CancellationToken cancellationToken)
+    public async Task<IEnumerable<DiscoveredServiceResult>> ScanNetworkAsync(string networkRange, int[] ports, CancellationToken cancellationToken)
     {
         _logger.LogInformation("Starting network scan for {NetworkRange}", networkRange);
         
         var hosts = ParseNetworkRange(networkRange);
-        var services = new ConcurrentBag<DiscoveredService>(); // Use ConcurrentBag instead
+        var services = new ConcurrentBag<DiscoveredServiceResult>(); // Use ConcurrentBag instead
         
         var semaphore = new SemaphoreSlim(20); // Limit concurrent scans
         var tasks = new List<Task>();
@@ -56,9 +63,9 @@ public class NetworkDiscovery : INetworkDiscoveryService
         return services.OrderBy(s => s.HostAddress).ThenBy(s => s.Port).ToList();
     }
 
-    public async Task<IEnumerable<DiscoveredService>> ScanHostAsync(string hostAddress, int[] ports, CancellationToken cancellationToken)
+    public async Task<IEnumerable<DiscoveredServiceResult>> ScanHostAsync(string hostAddress, int[] ports, CancellationToken cancellationToken)
     {
-        var services = new List<DiscoveredService>();
+        var services = new List<DiscoveredServiceResult>();
         
         // First, check if host is reachable
         if (!await IsHostReachableAsync(hostAddress, cancellationToken))
@@ -84,7 +91,7 @@ public class NetworkDiscovery : INetworkDiscoveryService
         });
 
         var results = await Task.WhenAll(portTasks);
-        services.AddRange(results.Where(s => s != null).Cast<DiscoveredService>());
+        services.AddRange(results.Where(s => s != null).Cast<DiscoveredServiceResult>());
 
         return services;
     }
@@ -116,7 +123,7 @@ public class NetworkDiscovery : INetworkDiscoveryService
         }
     }
 
-    private async Task<DiscoveredService?> ScanPortAsync(string hostAddress, string hostName, int port, CancellationToken cancellationToken)
+    private async Task<DiscoveredServiceResult?> ScanPortAsync(string hostAddress, string hostName, int port, CancellationToken cancellationToken)
     {
         var stopwatch = System.Diagnostics.Stopwatch.StartNew();
         
@@ -132,7 +139,7 @@ public class NetworkDiscovery : INetworkDiscoveryService
             if (!tcpClient.Connected)
                 return null;
 
-            var service = new DiscoveredService
+            var service = new DiscoveredServiceResult
             {
                 HostAddress = hostAddress,
                 HostName = hostName,
