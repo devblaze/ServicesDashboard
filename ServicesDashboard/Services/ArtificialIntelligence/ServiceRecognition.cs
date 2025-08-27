@@ -18,10 +18,10 @@ public interface IAiServiceRecognitionService
     Task<bool> TestOllamaConnectionAsync();
 }
 
-public class AiServiceRecognition : IAiServiceRecognitionService
+public class ServiceRecognition : IAiServiceRecognitionService
 {
     private readonly IOllamaApiClient _ollamaClient;
-    private readonly ILogger<AiServiceRecognition> _logger;
+    private readonly ILogger<ServiceRecognition> _logger;
     private readonly OllamaSettings _settings;
     private readonly HttpClient _httpClient;
 
@@ -61,9 +61,9 @@ public class AiServiceRecognition : IAiServiceRecognitionService
         { "unknown", "server" }
     };
 
-    public AiServiceRecognition(
+    public ServiceRecognition(
         IOptions<AppSettings> settings,
-        ILogger<AiServiceRecognition> logger,
+        ILogger<ServiceRecognition> logger,
         HttpClient httpClient)
     {
         _settings = settings.Value.Ollama;

@@ -1,5 +1,6 @@
 using System.ComponentModel.DataAnnotations;
 using System.ComponentModel.DataAnnotations.Schema;
+using System.Text.Json.Serialization;
 
 namespace ServicesDashboard.Models;
 
@@ -21,6 +22,7 @@ public class ManagedServer
     [MaxLength(100)]
     public string? Username { get; set; }
     
+    [JsonIgnore] // Don't serialize password in API responses
     public string? EncryptedPassword { get; set; }
     
     public string? SshKeyPath { get; set; }
@@ -41,7 +43,7 @@ public class ManagedServer
     
     public DateTime UpdatedAt { get; set; } = DateTime.UtcNow;
     
-    public string? Tags { get; set; } // JSON array of tags
+    public string? Tags { get; set; }
     
     // Navigation properties
     public virtual ICollection<ServerHealthCheck> HealthChecks { get; set; } = new List<ServerHealthCheck>();
@@ -73,9 +75,10 @@ public class ServerHealthCheck
     
     public string? ErrorMessage { get; set; }
     
-    public string? RawData { get; set; } // JSON with additional metrics
+    public string? RawData { get; set; }
     
-    // Navigation property
+    // Navigation property - ignore to prevent circular references
+    [JsonIgnore]
     [ForeignKey("ServerId")]
     public virtual ManagedServer Server { get; set; } = null!;
 }
@@ -94,7 +97,7 @@ public class UpdateReport
     
     public int SecurityUpdates { get; set; }
     
-    public string? PackageDetails { get; set; } // JSON with package info
+    public string? PackageDetails { get; set; }
     
     public UpdateStatus Status { get; set; } = UpdateStatus.Pending;
     
@@ -102,7 +105,8 @@ public class UpdateReport
     
     public double? AiConfidence { get; set; }
     
-    // Navigation property
+    // Navigation property - ignore to prevent circular references
+    [JsonIgnore]
     [ForeignKey("ServerId")]
     public virtual ManagedServer Server { get; set; } = null!;
 }
@@ -135,7 +139,8 @@ public class ServerAlert
     
     public string? Resolution { get; set; }
     
-    // Navigation property
+    // Navigation property - ignore to prevent circular references
+    [JsonIgnore]
     [ForeignKey("ServerId")]
     public virtual ManagedServer Server { get; set; } = null!;
 }

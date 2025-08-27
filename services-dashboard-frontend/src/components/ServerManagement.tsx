@@ -20,7 +20,6 @@ interface ServerManagementProps {
 }
 
 export const ServerManagement: React.FC<ServerManagementProps> = ({ darkMode = true }) => {
-  const [selectedServer, setSelectedServer] = useState<ManagedServer | null>(null);
   const [showAddModal, setShowAddModal] = useState(false);
   const [selectedServerForDetails, setSelectedServerForDetails] = useState<ManagedServer | null>(null);
 

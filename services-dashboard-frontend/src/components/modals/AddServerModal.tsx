@@ -103,7 +103,7 @@ export const AddServerModal: React.FC<AddServerModalProps> = ({
         alerts: []
       };
       
-      return await serverManagementApi.testNewConnection(tempServer);
+      return await serverManagementApi.testNewServerConnection(tempServer);
     },
     onSuccess: (result) => {
       setConnectionTestResult({

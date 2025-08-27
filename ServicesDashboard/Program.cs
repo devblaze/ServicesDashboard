@@ -9,6 +9,7 @@ using Microsoft.OpenApi.Models;
 using ServicesDashboard.Services.ServerManagement;
 using OllamaSharp;
 using System.Text.Json.Serialization;
+using ServicesDashboard.Services.ArtificialIntelligence;
 using ServicesDashboard.Services.Servers;
 using ServicesDashboard.Services.Settings;
 
@@ -61,11 +62,11 @@ builder.Services.AddSwaggerGen(c =>
 // Register our services
 builder.Services.AddScoped<IUserServices, UserServices>();
 builder.Services.AddSingleton<IDockerLogCollector, DockerDockerLogCollector>();
-builder.Services.AddSingleton<ILogAnalyzer, OllamaLogAnalyzer>();
+builder.Services.AddSingleton<ILogAnalyzer, LogAnalyzer>();
 builder.Services.AddSingleton<IServerConnectionManager, ServerConnectionManager>();
 builder.Services.AddScoped<IRemoteLogCollector, RemoteDockerLogCollector>();
 builder.Services.AddScoped<INetworkDiscoveryService, NetworkDiscovery>();
-builder.Services.AddScoped<IAiServiceRecognitionService, AiServiceRecognition>();
+builder.Services.AddScoped<IAiServiceRecognitionService, ServiceRecognition>();
 builder.Services.AddScoped<IApplicationSettings, ApplicationSettings>();
 builder.Services.AddScoped<IServerManagementService, ServerManagement>();
 builder.Services.AddHttpClient();

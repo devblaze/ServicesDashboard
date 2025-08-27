@@ -55,7 +55,7 @@ public class ServerManagementController : ControllerBase
     }
 
     [HttpPost]
-    public async Task<ActionResult<ManagedServer>> AddServer([FromBody] CreateServerRequest request)
+    public async Task<ActionResult<ManagedServer>> AddServer([FromBody] CreateUpdateServerRequest request)
     {
         try
         {
@@ -76,9 +76,10 @@ public class ServerManagementController : ControllerBase
         catch (InvalidOperationException ex) when (ex.Message.Contains("already exists"))
         {
             _logger.LogWarning("Attempted to add duplicate server: {HostAddress}", request.HostAddress);
-            return BadRequest(new { 
-                error = "DuplicateServer", 
-                message = ex.Message 
+            return BadRequest(new
+            {
+                error = "DuplicateServer",
+                message = ex.Message
             });
         }
         catch (Exception ex)
@@ -89,25 +90,99 @@ public class ServerManagementController : ControllerBase
     }
 
     [HttpPut("{id}")]
-    public async Task<ActionResult<ManagedServer>> UpdateServer(int id, ManagedServer server)
+    public async Task<ActionResult<ManagedServer>> UpdateServer(int id, [FromBody] CreateUpdateServerRequest request)
     {
-        if (id != server.Id)
-            return BadRequest("Server ID mismatch");
+        if (!ModelState.IsValid)
+            return BadRequest(ModelState);
 
         try
         {
-            var updatedServer = await _serverManagementService.UpdateServerAsync(server);
+            var existingServer = await _serverManagementService.GetServerAsync(id);
+            if (existingServer == null)
+                return NotFound();
+
+            // Check for host address conflicts
+            if (!string.IsNullOrWhiteSpace(request.HostAddress) && 
+                !string.Equals(existingServer.HostAddress, request.HostAddress, StringComparison.OrdinalIgnoreCase))
+            {
+                var isHostAvailable = await _serverManagementService.IsHostAddressAvailableAsync(request.HostAddress);
+                if (!isHostAvailable)
+                {
+                    return BadRequest(new 
+                    { 
+                        error = "DuplicateHostAddress", 
+                        message = $"A server with host address '{request.HostAddress}' already exists." 
+                    });
+                }
+            }
+
+            // Apply partial updates
+            var serverToUpdate = ApplyPartialUpdate(existingServer, request);
+        
+            var updatedServer = await _serverManagementService.UpdateServerAsync(serverToUpdate);
             return Ok(updatedServer);
         }
         catch (ArgumentException)
         {
             return NotFound();
         }
+        catch (InvalidOperationException ex) when (ex.Message.Contains("already exists"))
+        {
+            _logger.LogWarning("Attempted to update server with duplicate host address: {HostAddress}", request.HostAddress);
+            return BadRequest(new 
+            { 
+                error = "DuplicateHostAddress", 
+                message = ex.Message 
+            });
+        }
         catch (Exception ex)
         {
             _logger.LogError(ex, "Error updating server {ServerId}", id);
             return StatusCode(500, "Internal server error");
         }
+    }
+
+    private static ManagedServer ApplyPartialUpdate(ManagedServer existingServer, CreateUpdateServerRequest request)
+    {
+        return new ManagedServer
+        {
+            Id = existingServer.Id,
+            Name = UpdateField(request.Name, existingServer.Name),
+            HostAddress = UpdateField(request.HostAddress, existingServer.HostAddress),
+            SshPort = request.SshPort ?? existingServer.SshPort,
+            Username = UpdateField(request.Username, existingServer.Username),
+            EncryptedPassword = UpdateField(request.Password, existingServer.EncryptedPassword),
+            Type = UpdateEnum<ServerType>(request.Type, existingServer.Type),
+            Tags = UpdateTags(request.Tags, existingServer.Tags),
+        
+            // Preserve existing values
+            Status = existingServer.Status,
+            OperatingSystem = existingServer.OperatingSystem,
+            SystemInfo = existingServer.SystemInfo,
+            LastCheckTime = existingServer.LastCheckTime,
+            CreatedAt = existingServer.CreatedAt,
+            UpdatedAt = DateTime.UtcNow,
+            SshKeyPath = existingServer.SshKeyPath
+        };
+    }
+
+    private static string? UpdateField(string? newValue, string? existingValue)
+    {
+        return !string.IsNullOrWhiteSpace(newValue) ? newValue.Trim() : existingValue;
+    }
+
+    private static T UpdateEnum<T>(string? newValue, T existingValue) where T : struct, Enum
+    {
+        return !string.IsNullOrWhiteSpace(newValue) && Enum.TryParse<T>(newValue, true, out var parsedValue) 
+            ? parsedValue 
+            : existingValue;
+    }
+
+    private static string? UpdateTags(string? newValue, string? existingValue)
+    {
+        // If tags is explicitly provided (even if empty), use it
+        // If tags is null, keep existing value
+        return newValue != null ? (string.IsNullOrWhiteSpace(newValue) ? null : newValue.Trim()) : existingValue;
     }
 
     [HttpDelete("{id}")]
@@ -226,15 +301,15 @@ public class ServerManagementController : ControllerBase
             if (string.IsNullOrWhiteSpace(hostAddress))
                 return BadRequest("Host address is required");
 
-        var isAvailable = await _serverManagementService.IsHostAddressAvailableAsync(hostAddress);
-        return Ok(new { available = isAvailable });
+            var isAvailable = await _serverManagementService.IsHostAddressAvailableAsync(hostAddress);
+            return Ok(new { available = isAvailable });
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error checking host availability for {HostAddress}", hostAddress);
+            return StatusCode(500, "Internal server error");
+        }
     }
-    catch (Exception ex)
-    {
-        _logger.LogError(ex, "Error checking host availability for {HostAddress}", hostAddress);
-        return StatusCode(500, "Internal server error");
-    }
-}
 
     [HttpGet("{id}/logs")]
     public async Task<ActionResult<string>> GetServerLogs(int id, [FromQuery] int? lines = 100)
@@ -245,7 +320,7 @@ public class ServerManagementController : ControllerBase
             if (server == null)
                 return NotFound();
 
-            var logs = await _serverManagementService.GetServerLogsAsync(id, lines);
+            var logs = await _serverManagementService.GetServerLogsAsync(server, lines);
             return Ok(new { logs });
         }
         catch (Exception ex)
@@ -264,9 +339,9 @@ public class ServerManagementController : ControllerBase
             if (server == null)
                 return NotFound();
 
-            var logs = await _serverManagementService.GetServerLogsAsync(id, lines);
+            var logs = await _serverManagementService.GetServerLogsAsync(server, lines);
             var analysis = await _serverManagementService.AnalyzeLogsWithAiAsync(id, logs);
-            
+
             return Ok(analysis);
         }
         catch (Exception ex)
@@ -305,8 +380,8 @@ public class ServerManagementController : ControllerBase
                 return NotFound();
 
             // Return SSH connection details for web terminal
-            return Ok(new 
-            { 
+            return Ok(new
+            {
                 serverId = id,
                 host = server.HostAddress,
                 port = server.SshPort ?? 22,

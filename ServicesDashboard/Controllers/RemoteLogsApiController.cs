@@ -1,6 +1,7 @@
 using Microsoft.AspNetCore.Mvc;
 using ServicesDashboard.Models.Results;
 using ServicesDashboard.Services;
+using ServicesDashboard.Services.ArtificialIntelligence;
 using ServicesDashboard.Services.LogCollection;
 
 namespace ServicesDashboard.Controllers;

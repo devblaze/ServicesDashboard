@@ -5,6 +5,7 @@ using ServicesDashboard.Controllers;
 using ServicesDashboard.Models;
 using ServicesDashboard.Services.LogCollection;
 using ServicesDashboard.Services;
+using ServicesDashboard.Services.ArtificialIntelligence;
 using ServicesDashboard.Services.Interfaces; // Add this for the Services LogAnalysisResult
 using Xunit;
 using LogAnalysisResult = ServicesDashboard.Services.Interfaces.LogAnalysisResult;

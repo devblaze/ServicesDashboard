@@ -357,11 +357,13 @@ class ServerManagementApiClient extends BaseApiClient {
     return this.request<UpdateReport>('post', `/servermanagement/${serverId}/check-updates`);
   }
 
-  async testNewConnection(server: ManagedServer): Promise<boolean> {
-    return this.request<boolean>('post', '/servermanagement/test-connection', server);
+  async testServerConnection(server: ManagedServer): Promise<boolean> {
+    return this.request<boolean>('post', `/servermanagement/${server.id}/test-connection`, server);
   }
 
-  // Add these methods to ServerManagementApiClient:
+  async testNewServerConnection(server: CreateServerDto): Promise<boolean> {
+    return this.request<boolean>('post', '/servermanagement/test-new-connection', server);
+  }
 
   async getServerLogs(id: number, lines: number = 100): Promise<string> {
     const response = await this.request<{ logs: string }>('get', `/servermanagement/${id}/logs?lines=${lines}`);
