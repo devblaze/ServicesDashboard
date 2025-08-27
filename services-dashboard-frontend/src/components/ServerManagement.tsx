@@ -13,7 +13,7 @@ import { serverManagementApi } from '../services/serverManagementApi';
 import type { ManagedServer, ServerAlert } from '../types/ServerManagement';
 import { AddServerModal } from './modals/AddServerModal';
 import { ServerCard } from './cards/ServerCard';
-import { ServerDetailsModal } from './modals/ServerDetailsModal';
+import { ServerDetailsModal } from './modals/ServerDetails/ServerDetailsModal.tsx';
 
 interface ServerManagementProps {
   darkMode?: boolean;
