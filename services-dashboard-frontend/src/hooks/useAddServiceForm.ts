@@ -2,7 +2,7 @@
 import { useState } from 'react';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { apiClient } from '../services/servicesApi';
-import type {CreateServiceDto} from '../types/ServiceInterfaces';
+import type {CreateServiceDto} from '../types/Service.ts';
 
 interface FormData extends CreateServiceDto {
   hostAddress?: string;

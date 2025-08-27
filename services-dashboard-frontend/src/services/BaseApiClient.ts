@@ -6,6 +6,11 @@ export interface ApiClientConfig {
   retries?: number;
 }
 
+interface ErrorResponseData {
+  message?: string;
+  [key: string]: unknown;
+}
+
 class BaseApiClient {
   protected client: AxiosInstance;
   private serviceName: string;
@@ -19,6 +24,8 @@ class BaseApiClient {
       headers: {
         'Content-Type': 'application/json',
       },
+      // Note: httpsAgent is not needed in browser environment
+      // Browser automatically handles HTTPS certificates
     });
 
     this.setupInterceptors();
@@ -42,18 +49,50 @@ class BaseApiClient {
     // 3. Auto-detect based on current location
     if (typeof window !== 'undefined') {
       const currentHost = window.location.hostname;
+      const currentProtocol = window.location.protocol;
+      const currentPort = this.getBackendPort();
       
       // If we're on an .orb.local domain, construct the backend URL
       if (currentHost.includes('.orb.local')) {
         const parts = currentHost.split('.');
         if (parts.length >= 3) {
           // Assume backend service is named 'servicesdashboard'
-          return `http://servicesdashboard.${parts.slice(1).join('.')}/api`;
+          return `${currentProtocol}//servicesdashboard.${parts.slice(1).join('.')}/api`;
         }
+      }
+      
+      // For localhost, match the protocol (HTTP/HTTPS) and use appropriate port
+      if (currentHost === 'localhost' || currentHost === '127.0.0.1') {
+        return `${currentProtocol}//${currentHost}:${currentPort}/api`;
       }
     }
     
     // 4. Default fallback
+    return this.getDefaultApiUrl();
+  }
+
+  private getBackendPort(): number {
+    // Check environment variables for custom backend port
+    if (import.meta.env.VITE_API_PORT) {
+      return parseInt(import.meta.env.VITE_API_PORT);
+    }
+    
+    // If frontend is running on HTTPS, assume backend is too
+    if (typeof window !== 'undefined') {
+      const isHttps = window.location.protocol === 'https:';
+      return isHttps ? 5001 : 5000; // Common convention: HTTPS backend on port 5001
+    }
+    
+    return 5000;
+  }
+
+  private getDefaultApiUrl(): string {
+    if (typeof window !== 'undefined') {
+      const isHttps = window.location.protocol === 'https:';
+      const port = isHttps ? 5001 : 5000;
+      const protocol = isHttps ? 'https' : 'http';
+      return `${protocol}://localhost:${port}/api`;
+    }
     return 'http://localhost:5000/api';
   }
 
@@ -90,7 +129,8 @@ class BaseApiClient {
 
   private handleError(error: AxiosError): void {
     const status = error.response?.status;
-    const message = (error.response?.data as any)?.message || error.message;
+    const responseData = error.response?.data as ErrorResponseData | undefined;
+    const message = responseData?.message || error.message;
     
     console.error(`❌ ${this.serviceName} Error: ${status || 'Network'}`, message);
 
@@ -104,8 +144,17 @@ class BaseApiClient {
       console.error('🔍 Not Found - Check if endpoint exists and server is running');
     } else if (error.code === 'ERR_NETWORK' || error.code === 'ECONNREFUSED') {
       console.error(`🌐 Network Error - Cannot connect to server at ${this.client.defaults.baseURL}`);
+      console.error('💡 Troubleshooting tips:');
+      console.error('   - Check if your backend server is running');
+      console.error('   - Verify the correct port (HTTP: 5000, HTTPS: 5001)');
+      console.error('   - Ensure CORS is properly configured on your backend');
     } else if (error.message.includes('ERR_SSL_PROTOCOL_ERROR')) {
       console.error('🔒 SSL Protocol Error - Check if HTTP/HTTPS mismatch');
+      console.error('💡 Try switching between HTTP and HTTPS protocols');
+    } else if (error.message.includes('ERR_CERT_AUTHORITY_INVALID')) {
+      console.error('🔐 Certificate Error - Self-signed certificate detected');
+      console.error('💡 This is normal for localhost HTTPS development');
+      console.error('💡 Your browser should show a security warning you can bypass');
     }
   }
 

@@ -1,6 +1,5 @@
 using Microsoft.EntityFrameworkCore;
 using ServicesDashboard.Models;
-using ServicesDashboard.Models.ServerManagement;
 
 namespace ServicesDashboard.Data;
 
@@ -10,11 +9,8 @@ public class ServicesDashboardContext : DbContext
     {
     }
 
-    // Existing DbSets
     public DbSet<HostedService> HostedServices { get; set; }
     public DbSet<OllamaSettingsEntity> OllamaSettings { get; set; }
-
-    // New Server Management DbSets
     public DbSet<ManagedServer> ManagedServers { get; set; }
     public DbSet<ServerHealthCheck> ServerHealthChecks { get; set; }
     public DbSet<UpdateReport> UpdateReports { get; set; }

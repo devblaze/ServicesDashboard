@@ -1,7 +1,7 @@
 
 import React from 'react';
 import { X } from 'lucide-react';
-import type { CreateServiceDto } from '../../types/ServiceInterfaces.ts';
+import type { CreateServiceDto } from '../../types/Service.ts';
 
 interface FormData extends CreateServiceDto {
   hostAddress?: string;

@@ -32,7 +32,6 @@
     depends_on:
       database:
         condition: service_healthy
-    command: ["dotnet", "watch", "run", "--urls", "http://0.0.0.0:5000"]
 
   frontend:
     platform: linux/amd64

@@ -10,11 +10,19 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.OpenApi.Models;
 using ServicesDashboard.Services.ServerManagement;
 using OllamaSharp;
+using System.Text.Json.Serialization;
+using Microsoft.AspNetCore.Mvc;
 
 var builder = WebApplication.CreateBuilder(args);
 
 // Add services to the container.
-builder.Services.AddControllers();
+builder.Services.AddControllers()
+    .AddJsonOptions(options =>
+    {
+        options.JsonSerializerOptions.ReferenceHandler = ReferenceHandler.IgnoreCycles;
+        options.JsonSerializerOptions.WriteIndented = true;
+    });
+
 builder.Services.AddEndpointsApiExplorer();
 
 // Add configuration
@@ -63,6 +71,16 @@ builder.Services.AddScoped<ISettingsService, SettingsService>();
 builder.Services.AddScoped<IServerManagementService, ServerManagement>();
 builder.Services.AddHttpClient();
 
+// Add this after builder.Services.AddHttpClient();
+builder.Services.Configure<ForwardedHeadersOptions>(options =>
+{
+    options.ForwardedHeaders = Microsoft.AspNetCore.HttpOverrides.ForwardedHeaders.XForwardedFor |
+                               Microsoft.AspNetCore.HttpOverrides.ForwardedHeaders.XForwardedProto |
+                               Microsoft.AspNetCore.HttpOverrides.ForwardedHeaders.XForwardedHost;
+    options.KnownNetworks.Clear();
+    options.KnownProxies.Clear();
+});
+
 // Temporary more permissive CORS for debugging
 builder.Services.AddCors(options =>
 {
@@ -74,13 +92,23 @@ builder.Services.AddCors(options =>
     });
 });
 
+// Configure JSON options for minimal APIs
+builder.Services.ConfigureHttpJsonOptions(options =>
+{
+    options.SerializerOptions.ReferenceHandler = ReferenceHandler.IgnoreCycles;
+    options.SerializerOptions.WriteIndented = true;
+});
+
 var app = builder.Build();
+
+// Then after var app = builder.Build(); add:
+app.UseForwardedHeaders();
 
 // Automatic database migration and creation
 await ApplyMigrationsAsync(app.Services);
 
 // Configure the HTTP request pipeline.
-// Move Swagger configuration before other middleware
+// Enable Swagger in all environments for development
 app.UseSwagger();
 app.UseSwaggerUI(c =>
 {
@@ -88,27 +116,20 @@ app.UseSwaggerUI(c =>
     c.RoutePrefix = "swagger";
 });
 
+// Keep the developer exception page only for development
 if (app.Environment.IsDevelopment())
 {
     app.UseDeveloperExceptionPage();
 }
 
-// IMPORTANT: CORS must come before Authorization and MapControllers
+// Rest of your configuration...
 app.UseCors();
-
-// Add a simple health check endpoint for debugging
 app.MapGet("/health", () => new { Status = "Healthy", Timestamp = DateTime.UtcNow, Environment = app.Environment.EnvironmentName });
-
 app.UseAuthorization();
 app.MapControllers();
 
 Console.WriteLine("🚀 Application starting...");
 Console.WriteLine($"🌍 Environment: {app.Environment.EnvironmentName}");
-Console.WriteLine("📋 Available endpoints:");
-Console.WriteLine("   - Swagger UI: http://localhost:5000/swagger");
-Console.WriteLine("   - Swagger JSON: http://localhost:5000/swagger/v1/swagger.json");
-Console.WriteLine("   - Health Check: http://localhost:5000/health");
-Console.WriteLine("   - API: http://localhost:5000/api");
 
 await app.RunAsync();
 

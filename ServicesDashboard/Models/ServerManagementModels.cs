@@ -1,8 +1,7 @@
-
 using System.ComponentModel.DataAnnotations;
 using System.ComponentModel.DataAnnotations.Schema;
 
-namespace ServicesDashboard.Models.ServerManagement;
+namespace ServicesDashboard.Models;
 
 public class ManagedServer
 {

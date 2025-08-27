@@ -7,7 +7,7 @@ import { LoadingSpinner } from './ui/LoadingSpinner';
 import { ErrorDisplay } from './ui/ErrorDisplay';
 import { EmptyState } from './ui/EmptyState';
 import { useAddServiceForm } from '../hooks/useAddServiceForm';
-import type { HostedService, CreateServiceDto } from '../types/ServiceInterfaces';
+import type { HostedService, CreateServiceDto } from '../types/Service.ts';
 
 interface ServicesListProps {
   darkMode?: boolean;

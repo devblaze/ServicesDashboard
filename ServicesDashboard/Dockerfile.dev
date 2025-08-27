@@ -1,19 +1,25 @@
-FROM mcr.microsoft.com/dotnet/sdk:9.0
-
+FROM mcr.microsoft.com/dotnet/sdk:9.0 AS base
 WORKDIR /app
+EXPOSE 5000
+EXPOSE 4024
 
-# Copy project files first for better caching
+# Install debugger for remote debugging
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    unzip procps curl \
+    && rm -rf /var/lib/apt/lists/*
+
+# Install Visual Studio debugger
+RUN curl -sSL https://aka.ms/getvsdbgsh | bash /dev/stdin -v latest -l /vsdbg
+
+# Copy project file and restore dependencies
 COPY *.csproj ./
 RUN dotnet restore
 
-# Copy all source code
+# Copy source code
 COPY . ./
 
-# Expose port
-EXPOSE 5000
+# Build the application
+RUN dotnet build -c Debug -o /app/build
 
-# Ensure the app runs in development mode
-ENV ASPNETCORE_ENVIRONMENT=Development
-
-# Default command (can be overridden by docker-compose)
-CMD ["dotnet", "watch", "run", "--urls", "http://0.0.0.0:5000"]
+# Set the entry point
+ENTRYPOINT ["dotnet", "watch", "run"]

@@ -1,6 +1,7 @@
 using Microsoft.AspNetCore.Mvc;
+using ServicesDashboard.Models;
+using ServicesDashboard.Models.Requests;
 using ServicesDashboard.Services.ServerManagement;
-using ServicesDashboard.Models.ServerManagement;
 
 namespace ServicesDashboard.Controllers;
 
@@ -53,12 +54,31 @@ public class ServerManagementController : ControllerBase
     }
 
     [HttpPost]
-    public async Task<ActionResult<ManagedServer>> AddServer(ManagedServer server)
+    public async Task<ActionResult<ManagedServer>> AddServer([FromBody] CreateServerRequest request)
     {
         try
         {
+            var server = new ManagedServer
+            {
+                Name = request.Name,
+                HostAddress = request.HostAddress,
+                SshPort = request.SshPort,
+                Username = request.Username,
+                EncryptedPassword = request.Password, // Will be encrypted in service
+                Type = Enum.Parse<ServerType>(request.Type ?? "Server"),
+                Tags = request.Tags
+            };
+
             var addedServer = await _serverManagementService.AddServerAsync(server);
             return CreatedAtAction(nameof(GetServer), new { id = addedServer.Id }, addedServer);
+        }
+        catch (InvalidOperationException ex) when (ex.Message.Contains("already exists"))
+        {
+            _logger.LogWarning("Attempted to add duplicate server: {HostAddress}", request.HostAddress);
+            return BadRequest(new { 
+                error = "DuplicateServer", 
+                message = ex.Message 
+            });
         }
         catch (Exception ex)
         {
@@ -162,6 +182,26 @@ public class ServerManagementController : ControllerBase
         }
     }
 
+    [HttpPost("test-new-connection")]
+    public async Task<ActionResult<bool>> TestNewConnection([FromBody] ConnectionTestRequest request)
+    {
+        try
+        {
+            var canConnect = await _serverManagementService.TestConnectionAsync(
+                request.HostAddress,
+                request.SshPort,
+                request.Username,
+                request.Password // Pass plain text password directly
+            );
+            return Ok(canConnect);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error testing new connection to {HostAddress}", request.HostAddress);
+            return StatusCode(500, "Internal server error");
+        }
+    }
+
     [HttpGet("alerts")]
     public async Task<ActionResult<IEnumerable<ServerAlert>>> GetAlerts([FromQuery] int? serverId = null)
     {
@@ -176,4 +216,148 @@ public class ServerManagementController : ControllerBase
             return StatusCode(500, "Internal server error");
         }
     }
+
+    [HttpGet("check-host-availability")]
+    public async Task<ActionResult<bool>> CheckHostAvailability([FromQuery] string hostAddress)
+    {
+        try
+        {
+            if (string.IsNullOrWhiteSpace(hostAddress))
+                return BadRequest("Host address is required");
+
+        var isAvailable = await _serverManagementService.IsHostAddressAvailableAsync(hostAddress);
+        return Ok(new { available = isAvailable });
+    }
+    catch (Exception ex)
+    {
+        _logger.LogError(ex, "Error checking host availability for {HostAddress}", hostAddress);
+        return StatusCode(500, "Internal server error");
+    }
+}
+
+    [HttpGet("{id}/logs")]
+    public async Task<ActionResult<string>> GetServerLogs(int id, [FromQuery] int? lines = 100)
+    {
+        try
+        {
+            var server = await _serverManagementService.GetServerAsync(id);
+            if (server == null)
+                return NotFound();
+
+            var logs = await _serverManagementService.GetServerLogsAsync(id, lines);
+            return Ok(new { logs });
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error getting logs for server {ServerId}", id);
+            return StatusCode(500, "Internal server error");
+        }
+    }
+
+    [HttpPost("{id}/analyze-logs")]
+    public async Task<ActionResult<LogAnalysisResult>> AnalyzeServerLogs(int id, [FromQuery] int? lines = 500)
+    {
+        try
+        {
+            var server = await _serverManagementService.GetServerAsync(id);
+            if (server == null)
+                return NotFound();
+
+            var logs = await _serverManagementService.GetServerLogsAsync(id, lines);
+            var analysis = await _serverManagementService.AnalyzeLogsWithAiAsync(id, logs);
+            
+            return Ok(analysis);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error analyzing logs for server {ServerId}", id);
+            return StatusCode(500, "Internal server error");
+        }
+    }
+
+    [HttpPost("{id}/execute-command")]
+    public async Task<ActionResult<CommandResult>> ExecuteCommand(int id, [FromBody] ExecuteCommandRequest request)
+    {
+        try
+        {
+            var server = await _serverManagementService.GetServerAsync(id);
+            if (server == null)
+                return NotFound();
+
+            var result = await _serverManagementService.ExecuteCommandAsync(id, request.Command);
+            return Ok(result);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error executing command on server {ServerId}", id);
+            return StatusCode(500, "Internal server error");
+        }
+    }
+
+    [HttpGet("{id}/ssh-session")]
+    public async Task<ActionResult> CreateSshSession(int id)
+    {
+        try
+        {
+            var server = await _serverManagementService.GetServerAsync(id);
+            if (server == null)
+                return NotFound();
+
+            // Return SSH connection details for web terminal
+            return Ok(new 
+            { 
+                serverId = id,
+                host = server.HostAddress,
+                port = server.SshPort ?? 22,
+                username = server.Username
+            });
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error creating SSH session for server {ServerId}", id);
+            return StatusCode(500, "Internal server error");
+        }
+    }
+}
+
+public class ExecuteCommandRequest
+{
+    public string Command { get; set; } = string.Empty;
+}
+
+public class CommandResult
+{
+    public string Output { get; set; } = string.Empty;
+    public string Error { get; set; } = string.Empty;
+    public int ExitCode { get; set; }
+    public DateTime ExecutedAt { get; set; }
+}
+
+public class LogAnalysisResult
+{
+    public string Summary { get; set; } = string.Empty;
+    public List<LogIssue> Issues { get; set; } = new();
+    public List<string> Recommendations { get; set; } = new();
+    public double Confidence { get; set; }
+    public DateTime AnalyzedAt { get; set; }
+}
+
+public class LogIssue
+{
+    public string Type { get; set; } = string.Empty;
+    public string Severity { get; set; } = string.Empty;
+    public string Description { get; set; } = string.Empty;
+    public string LogLine { get; set; } = string.Empty;
+    public int LineNumber { get; set; }
+}
+
+public class CreateServerRequest
+{
+    public string Name { get; set; } = string.Empty;
+    public string HostAddress { get; set; } = string.Empty;
+    public int? SshPort { get; set; } = 22;
+    public string? Username { get; set; }
+    public string? Password { get; set; } // Plain text
+    public string? Type { get; set; }
+    public string? Tags { get; set; }
 }

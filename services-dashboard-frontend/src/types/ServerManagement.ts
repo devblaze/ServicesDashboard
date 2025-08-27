@@ -1,3 +1,5 @@
+// Existing interfaces...
+
 export interface ManagedServer {
   id: number;
   name: string;
@@ -20,12 +22,11 @@ export interface ManagedServer {
 export interface CreateServerDto {
   name: string;
   hostAddress: string;
-  sshPort?: number;
-  username?: string;
-  encryptedPassword?: string;
-  sshKeyPath?: string;
+  sshPort: number;
+  username: string;
+  password: string;
   type: ServerType;
-  tags?: string;
+  tags?: string | null;
 }
 
 export interface ServerHealthCheck {
@@ -69,12 +70,7 @@ export interface ServerAlert {
 }
 
 // Convert enums to string literal union types
-export type ServerType = 
-  | 'Server'
-  | 'RaspberryPi'
-  | 'VirtualMachine'
-  | 'Container'
-  | 'Other';
+export type ServerType = 'Server' | 'RaspberryPi' | 'VirtualMachine' | 'Container';
 
 export type ServerStatus = 
   | 'Unknown'

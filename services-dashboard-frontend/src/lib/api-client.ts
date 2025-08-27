@@ -1,5 +1,5 @@
 import axios, {type AxiosInstance, type AxiosResponse } from 'axios';
-import type { HostedService, CreateServiceDto } from '../types/ServiceInterfaces';
+import type { HostedService, CreateServiceDto } from '../types/Service.ts';
 
 class ApiClient {
     private client: AxiosInstance;

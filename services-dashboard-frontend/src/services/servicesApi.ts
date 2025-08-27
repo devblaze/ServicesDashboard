@@ -1,5 +1,5 @@
 import { BaseApiClient } from './BaseApiClient';
-import type { HostedService, CreateServiceDto } from '../types/ServiceInterfaces';
+import type { HostedService, CreateServiceDto } from '../types/Service.ts';
 
 class ServicesApiClient extends BaseApiClient {
   constructor() {

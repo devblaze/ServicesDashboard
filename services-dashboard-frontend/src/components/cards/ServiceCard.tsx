@@ -1,6 +1,6 @@
 import React from 'react';
 import { Server, Activity, Trash2, CheckCircle, Clock, Square, AlertCircle } from 'lucide-react';
-import type { HostedService } from '../../types/ServiceInterfaces';
+import type { HostedService } from '../../types/Service.ts';
 import { ServiceStatus } from '../../types/ServiceStatus'; // Remove 'type' keyword
 
 interface ServiceCardProps {
