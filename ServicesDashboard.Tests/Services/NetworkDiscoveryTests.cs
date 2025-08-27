@@ -9,13 +9,13 @@ namespace ServicesDashboard.Tests.Services;
 public class NetworkDiscoveryTests
 {
     private readonly Mock<ILogger<NetworkDiscovery>> _mockLogger;
-    private readonly Mock<IAIServiceRecognitionService> _mockAiService;
+    private readonly Mock<IAiServiceRecognitionService> _mockAiService;
     private readonly NetworkDiscovery _service;
 
     public NetworkDiscoveryTests()
     {
         _mockLogger = new Mock<ILogger<NetworkDiscovery>>();
-        _mockAiService = new Mock<IAIServiceRecognitionService>();
+        _mockAiService = new Mock<IAiServiceRecognitionService>();
         _service = new NetworkDiscovery(_mockLogger.Object, _mockAiService.Object);
     }
 

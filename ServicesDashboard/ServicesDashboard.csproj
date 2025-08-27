@@ -34,7 +34,6 @@
     </ItemGroup>
 
     <ItemGroup>
-      <Folder Include="Controllers\" />
       <Folder Include="Data\" />
       <Folder Include="Models\Dtos\" />
       <Folder Include="Services\AIServiceRecognition\" />

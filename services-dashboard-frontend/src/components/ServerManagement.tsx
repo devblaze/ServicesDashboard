@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { useQuery } from '@tanstack/react-query';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import {
   Server,
   Plus,
@@ -13,6 +13,7 @@ import { serverManagementApi } from '../services/serverManagementApi';
 import type { ManagedServer, ServerAlert } from '../types/ServerManagement';
 import { AddServerModal } from './modals/AddServerModal';
 import { ServerCard } from './cards/ServerCard';
+import { ServerDetailsModal } from './modals/ServerDetailsModal';
 
 interface ServerManagementProps {
   darkMode?: boolean;
@@ -21,6 +22,9 @@ interface ServerManagementProps {
 export const ServerManagement: React.FC<ServerManagementProps> = ({ darkMode = true }) => {
   const [selectedServer, setSelectedServer] = useState<ManagedServer | null>(null);
   const [showAddModal, setShowAddModal] = useState(false);
+  const [selectedServerForDetails, setSelectedServerForDetails] = useState<ManagedServer | null>(null);
+
+  const queryClient = useQueryClient();
 
   // Fetch servers
   const {
@@ -259,7 +263,7 @@ export const ServerManagement: React.FC<ServerManagementProps> = ({ darkMode = t
             key={server.id}
             server={server}
             darkMode={darkMode}
-            onSelect={setSelectedServer}
+            onSelect={(server) => setSelectedServerForDetails(server)}
             getStatusIcon={getStatusIcon}
             getServerTypeIcon={getServerTypeIcon}
           />
@@ -305,24 +309,21 @@ export const ServerManagement: React.FC<ServerManagementProps> = ({ darkMode = t
         darkMode={darkMode}
       />
 
-      {/* Server Details Modal */}
-      {selectedServer && (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
-          <div className={`p-6 rounded-xl max-w-2xl w-full mx-4 ${
-            darkMode ? 'bg-gray-800 text-white' : 'bg-white text-gray-900'
-          }`}>
-            <h3 className="text-lg font-semibold mb-4">Server Details: {selectedServer.name}</h3>
-            <p className="text-sm text-gray-500 mb-4">
-              This modal component needs to be implemented.
-            </p>
-            <button
-              onClick={() => setSelectedServer(null)}
-              className="w-full px-4 py-2 bg-blue-600 text-white rounded-lg"
-            >
-              Close
-            </button>
-          </div>
-        </div>
+      {/* Server Details Modal - Remove the old one and keep this updated one */}
+      {selectedServerForDetails && (
+        <ServerDetailsModal
+          server={selectedServerForDetails}
+          darkMode={darkMode}
+          onClose={() => setSelectedServerForDetails(null)}
+          onUpdate={(updatedServer) => {
+            // Update the server in the cache
+            queryClient.setQueryData(['managed-servers'], (oldServers: ManagedServer[] | undefined) => {
+              if (!oldServers) return oldServers;
+              return oldServers.map(s => s.id === updatedServer.id ? updatedServer : s);
+            });
+            setSelectedServerForDetails(updatedServer);
+          }}
+        />
       )}
     </div>
   );

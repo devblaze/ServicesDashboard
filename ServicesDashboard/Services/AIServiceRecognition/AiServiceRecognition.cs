@@ -1,5 +1,4 @@
 using ServicesDashboard.Models;
-using ServicesDashboard.Services.AIServiceRecognition;
 using Microsoft.Extensions.Options;
 using OllamaSharp;
 using OllamaSharp.Models;
@@ -8,13 +7,21 @@ using HtmlAgilityPack;
 using System.Text.Json;
 using System.Text.RegularExpressions;
 using System.Text;
+using ServicesDashboard.Models.Results;
 
 namespace ServicesDashboard.Services.AIServiceRecognition;
 
-public class AIServiceRecognition : IAIServiceRecognitionService
+public interface IAiServiceRecognitionService
+{
+    Task<ServiceRecognitionResult> RecognizeServiceAsync(string hostAddress, int port, string serviceType, string? banner = null, string? htmlContent = null, CancellationToken cancellationToken = default);
+    Task<byte[]?> TakeScreenshotAsync(string url, CancellationToken cancellationToken = default);
+    Task<bool> TestOllamaConnectionAsync();
+}
+
+public class AiServiceRecognition : IAiServiceRecognitionService
 {
     private readonly IOllamaApiClient _ollamaClient;
-    private readonly ILogger<AIServiceRecognition> _logger;
+    private readonly ILogger<AiServiceRecognition> _logger;
     private readonly OllamaSettings _settings;
     private readonly HttpClient _httpClient;
 
@@ -54,9 +61,9 @@ public class AIServiceRecognition : IAIServiceRecognitionService
         { "unknown", "server" }
     };
 
-    public AIServiceRecognition(
+    public AiServiceRecognition(
         IOptions<AppSettings> settings,
-        ILogger<AIServiceRecognition> logger,
+        ILogger<AiServiceRecognition> logger,
         HttpClient httpClient)
     {
         _settings = settings.Value.Ollama;

@@ -13,14 +13,14 @@ namespace ServicesDashboard.Tests.Controllers;
 public class NetworkDiscoveryControllerTests
 {
     private readonly Mock<INetworkDiscoveryService> _mockNetworkDiscoveryService;
-    private readonly Mock<IServiceManager> _mockServiceManager;
+    private readonly Mock<IUserServices> _mockServiceManager;
     private readonly Mock<ILogger<NetworkDiscoveryController>> _mockLogger;
     private readonly NetworkDiscoveryController _controller;
 
     public NetworkDiscoveryControllerTests()
     {
         _mockNetworkDiscoveryService = new Mock<INetworkDiscoveryService>();
-        _mockServiceManager = new Mock<IServiceManager>();
+        _mockServiceManager = new Mock<IUserServices>();
         _mockLogger = new Mock<ILogger<NetworkDiscoveryController>>();
         _controller = new NetworkDiscoveryController(
             _mockNetworkDiscoveryService.Object,

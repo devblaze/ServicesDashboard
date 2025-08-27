@@ -1,17 +1,21 @@
-
 using System.Text.Json;
 using ServicesDashboard.Models;
-using Microsoft.Extensions.Options;
 
-namespace ServicesDashboard.Services;
+namespace ServicesDashboard.Services.Settings;
 
-public class SettingsService : ISettingsService
+public interface IApplicationSettings
+{
+    Task<bool> UpdateOllamaSettingsAsync(OllamaSettings settings);
+    Task<OllamaSettings> GetOllamaSettingsAsync();
+}
+
+public class ApplicationSettings : IApplicationSettings
 {
     private readonly IConfiguration _configuration;
-    private readonly ILogger<SettingsService> _logger;
+    private readonly ILogger<ApplicationSettings> _logger;
     private readonly string _settingsFilePath;
 
-    public SettingsService(IConfiguration configuration, IWebHostEnvironment environment, ILogger<SettingsService> logger)
+    public ApplicationSettings(IConfiguration configuration, IWebHostEnvironment environment, ILogger<ApplicationSettings> logger)
     {
         _configuration = configuration;
         _logger = logger;

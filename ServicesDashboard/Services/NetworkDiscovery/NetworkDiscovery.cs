@@ -10,9 +10,9 @@ namespace ServicesDashboard.Services.NetworkDiscovery;
 public class NetworkDiscovery : INetworkDiscoveryService
 {
     private readonly ILogger<NetworkDiscovery> _logger;
-    private readonly IAIServiceRecognitionService _aiService;
+    private readonly IAiServiceRecognitionService _aiService;
 
-    public NetworkDiscovery(ILogger<NetworkDiscovery> logger, IAIServiceRecognitionService aiService)
+    public NetworkDiscovery(ILogger<NetworkDiscovery> logger, IAiServiceRecognitionService aiService)
     {
         _logger = logger;
         _aiService = aiService;

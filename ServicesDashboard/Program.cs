@@ -1,6 +1,5 @@
 using ServicesDashboard.Services;
 using ServicesDashboard.Services.LogCollection;
-using ServicesDashboard.Services.AIAnalysis;
 using ServicesDashboard.Services.ServerConnection;
 using ServicesDashboard.Services.NetworkDiscovery;
 using ServicesDashboard.Services.AIServiceRecognition;
@@ -11,7 +10,7 @@ using Microsoft.OpenApi.Models;
 using ServicesDashboard.Services.ServerManagement;
 using OllamaSharp;
 using System.Text.Json.Serialization;
-using Microsoft.AspNetCore.Mvc;
+using ServicesDashboard.Services.Settings;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -60,14 +59,14 @@ builder.Services.AddSwaggerGen(c =>
 });
 
 // Register our services
-builder.Services.AddScoped<IServiceManager, ServiceManager>();
-builder.Services.AddSingleton<ILogCollector, DockerLogCollector>();
+builder.Services.AddScoped<IUserServices, UserServices>();
+builder.Services.AddSingleton<IDockerLogCollector, DockerDockerLogCollector>();
 builder.Services.AddSingleton<ILogAnalyzer, OllamaLogAnalyzer>();
 builder.Services.AddSingleton<IServerConnectionManager, ServerConnectionManager>();
 builder.Services.AddScoped<IRemoteLogCollector, RemoteDockerLogCollector>();
 builder.Services.AddScoped<INetworkDiscoveryService, NetworkDiscovery>();
-builder.Services.AddScoped<IAIServiceRecognitionService, AIServiceRecognition>();
-builder.Services.AddScoped<ISettingsService, SettingsService>();
+builder.Services.AddScoped<IAiServiceRecognitionService, AiServiceRecognition>();
+builder.Services.AddScoped<IApplicationSettings, ApplicationSettings>();
 builder.Services.AddScoped<IServerManagementService, ServerManagement>();
 builder.Services.AddHttpClient();
 

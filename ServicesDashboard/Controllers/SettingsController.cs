@@ -4,6 +4,7 @@ using ServicesDashboard.Models;
 using ServicesDashboard.Services.AIServiceRecognition;
 using ServicesDashboard.Services;
 using System.Text.Json;
+using ServicesDashboard.Services.Settings;
 
 namespace ServicesDashboard.Controllers;
 
@@ -13,23 +14,23 @@ public class SettingsController : ControllerBase
 {
     private readonly IOptionsSnapshot<AppSettings> _settings;
     private readonly IConfiguration _configuration;
-    private readonly IAIServiceRecognitionService _aiService;
-    private readonly ISettingsService _settingsService;
+    private readonly IAiServiceRecognitionService _aiService;
+    private readonly IApplicationSettings _applicationSettings;
     private readonly ILogger<SettingsController> _logger;
     private readonly HttpClient _httpClient;
 
     public SettingsController(
         IOptionsSnapshot<AppSettings> settings,
         IConfiguration configuration,
-        IAIServiceRecognitionService aiService,
-        ISettingsService settingsService,
+        IAiServiceRecognitionService aiService,
+        IApplicationSettings applicationSettings,
         ILogger<SettingsController> logger,
         HttpClient httpClient)
     {
         _settings = settings;
         _configuration = configuration;
         _aiService = aiService;
-        _settingsService = settingsService;
+        _applicationSettings = applicationSettings;
         _logger = logger;
         _httpClient = httpClient;
     }
@@ -37,7 +38,7 @@ public class SettingsController : ControllerBase
     [HttpGet("ollama")]
     public async Task<ActionResult<OllamaSettings>> GetOllamaSettings()
     {
-        var settings = await _settingsService.GetOllamaSettingsAsync();
+        var settings = await _applicationSettings.GetOllamaSettingsAsync();
         return Ok(settings);
     }
 
@@ -73,7 +74,7 @@ public class SettingsController : ControllerBase
             }
 
             // Save the settings
-            var saved = await _settingsService.UpdateOllamaSettingsAsync(settings);
+            var saved = await _applicationSettings.UpdateOllamaSettingsAsync(settings);
             if (!saved)
             {
                 return BadRequest("Failed to save settings");

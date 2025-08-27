@@ -3,23 +3,24 @@ using Microsoft.Extensions.Logging;
 using Moq;
 using ServicesDashboard.Controllers;
 using ServicesDashboard.Models;
-using ServicesDashboard.Services.AIAnalysis;
 using ServicesDashboard.Services.LogCollection;
-using ServicesDashboard.Services; // Add this for the Services LogAnalysisResult
+using ServicesDashboard.Services;
+using ServicesDashboard.Services.Interfaces; // Add this for the Services LogAnalysisResult
 using Xunit;
+using LogAnalysisResult = ServicesDashboard.Services.Interfaces.LogAnalysisResult;
 
 namespace ServicesDashboard.Tests.Controllers;
 
 public class LogsControllerTests
 {
-    private readonly Mock<ILogCollector> _mockLogCollector;
+    private readonly Mock<IDockerLogCollector> _mockLogCollector;
     private readonly Mock<ILogAnalyzer> _mockLogAnalyzer;
     private readonly Mock<ILogger<LogsController>> _mockLogger;
     private readonly LogsController _controller;
 
     public LogsControllerTests()
     {
-        _mockLogCollector = new Mock<ILogCollector>();
+        _mockLogCollector = new Mock<IDockerLogCollector>();
         _mockLogAnalyzer = new Mock<ILogAnalyzer>();
         _mockLogger = new Mock<ILogger<LogsController>>();
         _controller = new LogsController(_mockLogCollector.Object, _mockLogAnalyzer.Object, _mockLogger.Object);
@@ -96,7 +97,7 @@ public class LogsControllerTests
         var logs = "Sample log content";
         
         // Use the correct LogAnalysisResult from Services namespace
-        var expectedResult = new ServicesDashboard.Services.LogAnalysisResult
+        var expectedResult = new LogAnalysisResult
         {
             HasErrors = true,
             Summary = "Analysis complete",
@@ -115,7 +116,7 @@ public class LogsControllerTests
 
         // Assert
         var okResult = Assert.IsType<OkObjectResult>(result.Result);
-        var analysisResult = Assert.IsType<ServicesDashboard.Services.LogAnalysisResult>(okResult.Value);
+        var analysisResult = Assert.IsType<LogAnalysisResult>(okResult.Value);
         Assert.Equal(expectedResult.Summary, analysisResult.Summary);
         Assert.True(analysisResult.HasErrors);
         Assert.Single(analysisResult.Issues);

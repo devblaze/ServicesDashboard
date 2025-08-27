@@ -8,6 +8,8 @@ using Renci.SshNet;
 using ServicesDashboard.Models;
 using System.Text;
 using System.Globalization;
+using ServicesDashboard.Models.Responses;
+using ServicesDashboard.Models.Results;
 
 namespace ServicesDashboard.Services.ServerManagement;
 
@@ -69,16 +71,16 @@ public class ServerManagement : IServerManagementService
     public async Task<ManagedServer> AddServerAsync(ManagedServer server)
     {
         server.CreatedAt = server.UpdatedAt = DateTime.UtcNow;
-        
+
         // Check if server with same host address already exists
         var existingServer = await _context.ManagedServers
             .FirstOrDefaultAsync(s => s.HostAddress == server.HostAddress);
-        
+
         if (existingServer != null)
         {
             throw new InvalidOperationException($"A server with host address '{server.HostAddress}' already exists.");
         }
-        
+
         // Encrypt password if provided
         if (!string.IsNullOrEmpty(server.EncryptedPassword))
         {
@@ -89,7 +91,8 @@ public class ServerManagement : IServerManagementService
         await _context.SaveChangesAsync();
 
         // Perform initial health check in background
-        _ = Task.Run(async () => {
+        _ = Task.Run(async () =>
+        {
             try
             {
                 await PerformHealthCheckAsync(server.Id);
@@ -106,7 +109,7 @@ public class ServerManagement : IServerManagementService
     public async Task<ManagedServer> UpdateServerAsync(ManagedServer server)
     {
         server.UpdatedAt = DateTime.UtcNow;
-        
+
         var existingServer = await _context.ManagedServers.FindAsync(server.Id);
         if (existingServer == null)
             throw new ArgumentException("Server not found");
@@ -121,7 +124,7 @@ public class ServerManagement : IServerManagementService
         existingServer.UpdatedAt = server.UpdatedAt;
 
         // Handle password update
-        if (!string.IsNullOrEmpty(server.EncryptedPassword) && 
+        if (!string.IsNullOrEmpty(server.EncryptedPassword) &&
             server.EncryptedPassword != existingServer.EncryptedPassword)
         {
             existingServer.EncryptedPassword = EncryptPassword(server.EncryptedPassword);
@@ -153,11 +156,12 @@ public class ServerManagement : IServerManagementService
         );
     }
 
-    public async Task<bool> TestConnectionAsync(string hostAddress, int? sshPort, string? username, string? plainPassword)
+    public async Task<bool> TestConnectionAsync(string hostAddress, int? sshPort, string? username,
+        string? plainPassword)
     {
         try
         {
-            _logger.LogInformation("🔍 Testing connection to {HostAddress}:{Port} with user {Username}", 
+            _logger.LogInformation("🔍 Testing connection to {HostAddress}:{Port} with user {Username}",
                 hostAddress, sshPort ?? 22, username ?? "root");
 
             var connectionInfo = new Renci.SshNet.ConnectionInfo(
@@ -167,18 +171,18 @@ public class ServerManagement : IServerManagementService
                 new PasswordAuthenticationMethod(username ?? "root", plainPassword ?? ""));
 
             connectionInfo.Timeout = TimeSpan.FromSeconds(30);
-            
+
             using var client = new SshClient(connectionInfo);
-            
+
             _logger.LogDebug("⏱️ Attempting SSH connection with 30s timeout...");
             client.Connect();
-            
+
             var result = client.IsConnected;
-            
+
             if (result)
             {
                 _logger.LogInformation("✅ Successfully connected to {HostAddress}", hostAddress);
-                
+
                 // Test a simple command to ensure SSH is working properly
                 try
                 {
@@ -194,17 +198,17 @@ public class ServerManagement : IServerManagementService
             {
                 _logger.LogWarning("❌ Failed to establish connection to {HostAddress}", hostAddress);
             }
-            
+
             client.Disconnect();
             _logger.LogDebug("🔌 Disconnected from {HostAddress}", hostAddress);
-            
+
             return result;
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "❌ Connection test failed for {HostAddress}:{Port}. Error: {ErrorMessage}", 
+            _logger.LogError(ex, "❌ Connection test failed for {HostAddress}:{Port}. Error: {ErrorMessage}",
                 hostAddress, sshPort ?? 22, ex.Message);
-            
+
             // Log specific SSH errors
             if (ex.Message.Contains("Authentication", StringComparison.OrdinalIgnoreCase))
             {
@@ -222,7 +226,7 @@ public class ServerManagement : IServerManagementService
             {
                 _logger.LogError("🌐 Network unreachable - check IP address and routing");
             }
-            
+
             return false;
         }
     }
@@ -248,7 +252,7 @@ public class ServerManagement : IServerManagementService
             {
                 // Get system metrics
                 var metrics = await GetSystemMetricsAsync(client);
-                
+
                 healthCheck.IsHealthy = true;
                 healthCheck.CpuUsage = metrics.CpuUsage;
                 healthCheck.MemoryUsage = metrics.MemoryUsage;
@@ -275,15 +279,15 @@ public class ServerManagement : IServerManagementService
         catch (Exception ex)
         {
             _logger.LogError(ex, "Health check failed for server {ServerId}", serverId);
-            
+
             healthCheck.IsHealthy = false;
             healthCheck.ErrorMessage = ex.Message;
-            
+
             server.Status = ServerStatus.Offline;
             server.LastCheckTime = DateTime.UtcNow;
 
             // Create connection lost alert
-            await CreateAlert(server, AlertType.ConnectionLost, AlertSeverity.High, 
+            await CreateAlert(server, AlertType.ConnectionLost, AlertSeverity.High,
                 $"Connection to server failed: {ex.Message}");
         }
 
@@ -313,7 +317,7 @@ public class ServerManagement : IServerManagementService
             if (client.IsConnected)
             {
                 var updateInfo = await GetUpdateInfoAsync(client, server.OperatingSystem);
-                
+
                 updateReport.AvailableUpdates = updateInfo.TotalUpdates;
                 updateReport.SecurityUpdates = updateInfo.SecurityUpdates;
                 updateReport.PackageDetails = JsonSerializer.Serialize(updateInfo.Packages);
@@ -327,9 +331,10 @@ public class ServerManagement : IServerManagementService
                     updateReport.AiConfidence = aiAnalysis.Confidence;
 
                     // Create alert for available updates
-                    await CreateAlert(server, AlertType.UpdatesAvailable, 
+                    await CreateAlert(server, AlertType.UpdatesAvailable,
                         updateInfo.SecurityUpdates > 0 ? AlertSeverity.High : AlertSeverity.Medium,
-                        string.Format(CultureInfo.InvariantCulture, "{0} updates available ({1} security)", updateInfo.TotalUpdates, updateInfo.SecurityUpdates));
+                        string.Format(CultureInfo.InvariantCulture, "{0} updates available ({1} security)",
+                            updateInfo.TotalUpdates, updateInfo.SecurityUpdates));
                 }
             }
 
@@ -377,7 +382,7 @@ public class ServerManagement : IServerManagementService
     {
         var existingServer = await _context.ManagedServers
             .FirstOrDefaultAsync(s => s.HostAddress == hostAddress);
-        
+
         return existingServer == null;
     }
 
@@ -395,19 +400,21 @@ public class ServerManagement : IServerManagementService
         return new SshClient(connectionInfo);
     }
 
-    private async Task<SystemMetrics> GetSystemMetricsAsync(SshClient client)
+    private async Task<SystemMetricsResult> GetSystemMetricsAsync(SshClient client)
     {
-        var metrics = new SystemMetrics();
+        var metrics = new SystemMetricsResult();
 
         try
         {
             // CPU Usage - simplified approach
-            var cpuResult = await ExecuteCommandAsync(client, "grep 'cpu ' /proc/stat | awk '{usage=($2+$4)*100/($2+$3+$4+$5)} END {print usage}'");
+            var cpuResult = await ExecuteCommandAsync(client,
+                "grep 'cpu ' /proc/stat | awk '{usage=($2+$4)*100/($2+$3+$4+$5)} END {print usage}'");
             if (double.TryParse(cpuResult, NumberStyles.Float, CultureInfo.InvariantCulture, out var cpu))
                 metrics.CpuUsage = cpu;
 
             // Memory Usage
-            var memResult = await ExecuteCommandAsync(client, "free | grep Mem | awk '{printf \"%.1f\", $3/$2 * 100.0}'");
+            var memResult =
+                await ExecuteCommandAsync(client, "free | grep Mem | awk '{printf \"%.1f\", $3/$2 * 100.0}'");
             if (double.TryParse(memResult, NumberStyles.Float, CultureInfo.InvariantCulture, out var mem))
                 metrics.MemoryUsage = mem;
 
@@ -417,7 +424,8 @@ public class ServerManagement : IServerManagementService
                 metrics.DiskUsage = disk;
 
             // Load Average
-            var loadResult = await ExecuteCommandAsync(client, "uptime | awk -F'load average:' '{print $2}' | cut -d, -f1 | xargs");
+            var loadResult = await ExecuteCommandAsync(client,
+                "uptime | awk -F'load average:' '{print $2}' | cut -d, -f1 | xargs");
             if (double.TryParse(loadResult, NumberStyles.Float, CultureInfo.InvariantCulture, out var load))
                 metrics.LoadAverage = load;
 
@@ -448,10 +456,10 @@ public class ServerManagement : IServerManagementService
         });
     }
 
-    private async Task<UpdateInfo> GetUpdateInfoAsync(SshClient client, string? osType)
+    private async Task<UpdateInfoResult> GetUpdateInfoAsync(SshClient client, string? osType)
     {
-        var updateInfo = new UpdateInfo();
-        
+        var updateInfo = new UpdateInfoResult();
+
         try
         {
             // Detect package manager and get update info
@@ -459,19 +467,26 @@ public class ServerManagement : IServerManagementService
             {
                 // Update package lists first (non-interactive)
                 await ExecuteCommandAsync(client, "DEBIAN_FRONTEND=noninteractive apt-get update -qq");
-                
-                var updatesResult = await ExecuteCommandAsync(client, "apt list --upgradable 2>/dev/null | grep -v 'Listing...' | wc -l");
-                if (int.TryParse(updatesResult, NumberStyles.Integer, CultureInfo.InvariantCulture, out var totalUpdates))
+
+                var updatesResult = await ExecuteCommandAsync(client,
+                    "apt list --upgradable 2>/dev/null | grep -v 'Listing...' | wc -l");
+                if (int.TryParse(updatesResult, NumberStyles.Integer, CultureInfo.InvariantCulture,
+                        out var totalUpdates))
                     updateInfo.TotalUpdates = totalUpdates;
 
-                var securityResult = await ExecuteCommandAsync(client, "apt list --upgradable 2>/dev/null | grep -i security | wc -l");
-                if (int.TryParse(securityResult, NumberStyles.Integer, CultureInfo.InvariantCulture, out var secUpdates))
+                var securityResult = await ExecuteCommandAsync(client,
+                    "apt list --upgradable 2>/dev/null | grep -i security | wc -l");
+                if (int.TryParse(securityResult, NumberStyles.Integer, CultureInfo.InvariantCulture,
+                        out var secUpdates))
                     updateInfo.SecurityUpdates = secUpdates;
             }
-            else if (osType?.ToLower().Contains("centos") == true || osType?.ToLower().Contains("rhel") == true || osType?.ToLower().Contains("fedora") == true)
+            else if (osType?.ToLower().Contains("centos") == true || osType?.ToLower().Contains("rhel") == true ||
+                     osType?.ToLower().Contains("fedora") == true)
             {
-                var updatesResult = await ExecuteCommandAsync(client, "yum check-update -q | grep -v 'Loaded plugins' | wc -l");
-                if (int.TryParse(updatesResult, NumberStyles.Integer, CultureInfo.InvariantCulture, out var totalUpdates))
+                var updatesResult =
+                    await ExecuteCommandAsync(client, "yum check-update -q | grep -v 'Loaded plugins' | wc -l");
+                if (int.TryParse(updatesResult, NumberStyles.Integer, CultureInfo.InvariantCulture,
+                        out var totalUpdates))
                     updateInfo.TotalUpdates = Math.Max(0, totalUpdates - 1); // Remove header if present
             }
             else
@@ -489,41 +504,41 @@ public class ServerManagement : IServerManagementService
         return updateInfo;
     }
 
-    private ServerStatus DetermineServerStatus(SystemMetrics metrics)
+    private ServerStatus DetermineServerStatus(SystemMetricsResult metricsResult)
     {
-        if (metrics.CpuUsage > 90 || metrics.MemoryUsage > 90 || metrics.DiskUsage > 95)
+        if (metricsResult.CpuUsage > 90 || metricsResult.MemoryUsage > 90 || metricsResult.DiskUsage > 95)
             return ServerStatus.Critical;
-        
-        if (metrics.CpuUsage > 80 || metrics.MemoryUsage > 80 || metrics.DiskUsage > 90)
+
+        if (metricsResult.CpuUsage > 80 || metricsResult.MemoryUsage > 80 || metricsResult.DiskUsage > 90)
             return ServerStatus.Warning;
 
         return ServerStatus.Online;
     }
 
-    private async Task CreateAlertsIfNeeded(ManagedServer server, SystemMetrics metrics)
+    private async Task CreateAlertsIfNeeded(ManagedServer server, SystemMetricsResult metricsResult)
     {
         // High CPU alert
-        if (metrics.CpuUsage > 85)
+        if (metricsResult.CpuUsage > 85)
         {
-            await CreateAlert(server, AlertType.HighCpuUsage, 
-                metrics.CpuUsage > 95 ? AlertSeverity.Critical : AlertSeverity.High,
-                string.Format(CultureInfo.InvariantCulture, "CPU usage is {0:F1}%", metrics.CpuUsage));
+            await CreateAlert(server, AlertType.HighCpuUsage,
+                metricsResult.CpuUsage > 95 ? AlertSeverity.Critical : AlertSeverity.High,
+                string.Format(CultureInfo.InvariantCulture, "CPU usage is {0:F1}%", metricsResult.CpuUsage));
         }
 
         // High Memory alert
-        if (metrics.MemoryUsage > 85)
+        if (metricsResult.MemoryUsage > 85)
         {
             await CreateAlert(server, AlertType.HighMemoryUsage,
-                metrics.MemoryUsage > 95 ? AlertSeverity.Critical : AlertSeverity.High,
-                string.Format(CultureInfo.InvariantCulture, "Memory usage is {0:F1}%", metrics.MemoryUsage));
+                metricsResult.MemoryUsage > 95 ? AlertSeverity.Critical : AlertSeverity.High,
+                string.Format(CultureInfo.InvariantCulture, "Memory usage is {0:F1}%", metricsResult.MemoryUsage));
         }
 
         // High Disk alert
-        if (metrics.DiskUsage > 85)
+        if (metricsResult.DiskUsage > 85)
         {
             await CreateAlert(server, AlertType.HighDiskUsage,
-                metrics.DiskUsage > 95 ? AlertSeverity.Critical : AlertSeverity.High,
-                string.Format(CultureInfo.InvariantCulture, "Disk usage is {0:F1}%", metrics.DiskUsage));
+                metricsResult.DiskUsage > 95 ? AlertSeverity.Critical : AlertSeverity.High,
+                string.Format(CultureInfo.InvariantCulture, "Disk usage is {0:F1}%", metricsResult.DiskUsage));
         }
     }
 
@@ -549,7 +564,8 @@ public class ServerManagement : IServerManagementService
         _context.ServerAlerts.Add(alert);
     }
 
-    private async Task<(string Recommendation, double Confidence)> GetAiUpdateRecommendation(ManagedServer server, UpdateInfo updateInfo)
+    private async Task<(string Recommendation, double Confidence)> GetAiUpdateRecommendation(ManagedServer server,
+        UpdateInfoResult updateInfoResult)
     {
         try
         {
@@ -568,15 +584,15 @@ Please provide a brief recommendation for applying these updates. Consider:
 Respond with a JSON object containing 'recommendation' and 'confidence' (0-1).
 Example: {{""recommendation"": ""Apply security updates immediately, schedule others for maintenance window"", ""confidence"": 0.8}}
 ",
-                server.Name, server.Type, server.OperatingSystem, updateInfo.TotalUpdates, updateInfo.SecurityUpdates);
+                server.Name, server.Type, server.OperatingSystem, updateInfoResult.TotalUpdates, updateInfoResult.SecurityUpdates);
 
             var response = new StringBuilder();
             await foreach (var chunk in _ollamaClient.GenerateAsync(new GenerateRequest
-            {
-                Model = _settings.Ollama.Model,
-                Prompt = prompt,
-                Stream = false
-            }))
+                           {
+                               Model = _settings.Ollama.Model,
+                               Prompt = prompt,
+                               Stream = false
+                           }))
             {
                 if (chunk?.Response != null)
                     response.Append(chunk.Response);
@@ -587,8 +603,8 @@ Example: {{""recommendation"": ""Apply security updates immediately, schedule ot
             if (!string.IsNullOrWhiteSpace(responseText))
             {
                 var aiResponse = JsonSerializer.Deserialize<AiUpdateResponse>(responseText);
-                return (aiResponse?.Recommendation ?? "Apply updates during maintenance window", 
-                       aiResponse?.Confidence ?? 0.7);
+                return (aiResponse?.Recommendation ?? "Apply updates during maintenance window",
+                    aiResponse?.Confidence ?? 0.7);
             }
         }
         catch (Exception ex)
@@ -597,11 +613,12 @@ Example: {{""recommendation"": ""Apply security updates immediately, schedule ot
         }
 
         // Fallback recommendation
-        var fallbackRecommendation = updateInfo.SecurityUpdates > 0 
-            ? string.Format(CultureInfo.InvariantCulture, 
+        var fallbackRecommendation = updateInfoResult.SecurityUpdates > 0
+            ? string.Format(CultureInfo.InvariantCulture,
                 "Apply {0} security updates immediately, schedule remaining {1} updates for maintenance window",
-                updateInfo.SecurityUpdates, updateInfo.TotalUpdates - updateInfo.SecurityUpdates)
-            : string.Format(CultureInfo.InvariantCulture, "Schedule {0} updates for next maintenance window", updateInfo.TotalUpdates);
+                updateInfoResult.SecurityUpdates, updateInfoResult.TotalUpdates - updateInfoResult.SecurityUpdates)
+            : string.Format(CultureInfo.InvariantCulture, "Schedule {0} updates for next maintenance window",
+                updateInfoResult.TotalUpdates);
 
         return (fallbackRecommendation, 0.5);
     }
@@ -610,7 +627,7 @@ Example: {{""recommendation"": ""Apply security updates immediately, schedule ot
     {
         if (string.IsNullOrEmpty(password))
             return "";
-            
+
         try
         {
             // Simple Base64 encoding for demo - in production use proper encryption
@@ -627,7 +644,7 @@ Example: {{""recommendation"": ""Apply security updates immediately, schedule ot
     {
         if (string.IsNullOrEmpty(encryptedPassword))
             return "";
-            
+
         try
         {
             // Try to decode as Base64 first
@@ -733,22 +750,22 @@ Respond only with valid JSON in this format:
 
             var response = new StringBuilder();
             await foreach (var chunk in _ollamaClient.GenerateAsync(new GenerateRequest
-            {
-                Model = _settings.Ollama.Model,
-                Prompt = prompt,
-                Stream = false
-            }))
+                           {
+                               Model = _settings.Ollama.Model,
+                               Prompt = prompt,
+                               Stream = false
+                           }))
             {
                 if (chunk?.Response != null)
                     response.Append(chunk.Response);
             }
 
             var responseText = response.ToString().Trim();
-        
+
             // Try to extract JSON from the response
             var jsonStart = responseText.IndexOf('{');
             var jsonEnd = responseText.LastIndexOf('}');
-        
+
             if (jsonStart >= 0 && jsonEnd > jsonStart)
             {
                 var jsonText = responseText.Substring(jsonStart, jsonEnd - jsonStart + 1);
@@ -756,7 +773,7 @@ Respond only with valid JSON in this format:
                 {
                     PropertyNameCaseInsensitive = true
                 });
-            
+
                 if (analysis != null)
                 {
                     analysis.AnalyzedAt = DateTime.UtcNow;
@@ -777,7 +794,7 @@ Respond only with valid JSON in this format:
         catch (Exception ex)
         {
             _logger.LogError(ex, "Failed to analyze logs with AI for server {ServerId}", serverId);
-        
+
             return new LogAnalysisResult
             {
                 Summary = "AI analysis failed - manual review required",
@@ -820,7 +837,7 @@ Respond only with valid JSON in this format:
 
             using var cmd = client.CreateCommand(command);
             var output = cmd.Execute();
-        
+
             result.Output = output ?? "";
             result.Error = cmd.Error ?? "";
             result.ExitCode = cmd.ExitStatus;
@@ -836,28 +853,4 @@ Respond only with valid JSON in this format:
             return result;
         }
     }
-}
-
-// Helper classes
-public class SystemMetrics
-{
-    public double CpuUsage { get; set; }
-    public double MemoryUsage { get; set; }
-    public double DiskUsage { get; set; }
-    public double LoadAverage { get; set; }
-    public int RunningProcesses { get; set; }
-    public string? OperatingSystem { get; set; }
-}
-
-public class UpdateInfo
-{
-    public int TotalUpdates { get; set; }
-    public int SecurityUpdates { get; set; }
-    public List<object> Packages { get; set; } = new();
-}
-
-public class AiUpdateResponse
-{
-    public string? Recommendation { get; set; }
-    public double Confidence { get; set; }
 }

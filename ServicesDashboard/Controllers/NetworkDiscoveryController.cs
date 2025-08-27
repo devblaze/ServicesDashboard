@@ -12,16 +12,16 @@ namespace ServicesDashboard.Controllers;
 public class NetworkDiscoveryController : ControllerBase
 {
     private readonly INetworkDiscoveryService _networkDiscoveryService;
-    private readonly IServiceManager _serviceManager;
+    private readonly IUserServices _userServices;
     private readonly ILogger<NetworkDiscoveryController> _logger;
 
     public NetworkDiscoveryController(
         INetworkDiscoveryService networkDiscoveryService,
-        IServiceManager serviceManager,
+        IUserServices userServices,
         ILogger<NetworkDiscoveryController> logger)
     {
         _networkDiscoveryService = networkDiscoveryService;
-        _serviceManager = serviceManager;
+        _userServices = userServices;
         _logger = logger;
     }
 
@@ -120,7 +120,7 @@ public class NetworkDiscoveryController : ControllerBase
 
             _logger.LogInformation("Creating service with URL: {Url}", serviceUrl);
 
-            var createdService = await _serviceManager.AddServiceAsync(hostedService);
+            var createdService = await _userServices.AddServiceAsync(hostedService);
             
             _logger.LogInformation("Successfully added service: {ServiceId}", createdService.Id);
             return Ok(createdService);

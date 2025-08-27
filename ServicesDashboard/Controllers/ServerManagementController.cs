@@ -1,6 +1,7 @@
 using Microsoft.AspNetCore.Mvc;
 using ServicesDashboard.Models;
 using ServicesDashboard.Models.Requests;
+using ServicesDashboard.Models.Results;
 using ServicesDashboard.Services.ServerManagement;
 
 namespace ServicesDashboard.Controllers;
@@ -318,46 +319,4 @@ public class ServerManagementController : ControllerBase
             return StatusCode(500, "Internal server error");
         }
     }
-}
-
-public class ExecuteCommandRequest
-{
-    public string Command { get; set; } = string.Empty;
-}
-
-public class CommandResult
-{
-    public string Output { get; set; } = string.Empty;
-    public string Error { get; set; } = string.Empty;
-    public int ExitCode { get; set; }
-    public DateTime ExecutedAt { get; set; }
-}
-
-public class LogAnalysisResult
-{
-    public string Summary { get; set; } = string.Empty;
-    public List<LogIssue> Issues { get; set; } = new();
-    public List<string> Recommendations { get; set; } = new();
-    public double Confidence { get; set; }
-    public DateTime AnalyzedAt { get; set; }
-}
-
-public class LogIssue
-{
-    public string Type { get; set; } = string.Empty;
-    public string Severity { get; set; } = string.Empty;
-    public string Description { get; set; } = string.Empty;
-    public string LogLine { get; set; } = string.Empty;
-    public int LineNumber { get; set; }
-}
-
-public class CreateServerRequest
-{
-    public string Name { get; set; } = string.Empty;
-    public string HostAddress { get; set; } = string.Empty;
-    public int? SshPort { get; set; } = 22;
-    public string? Username { get; set; }
-    public string? Password { get; set; } // Plain text
-    public string? Type { get; set; }
-    public string? Tags { get; set; }
 }

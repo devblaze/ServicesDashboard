@@ -1,7 +1,7 @@
 ﻿using Microsoft.AspNetCore.Mvc;
+using ServicesDashboard.Models;
 using ServicesDashboard.Services;
 using ServicesDashboard.Services.LogCollection;
-using ServicesDashboard.Services.AIAnalysis;
 
 namespace ServicesDashboard.Controllers;
 
@@ -9,16 +9,16 @@ namespace ServicesDashboard.Controllers;
 [Route("api/[controller]")]
 public class LogsController : ControllerBase
 {
-    private readonly ILogCollector _logCollector;
+    private readonly IDockerLogCollector _dockerLogCollector;
     private readonly ILogAnalyzer _logAnalyzer;
     private readonly ILogger<LogsController> _logger;
 
     public LogsController(
-        ILogCollector logCollector, 
+        IDockerLogCollector dockerLogCollector, 
         ILogAnalyzer logAnalyzer, 
         ILogger<LogsController> logger)
     {
-        _logCollector = logCollector;
+        _dockerLogCollector = dockerLogCollector;
         _logAnalyzer = logAnalyzer;
         _logger = logger;
     }
@@ -26,21 +26,21 @@ public class LogsController : ControllerBase
     [HttpGet("containers")]
     public async Task<ActionResult<IEnumerable<string>>> GetContainers()
     {
-        var containers = await _logCollector.ListContainersAsync();
+        var containers = await _dockerLogCollector.ListContainersAsync();
         return Ok(containers);
     }
 
     [HttpGet("containers/{containerId}")]
     public async Task<ActionResult<string>> GetContainerLogs(string containerId, [FromQuery] int lines = 100)
     {
-        var logs = await _logCollector.GetContainerLogsAsync(containerId, lines);
+        var logs = await _dockerLogCollector.GetContainerLogsAsync(containerId, lines);
         return Ok(logs);
     }
 
     [HttpGet("containers/{containerId}/download")]
     public async Task<ActionResult> DownloadContainerLogs(string containerId)
     {
-        var logs = await _logCollector.DownloadContainerLogsAsync(containerId);
+        var logs = await _dockerLogCollector.DownloadContainerLogsAsync(containerId);
         return File(System.Text.Encoding.UTF8.GetBytes(logs), "text/plain", $"{containerId}-logs.txt");
     }
 

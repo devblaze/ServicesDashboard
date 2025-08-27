@@ -1,8 +1,12 @@
-﻿using System.Text;
-using System.Text.Json;
-using System.Net.Http.Json;
+﻿using ServicesDashboard.Models;
+using ServicesDashboard.Models.Results;
 
-namespace ServicesDashboard.Services.AIAnalysis;
+namespace ServicesDashboard.Services;
+
+public interface ILogAnalyzer
+{
+    Task<LogAnalysisResult> AnalyzeLogsAsync(string logs);
+}
 
 public class OllamaLogAnalyzer : ILogAnalyzer
 {

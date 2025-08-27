@@ -1,4 +1,3 @@
-// ServicesDashboard/Models/ServerConnection.cs
 namespace ServicesDashboard.Models;
 
 public class ServerConnection
@@ -29,17 +28,12 @@ public class ServerConnectionDto
     public string DockerEndpoint { get; set; } = "unix:///var/run/docker.sock";
 }
 
-public class LogAnalysisResult
-{
-    public string ServiceId { get; set; } = string.Empty;
-    public IEnumerable<LogIssue> Issues { get; set; } = new List<LogIssue>();
-    public string Summary { get; set; } = string.Empty;
-    public DateTimeOffset Timestamp { get; set; } = DateTimeOffset.UtcNow;
-}
-
 public class LogIssue
 {
+    public string? Type { get; set; }
     public string Severity { get; set; } = "info"; // info, warning, error, critical
     public string Description { get; set; } = string.Empty;
     public string? Suggestion { get; set; }
+    public string? LogLine { get; set; }
+    public int LineNumber { get; set; }
 }

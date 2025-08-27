@@ -8,26 +8,26 @@ namespace ServicesDashboard.Controllers;
 [Route("api/[controller]")]
 public class ServicesController : ControllerBase
 {
-    private readonly IServiceManager _serviceManager;
+    private readonly IUserServices _userServices;
     private readonly ILogger<ServicesController> _logger;
 
-    public ServicesController(IServiceManager serviceManager, ILogger<ServicesController> logger)
+    public ServicesController(IUserServices userServices, ILogger<ServicesController> logger)
     {
-        _serviceManager = serviceManager;
+        _userServices = userServices;
         _logger = logger;
     }
 
     [HttpGet]
     public async Task<ActionResult<IEnumerable<HostedService>>> GetAllServices()
     {
-        var services = await _serviceManager.GetAllServicesAsync();
+        var services = await _userServices.GetAllServicesAsync();
         return Ok(services);
     }
 
     [HttpGet("{id}")]
     public async Task<ActionResult<HostedService>> GetService(Guid id)
     {
-        var service = await _serviceManager.GetServiceByIdAsync(id);
+        var service = await _userServices.GetServiceByIdAsync(id);
         if (service == null)
             return NotFound();
 
@@ -37,7 +37,7 @@ public class ServicesController : ControllerBase
     [HttpPost]
     public async Task<ActionResult<HostedService>> CreateService(HostedService service)
     {
-        var createdService = await _serviceManager.AddServiceAsync(service);
+        var createdService = await _userServices.AddServiceAsync(service);
         return CreatedAtAction(nameof(GetService), new { id = createdService.Id }, createdService);
     }
 
@@ -47,7 +47,7 @@ public class ServicesController : ControllerBase
         if (id != service.Id)
             return BadRequest();
 
-        var success = await _serviceManager.UpdateServiceAsync(service);
+        var success = await _userServices.UpdateServiceAsync(service);
         if (!success)
             return NotFound();
 
@@ -57,7 +57,7 @@ public class ServicesController : ControllerBase
     [HttpDelete("{id}")]
     public async Task<IActionResult> DeleteService(Guid id)
     {
-        var success = await _serviceManager.DeleteServiceAsync(id);
+        var success = await _userServices.DeleteServiceAsync(id);
         if (!success)
             return NotFound();
 
@@ -67,7 +67,7 @@ public class ServicesController : ControllerBase
     [HttpPost("{id}/check-health")]
     public async Task<IActionResult> CheckServiceHealth(Guid id)
     {
-        var success = await _serviceManager.CheckServiceHealthAsync(id);
+        var success = await _userServices.CheckServiceHealthAsync(id);
         if (!success)
             return NotFound();
 

@@ -4,12 +4,22 @@ using Microsoft.EntityFrameworkCore;
 
 namespace ServicesDashboard.Services;
 
-public class ServiceManager : IServiceManager
+public interface IUserServices
+{
+    Task<IEnumerable<HostedService>> GetAllServicesAsync();
+    Task<HostedService?> GetServiceByIdAsync(Guid id);
+    Task<HostedService> AddServiceAsync(HostedService service);
+    Task<bool> UpdateServiceAsync(HostedService service);
+    Task<bool> DeleteServiceAsync(Guid id);
+    Task<bool> CheckServiceHealthAsync(Guid id);
+}
+
+public class UserServices : IUserServices
 {
     private readonly ServicesDashboardContext _context;
-    private readonly ILogger<ServiceManager> _logger;
+    private readonly ILogger<UserServices> _logger;
 
-    public ServiceManager(ServicesDashboardContext context, ILogger<ServiceManager> logger)
+    public UserServices(ServicesDashboardContext context, ILogger<UserServices> logger)
     {
         _context = context;
         _logger = logger;

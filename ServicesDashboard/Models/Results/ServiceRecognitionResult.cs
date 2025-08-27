@@ -1,13 +1,4 @@
-using ServicesDashboard.Models;
-
-namespace ServicesDashboard.Services.AIServiceRecognition;
-
-public interface IAIServiceRecognitionService
-{
-    Task<ServiceRecognitionResult> RecognizeServiceAsync(string hostAddress, int port, string serviceType, string? banner = null, string? htmlContent = null, CancellationToken cancellationToken = default);
-    Task<byte[]?> TakeScreenshotAsync(string url, CancellationToken cancellationToken = default);
-    Task<bool> TestOllamaConnectionAsync();
-}
+namespace ServicesDashboard.Models.Results;
 
 public class ServiceRecognitionResult
 {
