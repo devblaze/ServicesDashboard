@@ -6,7 +6,9 @@ import {
   HardDrive,
   Loader2,
   MemoryStick,
-  Shield
+  Shield,
+  CheckSquare,
+  Square
 } from 'lucide-react';
 import type { ManagedServer } from '../../types/ServerManagement';
 import { serverManagementApi } from '../../services/serverManagementApi';
@@ -17,6 +19,9 @@ interface ServerCardProps {
   onSelect: (server: ManagedServer) => void;
   getStatusIcon: (status: string) => React.ReactElement;
   getServerTypeIcon: (type: string) => string;
+  isSelectionMode?: boolean;
+  isSelected?: boolean;
+  onToggleSelection?: () => void;
 }
 
 export const ServerCard: React.FC<ServerCardProps> = ({
@@ -24,7 +29,10 @@ export const ServerCard: React.FC<ServerCardProps> = ({
   darkMode,
   onSelect,
   getStatusIcon,
-  getServerTypeIcon
+  getServerTypeIcon,
+  isSelectionMode = false,
+  isSelected = false,
+  onToggleSelection
 }) => {
   const queryClient = useQueryClient();
 
@@ -95,12 +103,37 @@ export const ServerCard: React.FC<ServerCardProps> = ({
   const latestUpdateReport = server.updateReports?.[0];
 
   return (
-    <div className={`rounded-2xl border backdrop-blur-sm transition-all duration-300 hover:scale-[1.02] cursor-pointer ${
-      darkMode
-        ? 'bg-gray-800/50 border-gray-700/50 shadow-lg shadow-gray-900/20 hover:shadow-gray-900/40'
-        : 'bg-white/80 border-gray-200/50 shadow-lg shadow-gray-200/20 hover:shadow-gray-200/40'
-    } ${getStatusColor(server.status)}`}
-         onClick={() => onSelect(server)}>
+    <div 
+      className={`rounded-2xl border backdrop-blur-sm transition-all duration-300 hover:scale-[1.02] cursor-pointer relative ${
+        darkMode
+          ? 'bg-gray-800/50 border-gray-700/50 shadow-lg shadow-gray-900/20 hover:shadow-gray-900/40'
+          : 'bg-white/80 border-gray-200/50 shadow-lg shadow-gray-200/20 hover:shadow-gray-200/40'
+      } ${getStatusColor(server.status)} ${
+        isSelected ? (darkMode ? 'ring-2 ring-blue-400' : 'ring-2 ring-blue-500') : ''
+      }`}
+      onClick={() => onSelect(server)}
+    >
+      {/* Selection Checkbox */}
+      {isSelectionMode && (
+        <div className="absolute top-4 right-4 z-10">
+          <button
+            onClick={(e) => {
+              e.stopPropagation();
+              onToggleSelection?.();
+            }}
+            className={`p-1 rounded ${
+              darkMode ? 'hover:bg-gray-600/50' : 'hover:bg-gray-100/50'
+            }`}
+          >
+            {isSelected ? (
+              <CheckSquare className={`w-5 h-5 ${darkMode ? 'text-blue-400' : 'text-blue-600'}`} />
+            ) : (
+              <Square className={`w-5 h-5 ${darkMode ? 'text-gray-400' : 'text-gray-500'}`} />
+            )}
+          </button>
+        </div>
+      )}
+
       <div className="p-6">
         {/* Header */}
         <div className="flex justify-between items-start mb-4">
@@ -118,15 +151,17 @@ export const ServerCard: React.FC<ServerCardProps> = ({
             </div>
           </div>
 
-          <div className={`flex items-center space-x-1 px-3 py-1 rounded-full text-xs font-medium ${
-            server.status === 'Online' ? 'text-green-400 bg-green-500/20' :
-              server.status === 'Warning' ? 'text-yellow-400 bg-yellow-500/20' :
-                server.status === 'Critical' ? 'text-red-400 bg-red-500/20' :
-                  'text-gray-400 bg-gray-500/20'
-          }`}>
-            {getStatusIcon(server.status)}
-            <span>{server.status}</span>
-          </div>
+          {!isSelectionMode && (
+            <div className={`flex items-center space-x-1 px-3 py-1 rounded-full text-xs font-medium ${
+              server.status === 'Online' ? 'text-green-400 bg-green-500/20' :
+                server.status === 'Warning' ? 'text-yellow-400 bg-yellow-500/20' :
+                  server.status === 'Critical' ? 'text-red-400 bg-red-500/20' :
+                    'text-gray-400 bg-gray-500/20'
+            }`}>
+              {getStatusIcon(server.status)}
+              <span>{server.status}</span>
+            </div>
+          )}
         </div>
 
         {/* Metrics */}
@@ -199,48 +234,50 @@ export const ServerCard: React.FC<ServerCardProps> = ({
           </div>
         )}
 
-        {/* Actions */}
-        <div className="flex space-x-2">
-          <button
-            onClick={(e) => {
-              e.stopPropagation();
-              healthCheckMutation.mutate();
-            }}
-            disabled={healthCheckMutation.isPending}
-            className={`flex items-center flex-1 px-3 py-2 rounded-lg text-sm font-medium transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed ${
-              darkMode
-                ? 'bg-gray-700/50 hover:bg-gray-600/50 text-gray-300 hover:text-white'
-                : 'bg-gray-100/50 hover:bg-gray-200/50 text-gray-700 hover:text-gray-900'
-            }`}
-          >
-            {healthCheckMutation.isPending ? (
-              <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-            ) : (
-              <Activity className="w-4 h-4 mr-2" />
-            )}
-            {healthCheckMutation.isPending ? 'Checking...' : 'Health Check'}
-          </button>
+        {/* Actions - Hide in selection mode */}
+        {!isSelectionMode && (
+          <div className="flex space-x-2">
+            <button
+              onClick={(e) => {
+                e.stopPropagation();
+                healthCheckMutation.mutate();
+              }}
+              disabled={healthCheckMutation.isPending}
+              className={`flex items-center flex-1 px-3 py-2 rounded-lg text-sm font-medium transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed ${
+                darkMode
+                  ? 'bg-gray-700/50 hover:bg-gray-600/50 text-gray-300 hover:text-white'
+                  : 'bg-gray-100/50 hover:bg-gray-200/50 text-gray-700 hover:text-gray-900'
+              }`}
+            >
+              {healthCheckMutation.isPending ? (
+                <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+              ) : (
+                <Activity className="w-4 h-4 mr-2" />
+              )}
+              {healthCheckMutation.isPending ? 'Checking...' : 'Health Check'}
+            </button>
 
-          <button
-            onClick={(e) => {
-              e.stopPropagation();
-              updateCheckMutation.mutate();
-            }}
-            disabled={updateCheckMutation.isPending}
-            className={`flex items-center flex-1 px-3 py-2 rounded-lg text-sm font-medium transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed ${
-              darkMode
-                ? 'bg-gray-700/50 hover:bg-gray-600/50 text-gray-300 hover:text-white'
-                : 'bg-gray-100/50 hover:bg-gray-200/50 text-gray-700 hover:text-gray-900'
-            }`}
-          >
-            {updateCheckMutation.isPending ? (
-              <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-            ) : (
-              <Shield className="w-4 h-4 mr-2" />
-            )}
-            {updateCheckMutation.isPending ? 'Checking...' : 'Check Updates'}
-          </button>
-        </div>
+            <button
+              onClick={(e) => {
+                e.stopPropagation();
+                updateCheckMutation.mutate();
+              }}
+              disabled={updateCheckMutation.isPending}
+              className={`flex items-center flex-1 px-3 py-2 rounded-lg text-sm font-medium transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed ${
+                darkMode
+                  ? 'bg-gray-700/50 hover:bg-gray-600/50 text-gray-300 hover:text-white'
+                  : 'bg-gray-100/50 hover:bg-gray-200/50 text-gray-700 hover:text-gray-900'
+              }`}
+            >
+              {updateCheckMutation.isPending ? (
+                <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+              ) : (
+                <Shield className="w-4 h-4 mr-2" />
+              )}
+              {updateCheckMutation.isPending ? 'Checking...' : 'Check Updates'}
+            </button>
+          </div>
+        )}
       </div>
     </div>
   );

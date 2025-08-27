@@ -50,6 +50,11 @@ Services Dashboard is a comprehensive monitoring solution that combines real-tim
 
 ![Dashboard UI](./docs/images/dashboard-ui.png)
 
+
+### Live Server Managment and Problem Resolution
+
+![Dashboard UI](./docs/images/servers-ui.png)
+
 ## 🏗️ Architecture
 
 ### System Overview

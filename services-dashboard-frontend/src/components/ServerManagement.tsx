@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { useQuery, useQueryClient } from '@tanstack/react-query';
+import { useQuery, useQueryClient, useMutation } from '@tanstack/react-query';
 import {
   Server,
   Plus,
@@ -7,13 +7,18 @@ import {
   RefreshCw,
   CheckCircle2,
   XCircle,
-  Clock
+  Clock,
+  Activity,
+  Shield,
+  Loader2,
+  CheckSquare,
+  Square
 } from 'lucide-react';
 import { serverManagementApi } from '../services/serverManagementApi';
 import type { ManagedServer, ServerAlert } from '../types/ServerManagement';
 import { AddServerModal } from './modals/AddServerModal';
 import { ServerCard } from './cards/ServerCard';
-import { ServerDetailsModal } from './modals/ServerDetails/ServerDetailsModal.tsx';
+import { ServerDetailsModal } from './modals/ServerDetails/ServerDetailsModal';
 
 interface ServerManagementProps {
   darkMode?: boolean;
@@ -22,6 +27,8 @@ interface ServerManagementProps {
 export const ServerManagement: React.FC<ServerManagementProps> = ({ darkMode = true }) => {
   const [showAddModal, setShowAddModal] = useState(false);
   const [selectedServerForDetails, setSelectedServerForDetails] = useState<ManagedServer | null>(null);
+  const [selectedServerIds, setSelectedServerIds] = useState<Set<number>>(new Set());
+  const [isSelectionMode, setIsSelectionMode] = useState(false);
 
   const queryClient = useQueryClient();
 
@@ -48,6 +55,101 @@ export const ServerManagement: React.FC<ServerManagementProps> = ({ darkMode = t
     refetchInterval: 2 * 60 * 1000, // Refresh every 2 minutes
     retry: 1,
   });
+
+  // Bulk health check mutation
+  const bulkHealthCheckMutation = useMutation({
+    mutationFn: (serverIds: number[]) => 
+      Promise.all(serverIds.map(id => serverManagementApi.performHealthCheck(id))),
+    onSuccess: (results, serverIds) => {
+      // Update all servers in the cache
+      queryClient.setQueryData(['managed-servers'], (oldServers: ManagedServer[] | undefined) => {
+        if (!oldServers) return oldServers;
+
+        return oldServers.map(server => {
+          const resultIndex = serverIds.findIndex(id => id === server.id);
+          if (resultIndex >= 0) {
+            const newHealthCheck = results[resultIndex];
+            return {
+              ...server,
+              healthChecks: [newHealthCheck, ...(server.healthChecks || [])],
+              lastCheckTime: newHealthCheck.checkTime,
+              status: newHealthCheck.isHealthy ? 'Online' :
+                (newHealthCheck.cpuUsage && newHealthCheck.cpuUsage > 90) ||
+                (newHealthCheck.memoryUsage && newHealthCheck.memoryUsage > 90) ||
+                (newHealthCheck.diskUsage && newHealthCheck.diskUsage > 95) ? 'Critical' :
+                  (newHealthCheck.cpuUsage && newHealthCheck.cpuUsage > 80) ||
+                  (newHealthCheck.memoryUsage && newHealthCheck.memoryUsage > 80) ||
+                  (newHealthCheck.diskUsage && newHealthCheck.diskUsage > 80) ? 'Warning' : 'Online'
+            };
+          }
+          return server;
+        });
+      });
+
+      queryClient.invalidateQueries({ queryKey: ['server-alerts'] });
+      // Clear selection after successful bulk operation
+      setSelectedServerIds(new Set());
+      setIsSelectionMode(false);
+    },
+  });
+
+  // Bulk update check mutation
+  const bulkUpdateCheckMutation = useMutation({
+    mutationFn: (serverIds: number[]) => 
+      Promise.all(serverIds.map(id => serverManagementApi.checkUpdates(id))),
+    onSuccess: (results, serverIds) => {
+      // Update all servers in the cache
+      queryClient.setQueryData(['managed-servers'], (oldServers: ManagedServer[] | undefined) => {
+        if (!oldServers) return oldServers;
+
+        return oldServers.map(server => {
+          const resultIndex = serverIds.findIndex(id => id === server.id);
+          if (resultIndex >= 0) {
+            const newUpdateReport = results[resultIndex];
+            return {
+              ...server,
+              updateReports: [newUpdateReport, ...(server.updateReports || [])]
+            };
+          }
+          return server;
+        });
+      });
+
+      // Clear selection after successful bulk operation
+      setSelectedServerIds(new Set());
+      setIsSelectionMode(false);
+    },
+  });
+
+  const toggleServerSelection = (serverId: number) => {
+    const newSelection = new Set(selectedServerIds);
+    if (newSelection.has(serverId)) {
+      newSelection.delete(serverId);
+    } else {
+      newSelection.add(serverId);
+    }
+    setSelectedServerIds(newSelection);
+  };
+
+  const selectAllServers = () => {
+    if (selectedServerIds.size === servers.length) {
+      setSelectedServerIds(new Set());
+    } else {
+      setSelectedServerIds(new Set(servers.map(s => s.id)));
+    }
+  };
+
+  const handleBulkHealthCheck = () => {
+    if (selectedServerIds.size > 0) {
+      bulkHealthCheckMutation.mutate(Array.from(selectedServerIds));
+    }
+  };
+
+  const handleBulkUpdateCheck = () => {
+    if (selectedServerIds.size > 0) {
+      bulkUpdateCheckMutation.mutate(Array.from(selectedServerIds));
+    }
+  };
 
   const getStatusIcon = (status: string) => {
     switch (status) {
@@ -174,18 +276,120 @@ export const ServerManagement: React.FC<ServerManagementProps> = ({ darkMode = t
             </div>
           </div>
 
-          <button
-            onClick={() => setShowAddModal(true)}
-            className={`flex items-center px-4 py-2 rounded-xl font-medium transition-all duration-300 ${
-              darkMode
-                ? 'bg-gradient-to-r from-blue-600 to-purple-600 text-white shadow-lg shadow-blue-600/25 hover:shadow-blue-600/40'
-                : 'bg-gradient-to-r from-blue-500 to-purple-500 text-white shadow-lg shadow-blue-500/25 hover:shadow-blue-500/40'
-            }`}
-          >
-            <Plus className="w-4 h-4 mr-2" />
-            Add Server
-          </button>
+          <div className="flex items-center space-x-3">
+            {servers.length > 0 && (
+              <button
+                onClick={() => {
+                  setIsSelectionMode(!isSelectionMode);
+                  setSelectedServerIds(new Set());
+                }}
+                className={`flex items-center px-4 py-2 rounded-xl font-medium transition-all duration-300 ${
+                  isSelectionMode
+                    ? darkMode
+                      ? 'bg-gray-600 text-white'
+                      : 'bg-gray-500 text-white'
+                    : darkMode
+                      ? 'bg-gray-700/50 hover:bg-gray-600/50 text-gray-300 hover:text-white'
+                      : 'bg-gray-100/50 hover:bg-gray-200/50 text-gray-700 hover:text-gray-900'
+                }`}
+              >
+                {isSelectionMode ? (
+                  <>
+                    <XCircle className="w-4 h-4 mr-2" />
+                    Cancel Selection
+                  </>
+                ) : (
+                  <>
+                    <CheckSquare className="w-4 h-4 mr-2" />
+                    Select Servers
+                  </>
+                )}
+              </button>
+            )}
+
+            <button
+              onClick={() => setShowAddModal(true)}
+              className={`flex items-center px-4 py-2 rounded-xl font-medium transition-all duration-300 ${
+                darkMode
+                  ? 'bg-gradient-to-r from-blue-600 to-purple-600 text-white shadow-lg shadow-blue-600/25 hover:shadow-blue-600/40'
+                  : 'bg-gradient-to-r from-blue-500 to-purple-500 text-white shadow-lg shadow-blue-500/25 hover:shadow-blue-500/40'
+              }`}
+            >
+              <Plus className="w-4 h-4 mr-2" />
+              Add Server
+            </button>
+          </div>
         </div>
+
+        {/* Selection Controls */}
+        {isSelectionMode && servers.length > 0 && (
+          <div className={`mb-6 p-4 rounded-xl border ${
+            darkMode 
+              ? 'bg-blue-900/20 border-blue-600/50' 
+              : 'bg-blue-50/50 border-blue-200/50'
+          }`}>
+            <div className="flex items-center justify-between mb-4">
+              <div className="flex items-center space-x-4">
+                <button
+                  onClick={selectAllServers}
+                  className={`flex items-center space-x-2 text-sm font-medium ${
+                    darkMode ? 'text-blue-400 hover:text-blue-300' : 'text-blue-600 hover:text-blue-700'
+                  }`}
+                >
+                  {selectedServerIds.size === servers.length ? (
+                    <CheckSquare className="w-4 h-4" />
+                  ) : (
+                    <Square className="w-4 h-4" />
+                  )}
+                  <span>
+                    {selectedServerIds.size === servers.length ? 'Deselect All' : 'Select All'}
+                  </span>
+                </button>
+                <span className={`text-sm ${darkMode ? 'text-gray-400' : 'text-gray-600'}`}>
+                  {selectedServerIds.size} of {servers.length} servers selected
+                </span>
+              </div>
+            </div>
+
+            {selectedServerIds.size > 0 && (
+              <div className="flex space-x-3">
+                <button
+                  onClick={handleBulkHealthCheck}
+                  disabled={bulkHealthCheckMutation.isPending}
+                  className={`flex items-center px-4 py-2 rounded-lg font-medium transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed ${
+                    darkMode
+                      ? 'bg-green-600/20 hover:bg-green-600/30 text-green-400 border border-green-600/50'
+                      : 'bg-green-100/50 hover:bg-green-200/50 text-green-700 border border-green-300'
+                  }`}
+                >
+                  {bulkHealthCheckMutation.isPending ? (
+                    <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                  ) : (
+                    <Activity className="w-4 h-4 mr-2" />
+                  )}
+                  {bulkHealthCheckMutation.isPending ? 'Checking...' : `Health Check (${selectedServerIds.size})`}
+                </button>
+
+                <button
+                  onClick={handleBulkUpdateCheck}
+                  disabled={bulkUpdateCheckMutation.isPending}
+                  className={`flex items-center px-4 py-2 rounded-lg font-medium transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed ${
+                    darkMode
+                      ? 'bg-yellow-600/20 hover:bg-yellow-600/30 text-yellow-400 border border-yellow-600/50'
+                      : 'bg-yellow-100/50 hover:bg-yellow-200/50 text-yellow-700 border border-yellow-300'
+                  }`}
+                >
+                  {bulkUpdateCheckMutation.isPending ? (
+                    <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                  ) : (
+                    <Shield className="w-4 h-4 mr-2" />
+                  )}
+                  {bulkUpdateCheckMutation.isPending ? 'Checking...' : `Check Updates (${selectedServerIds.size})`}
+                </button>
+              </div>
+            )}
+          </div>
+        )}
 
         {/* Quick stats */}
         <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
@@ -262,9 +466,18 @@ export const ServerManagement: React.FC<ServerManagementProps> = ({ darkMode = t
             key={server.id}
             server={server}
             darkMode={darkMode}
-            onSelect={(server) => setSelectedServerForDetails(server)}
+            onSelect={(server) => {
+              if (isSelectionMode) {
+                toggleServerSelection(server.id);
+              } else {
+                setSelectedServerForDetails(server);
+              }
+            }}
             getStatusIcon={getStatusIcon}
             getServerTypeIcon={getServerTypeIcon}
+            isSelectionMode={isSelectionMode}
+            isSelected={selectedServerIds.has(server.id)}
+            onToggleSelection={() => toggleServerSelection(server.id)}
           />
         ))}
       </div>
@@ -308,14 +521,13 @@ export const ServerManagement: React.FC<ServerManagementProps> = ({ darkMode = t
         darkMode={darkMode}
       />
 
-      {/* Server Details Modal - Remove the old one and keep this updated one */}
+      {/* Server Details Modal */}
       {selectedServerForDetails && (
         <ServerDetailsModal
           server={selectedServerForDetails}
           darkMode={darkMode}
           onClose={() => setSelectedServerForDetails(null)}
           onUpdate={(updatedServer) => {
-            // Update the server in the cache
             queryClient.setQueryData(['managed-servers'], (oldServers: ManagedServer[] | undefined) => {
               if (!oldServers) return oldServers;
               return oldServers.map(s => s.id === updatedServer.id ? updatedServer : s);
