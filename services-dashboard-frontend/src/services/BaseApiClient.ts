@@ -1,14 +1,14 @@
-import axios, { type AxiosInstance, type AxiosError } from 'axios';
+import axios from 'axios';
+import type { AxiosInstance, AxiosError } from 'axios';
 
-export interface ApiClientConfig {
+interface ApiClientConfig {
   serviceName?: string;
   timeout?: number;
-  retries?: number;
 }
 
 interface ErrorResponseData {
   message?: string;
-  [key: string]: unknown;
+  errors?: Record<string, string[]>;
 }
 
 class BaseApiClient {
@@ -20,7 +20,7 @@ class BaseApiClient {
     
     this.client = axios.create({
       baseURL: this.getApiBaseUrl(),
-      timeout: config.timeout || 30000,
+      timeout: config.timeout || 120000, // Increased to 2 minutes for network scans
       headers: {
         'Content-Type': 'application/json',
       },
@@ -99,14 +99,17 @@ class BaseApiClient {
   private setupInterceptors(): void {
     // Request interceptor
     this.client.interceptors.request.use(
-      (config) => {
+      (config: any) => {
         if (import.meta.env.DEV) {
           console.log(`🚀 ${this.serviceName}: ${config.method?.toUpperCase()} ${config.url}`);
           console.log(`🔍 Full URL: ${config.baseURL}${config.url}`);
+          if (config.timeout !== this.client.defaults.timeout) {
+            console.log(`⏱️ Custom timeout: ${config.timeout}ms`);
+          }
         }
         return config;
       },
-      (error) => {
+      (error: any) => {
         console.error(`${this.serviceName} Request Error:`, error);
         return Promise.reject(error);
       }
@@ -114,7 +117,7 @@ class BaseApiClient {
 
     // Response interceptor
     this.client.interceptors.response.use(
-      (response) => {
+      (response: any) => {
         if (import.meta.env.DEV) {
           console.log(`✅ ${this.serviceName}: ${response.status} ${response.config.url}`);
         }
@@ -135,7 +138,12 @@ class BaseApiClient {
     console.error(`❌ ${this.serviceName} Error: ${status || 'Network'}`, message);
 
     // Log additional helpful information
-    if (status === 500) {
+    if (error.code === 'ECONNABORTED') {
+      console.error('⏱️ Request Timeout - Operation took longer than expected');
+      console.error('💡 This is common for network discovery operations');
+      console.error('💡 The operation might still be running on the server');
+      console.error('💡 Try scanning smaller network ranges or fewer ports');
+    } else if (status === 500) {
       console.error('🔥 Server Error - Check backend logs for details');
       console.error('Response data:', error.response?.data);
     } else if (status === 403) {
@@ -158,20 +166,28 @@ class BaseApiClient {
     }
   }
 
-  // Generic request method with type safety
+  // Generic request method with type safety and custom timeout support
   protected async request<T>(
     method: 'get' | 'post' | 'put' | 'patch' | 'delete',
     url: string,
     data?: unknown,
-    params?: Record<string, unknown>
+    params?: Record<string, unknown>,
+    customTimeout?: number
   ): Promise<T> {
     try {
-      const response = await this.client.request<T>({
+      const config: any = {
         method,
         url,
         data,
         params,
-      });
+      };
+      
+      // Apply custom timeout if provided
+      if (customTimeout) {
+        config.timeout = customTimeout;
+      }
+      
+      const response = await this.client.request<T>(config);
       return response.data;
     } catch (error) {
       console.error(`Request failed: ${method.toUpperCase()} ${url}`, error);
@@ -181,3 +197,4 @@ class BaseApiClient {
 }
 
 export { BaseApiClient };
+export type { ApiClientConfig };

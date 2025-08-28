@@ -8,6 +8,17 @@ const queryClient = new QueryClient({
       refetchOnWindowFocus: false,
       retry: 1,
       staleTime: 1000 * 60 * 5, // 5 minutes
+      gcTime: 1000 * 60 * 10, // 10 minutes (formerly cacheTime)
+    },
+    mutations: {
+      retry: (failureCount: number, error: Error) => {
+        // Don't retry timeout errors for scanning operations
+        if (error?.message?.includes('timeout') || error?.message?.includes('ECONNABORTED')) {
+          return false;
+        }
+        // Only retry once for other errors
+        return failureCount < 1;
+      },
     },
   },
 });

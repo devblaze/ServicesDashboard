@@ -45,12 +45,13 @@ export const NetworkDiscovery: React.FC<NetworkDiscoveryProps> = ({ darkMode = t
   // Get common ports
   const { data: commonPorts = [] } = useQuery({
     queryKey: ['common-ports'],
-    queryFn: networkDiscoveryApi.getCommonPorts
+    queryFn: () => networkDiscoveryApi.getCommonPorts()
   });
 
-  // Network scan mutation
+  // Network scan mutation - Fixed: proper method binding
   const networkScanMutation = useMutation({
-    mutationFn: networkDiscoveryApi.scanNetwork,
+    mutationFn: (request: Parameters<typeof networkDiscoveryApi.scanNetwork>[0]) => 
+      networkDiscoveryApi.scanNetwork(request),
     onSuccess: (data) => {
       setDiscoveredServices(data);
       setAddedServices(new Set()); // Reset added services when new scan is performed
@@ -65,9 +66,10 @@ export const NetworkDiscovery: React.FC<NetworkDiscoveryProps> = ({ darkMode = t
     }
   });
 
-  // Host scan mutation
+  // Host scan mutation - Fixed: proper method binding
   const hostScanMutation = useMutation({
-    mutationFn: networkDiscoveryApi.scanHost,
+    mutationFn: (request: Parameters<typeof networkDiscoveryApi.scanHost>[0]) => 
+      networkDiscoveryApi.scanHost(request),
     onSuccess: (data) => {
       setDiscoveredServices(data);
       setAddedServices(new Set()); // Reset added services when new scan is performed
@@ -82,9 +84,10 @@ export const NetworkDiscovery: React.FC<NetworkDiscoveryProps> = ({ darkMode = t
     }
   });
 
-  // Add to services mutation
+  // Add to services mutation - Fixed: proper method binding
   const addToServicesMutation = useMutation({
-    mutationFn: networkDiscoveryApi.addToServices,
+    mutationFn: (request: Parameters<typeof networkDiscoveryApi.addToServices>[0]) => 
+      networkDiscoveryApi.addToServices(request),
     onSuccess: (data, variables) => {
       console.log('Service added successfully:', data);
       // Mark this service as added

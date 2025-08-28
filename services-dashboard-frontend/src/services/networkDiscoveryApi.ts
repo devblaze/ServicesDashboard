@@ -34,19 +34,19 @@ class NetworkDiscoveryApiClient extends BaseApiClient {
   }
 
   async getCommonPorts(): Promise<number[]> {
-    return this.request<number[]>('get', '/api/networkdiscovery/common-ports');
+    return this.request<number[]>('get', '/networkdiscovery/common-ports');
   }
 
   async scanNetwork(request: NetworkScanRequest): Promise<DiscoveredService[]> {
-    return this.request<DiscoveredService[]>('post', '/api/networkdiscovery/scan-network', request);
+    return this.request<DiscoveredService[]>('post', '/networkdiscovery/scan-network', request);
   }
 
   async scanHost(request: HostScanRequest): Promise<DiscoveredService[]> {
-    return this.request<DiscoveredService[]>('post', '/api/networkdiscovery/scan-host', request);
+    return this.request<DiscoveredService[]>('post', '/networkdiscovery/scan-host', request);
   }
 
   async addToServices(request: AddToServicesRequest): Promise<any> {
-    return this.request<any>('post', '/api/networkdiscovery/add-to-services', request);
+    return this.request<any>('post', '/networkdiscovery/add-to-services', request);
   }
 }
 
@@ -56,11 +56,11 @@ class SettingsApiClient extends BaseApiClient {
   }
 
   async getOllamaSettings(): Promise<OllamaSettings> {
-    return this.request<OllamaSettings>('get', '/api/settings/ollama');
+    return this.request<OllamaSettings>('get', '/settings/ollama');
   }
 
   async updateOllamaSettings(settings: OllamaSettings): Promise<boolean> {
-    return this.request<boolean>('put', '/api/settings/ollama', settings);
+    return this.request<boolean>('put', '/settings/ollama', settings);
   }
 }
 
