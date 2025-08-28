@@ -14,11 +14,11 @@ import {
   CheckSquare,
   Square
 } from 'lucide-react';
-import { serverManagementApi } from '../services/serverManagementApi';
-import type { ManagedServer, ServerAlert } from '../types/ServerManagement';
-import { AddServerModal } from './modals/AddServerModal';
-import { ServerCard } from './cards/ServerCard';
-import { ServerDetailsModal } from './modals/ServerDetails/ServerDetailsModal';
+import { serverManagementApi } from '../../services/serverManagementApi.ts';
+import type { ManagedServer, ServerAlert } from '../../types/ServerManagement.ts';
+import { AddServerModal } from '../modals/AddServerModal.tsx';
+import { ServerCard } from '../cards/ServerCard.tsx';
+import { ServerDetailsModal } from '../modals/ServerDetails/ServerDetailsModal.tsx';
 
 interface ServerManagementProps {
   darkMode?: boolean;

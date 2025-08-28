@@ -1,14 +1,15 @@
 import { useState } from 'react';
-import { useServices } from '../hooks/serviceHooks';
-import { useMonitoring } from '../providers/MonitoringProvider';
+import { useServices, useEditServiceForm } from '../../hooks/serviceHooks.ts';
+import { useMonitoring } from '../../providers/MonitoringProvider.ts';
 import { Plus, RefreshCw, Activity } from 'lucide-react';
-import { AddServiceModal } from './modals/AddServiceModal';
-import { ServiceCard } from './cards/ServiceCard';
-import { LoadingSpinner } from './ui/LoadingSpinner';
-import { ErrorDisplay } from './ui/ErrorDisplay';
-import { EmptyState } from './ui/EmptyState';
-import { useAddServiceForm } from '../hooks/useAddServiceForm';
-import type { HostedService, CreateServiceDto } from '../types/Service.ts';
+import { AddServiceModal } from '../modals/AddServiceModal.tsx';
+import { EditServiceModal } from '../modals/EditServiceModal.tsx';
+import { ServiceCard } from '../cards/ServiceCard.tsx';
+import { LoadingSpinner } from '../ui/LoadingSpinner.tsx';
+import { ErrorDisplay } from '../ui/ErrorDisplay.tsx';
+import { EmptyState } from '../ui/EmptyState.tsx';
+import { useAddServiceForm } from '../../hooks/useAddServiceForm.ts';
+import type { HostedService, CreateServiceDto } from '../../types/Service.ts';
 
 interface ServicesListProps {
   darkMode?: boolean;
@@ -18,28 +19,59 @@ export function ServicesList({ darkMode = true }: ServicesListProps) {
   const { data: services, isLoading, error, refetch } = useServices();
   const { triggerHealthCheck } = useMonitoring();
   const [showAddModal, setShowAddModal] = useState(false);
-  
+  const [showEditModal, setShowEditModal] = useState(false);
+  const [editingService, setEditingService] = useState<HostedService | null>(null);
+
   const {
-    formData,
-    updateFormData,
-    resetForm,
-    handleSubmit,
-    isLoading: isSubmitting
+    formData: addFormData,
+    updateFormData: updateAddFormData,
+    resetForm: resetAddForm,
+    handleSubmit: handleAddSubmit,
+    isLoading: isSubmittingAdd
   } = useAddServiceForm();
 
-  const handleOpenModal = () => {
-    resetForm();
+  const {
+    formData: editFormData,
+    updateFormData: updateEditFormData,
+    resetForm: resetEditForm,
+    handleSubmit: handleEditSubmit,
+    isLoading: isSubmittingEdit,
+    loadServiceData
+  } = useEditServiceForm();
+
+  const handleOpenAddModal = () => {
+    resetAddForm();
     setShowAddModal(true);
   };
 
-  const handleCloseModal = () => {
+  const handleCloseAddModal = () => {
     setShowAddModal(false);
-    resetForm();
+    resetAddForm();
   };
 
-  const handleModalSubmit = (data: CreateServiceDto) => {
-    handleSubmit(data);
+  const handleOpenEditModal = (service: HostedService) => {
+    setEditingService(service);
+    loadServiceData(service);
+    setShowEditModal(true);
+  };
+
+  const handleCloseEditModal = () => {
+    setShowEditModal(false);
+    setEditingService(null);
+    resetEditForm();
+  };
+
+  const handleAddModalSubmit = (data: CreateServiceDto) => {
+    handleAddSubmit(data);
     setShowAddModal(false);
+  };
+
+  const handleEditModalSubmit = async (data: Partial<HostedService>) => {
+    if (editingService) {
+      await handleEditSubmit(editingService.id.toString(), data);
+      setShowEditModal(false);
+      setEditingService(null);
+    }
   };
 
   const handleHealthCheck = (service: HostedService) => {
@@ -75,14 +107,14 @@ export function ServicesList({ darkMode = true }: ServicesListProps) {
   if (!services || services.length === 0) {
     return (
       <>
-        <EmptyState darkMode={darkMode} onAddService={handleOpenModal} />
+        <EmptyState darkMode={darkMode} onAddService={handleOpenAddModal} />
         <AddServiceModal
           isOpen={showAddModal}
-          onClose={handleCloseModal}
-          onSubmit={handleModalSubmit}
-          formData={formData}
-          onFormDataChange={updateFormData}
-          isLoading={isSubmitting}
+          onClose={handleCloseAddModal}
+          onSubmit={handleAddModalSubmit}
+          formData={addFormData}
+          onFormDataChange={updateAddFormData}
+          isLoading={isSubmittingAdd}
           darkMode={darkMode}
         />
       </>
@@ -117,7 +149,7 @@ export function ServicesList({ darkMode = true }: ServicesListProps) {
         </div>
         <div className="flex space-x-3">
           <button
-            onClick={handleOpenModal}
+            onClick={handleOpenAddModal}
             className={`inline-flex items-center px-4 py-2 rounded-lg font-medium transition-colors duration-200 ${
               darkMode
                 ? 'bg-blue-600 hover:bg-blue-700 text-white border border-blue-600'
@@ -150,6 +182,7 @@ export function ServicesList({ darkMode = true }: ServicesListProps) {
             darkMode={darkMode}
             onHealthCheck={handleHealthCheck}
             onDelete={handleDeleteService}
+            onEdit={() => handleOpenEditModal(service)}
           />
         ))}
       </div>
@@ -157,13 +190,27 @@ export function ServicesList({ darkMode = true }: ServicesListProps) {
       {/* Add Service Modal */}
       <AddServiceModal
         isOpen={showAddModal}
-        onClose={handleCloseModal}
-        onSubmit={handleModalSubmit}
-        formData={formData}
-        onFormDataChange={updateFormData}
-        isLoading={isSubmitting}
+        onClose={handleCloseAddModal}
+        onSubmit={handleAddModalSubmit}
+        formData={addFormData}
+        onFormDataChange={updateAddFormData}
+        isLoading={isSubmittingAdd}
         darkMode={darkMode}
       />
+
+      {/* Edit Service Modal */}
+      {editingService && (
+        <EditServiceModal
+          isOpen={showEditModal}
+          onClose={handleCloseEditModal}
+          onSubmit={handleEditModalSubmit}
+          service={editingService}
+          formData={editFormData}
+          onFormDataChange={updateEditFormData}
+          isLoading={isSubmittingEdit}
+          darkMode={darkMode}
+        />
+      )}
     </div>
   );
 }

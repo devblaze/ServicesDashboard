@@ -301,28 +301,44 @@ public class NetworkDiscovery : INetworkDiscoveryService
         {
             var stream = tcpClient.GetStream();
             var buffer = new byte[1024];
-            
+        
             using var timeoutCts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
             timeoutCts.CancelAfter(TimeSpan.FromMilliseconds(2000));
-            
-            // Send a simple HTTP request for web services
-            var httpRequest = "GET / HTTP/1.1\r\nHost: localhost\r\nConnection: close\r\n\r\n";
-            var httpBytes = Encoding.UTF8.GetBytes(httpRequest);
-            await stream.WriteAsync(httpBytes, 0, httpBytes.Length, timeoutCts.Token);
-            
-            var bytesRead = await stream.ReadAsync(buffer, 0, buffer.Length, timeoutCts.Token);
-            if (bytesRead > 0)
-            {
-                return Encoding.UTF8.GetString(buffer, 0, bytesRead).Trim();
-            }
-        }
-        catch (Exception ex)
-        {
-            _logger.LogDebug(ex, "Could not read banner from service");
-        }
         
-        return null;
+        // Send a simple HTTP request for web services
+        var httpRequest = "GET / HTTP/1.1\r\nHost: localhost\r\nConnection: close\r\n\r\n";
+        var httpBytes = Encoding.UTF8.GetBytes(httpRequest);
+        await stream.WriteAsync(httpBytes, 0, httpBytes.Length, timeoutCts.Token);
+        
+        var bytesRead = await stream.ReadAsync(buffer, 0, buffer.Length, timeoutCts.Token);
+        if (bytesRead > 0)
+        {
+            // Use UTF-8 with fallback decoder to handle invalid byte sequences
+            var decoder = Encoding.UTF8.GetDecoder();
+            decoder.Fallback = new DecoderReplacementFallback(""); // Replace invalid bytes with empty string
+            
+            var charBuffer = new char[1024];
+            var charCount = decoder.GetChars(buffer, 0, bytesRead, charBuffer, 0);
+            var rawString = new string(charBuffer, 0, charCount);
+            
+            // Clean up the string - remove null bytes and control characters
+            var cleanedString = new string(rawString
+                .Where(c => !char.IsControl(c) || c == '\n' || c == '\r' || c == '\t')
+                .Take(500) // Limit banner length
+                .ToArray())
+                .Replace("\0", "") // Remove any remaining null bytes
+                .Trim();
+            
+            return string.IsNullOrWhiteSpace(cleanedString) ? null : cleanedString;
+        }
     }
+    catch (Exception ex)
+    {
+        _logger.LogDebug(ex, "Could not read banner from service");
+    }
+    
+    return null;
+}
 
     private string GetServiceType(int port)
     {

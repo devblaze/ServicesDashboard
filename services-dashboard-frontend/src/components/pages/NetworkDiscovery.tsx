@@ -1,10 +1,10 @@
 import React from 'react';
 import { Target, History, AlertCircle, X, Clock } from 'lucide-react';
-import { useNetworkDiscovery } from '../hooks/useNetworkDiscovery';
-import { ScanControls } from './networkDiscovery/ScanControls';
-import { ServicesFilters } from './networkDiscovery/ServicesFiltersComponent';
-import { ServicesList } from './networkDiscovery/ServicesListComponent.tsx';
-import { getScanStatusIcon, getServiceIcon } from './networkDiscovery/serviceUtilities';
+import { useNetworkDiscovery } from '../../hooks/useNetworkDiscovery.ts';
+import { ScanControls } from '../networkDiscovery/ScanControls.tsx';
+import { ServicesFilters } from '../networkDiscovery/ServicesFiltersComponent.tsx';
+import { ServicesList } from '../networkDiscovery/ServicesListComponent.tsx';
+import { getScanStatusIcon, getServiceIcon } from '../networkDiscovery/serviceUtilities.tsx';
 
 interface NetworkDiscoveryProps {
   darkMode?: boolean;

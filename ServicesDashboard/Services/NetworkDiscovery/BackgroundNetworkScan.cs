@@ -381,6 +381,18 @@ public class BackgroundNetworkScan : BackgroundService, IBackgroundNetworkScanSe
         var serviceKey = $"{result.HostAddress}:{result.Port}";
         currentServiceKeys.Add(serviceKey);
 
+        // Sanitize string data to remove null bytes and non-UTF-8 characters
+        var sanitizedBanner = SanitizeStringForDatabase(result.Banner);
+        var sanitizedRecognizedName = SanitizeStringForDatabase(result.RecognizedName);
+        var sanitizedDescription = SanitizeStringForDatabase(result.SuggestedDescription);
+        var sanitizedServiceCategory = SanitizeStringForDatabase(result.ServiceCategory);
+        var sanitizedSuggestedIcon = SanitizeStringForDatabase(result.SuggestedIcon);
+        var sanitizedServiceType = SanitizeStringForDatabase(result.ServiceType);
+        var sanitizedHostName = SanitizeStringForDatabase(result.HostName);
+
+        _logger.LogInformation("Saving service {ServiceKey} with AI data: {RecognizedName}", 
+            serviceKey, sanitizedRecognizedName ?? "NULL");
+
         // Check if this service already exists for this scan
         var existing = await context.StoredDiscoveredServices
             .FirstOrDefaultAsync(s => s.ScanId == scanId && s.ServiceKey == serviceKey);
@@ -390,16 +402,16 @@ public class BackgroundNetworkScan : BackgroundService, IBackgroundNetworkScanSe
             // Update existing service
             existing.IsReachable = result.IsReachable;
             existing.ResponseTimeMs = (long)result.ResponseTime.TotalMilliseconds;
-            existing.ServiceType = result.ServiceType;
-            existing.Banner = result.Banner;
+            existing.ServiceType = sanitizedServiceType;
+            existing.Banner = sanitizedBanner;
             existing.DiscoveredAt = result.DiscoveredAt;
             existing.IsActive = true;
         
             // Update AI recognition data
-            existing.RecognizedName = result.RecognizedName;
-            existing.SuggestedDescription = result.SuggestedDescription;
-            existing.ServiceCategory = result.ServiceCategory;
-            existing.SuggestedIcon = result.SuggestedIcon;
+            existing.RecognizedName = sanitizedRecognizedName;
+            existing.SuggestedDescription = sanitizedDescription;
+            existing.ServiceCategory = sanitizedServiceCategory;
+            existing.SuggestedIcon = sanitizedSuggestedIcon;
             existing.AiConfidence = result.AiConfidence;
         }
         else
@@ -409,20 +421,21 @@ public class BackgroundNetworkScan : BackgroundService, IBackgroundNetworkScanSe
             {
                 ScanId = scanId,
                 HostAddress = result.HostAddress,
-                HostName = result.HostName,
+                HostName = sanitizedHostName,
                 Port = result.Port,
                 IsReachable = result.IsReachable,
                 ResponseTimeMs = (long)result.ResponseTime.TotalMilliseconds,
-                ServiceType = result.ServiceType,
-                Banner = result.Banner,
+                ServiceType = sanitizedServiceType,
+                Banner = sanitizedBanner,
                 DiscoveredAt = result.DiscoveredAt,
                 IsActive = true,
-            
+                ServiceKey = serviceKey,
+        
                 // AI recognition data
-                RecognizedName = result.RecognizedName,
-                SuggestedDescription = result.SuggestedDescription,
-                ServiceCategory = result.ServiceCategory,
-                SuggestedIcon = result.SuggestedIcon,
+                RecognizedName = sanitizedRecognizedName,
+                SuggestedDescription = sanitizedDescription,
+                ServiceCategory = sanitizedServiceCategory,
+                SuggestedIcon = sanitizedSuggestedIcon,
                 AiConfidence = result.AiConfidence
             };
 
@@ -430,6 +443,42 @@ public class BackgroundNetworkScan : BackgroundService, IBackgroundNetworkScanSe
         }
 
         await context.SaveChangesAsync();
+    }
+
+    // Add this helper method to the BackgroundNetworkScan class
+    private static string? SanitizeStringForDatabase(string? input)
+    {
+        if (string.IsNullOrEmpty(input))
+            return input;
+
+        try
+        {
+            // Remove null bytes and other problematic characters
+            var sanitized = input
+                .Replace("\0", "") // Remove null bytes
+                .Replace("\x00", "") // Remove null bytes (alternative format)
+                .Trim();
+
+            // Remove other control characters except common ones like \n, \r, \t
+            var cleanedChars = sanitized
+                .Where(c => !char.IsControl(c) || c == '\n' || c == '\r' || c == '\t')
+                .ToArray();
+
+            var result = new string(cleanedChars);
+
+            // Truncate if too long (optional safety measure)
+            if (result.Length > 1000)
+            {
+                result = result.Substring(0, 1000) + "...";
+            }
+
+            return string.IsNullOrWhiteSpace(result) ? null : result;
+        }
+        catch (Exception)
+        {
+            // If sanitization fails, return null or a safe default
+            return null;
+        }
     }
 
     private class ScanRequest

@@ -7,29 +7,29 @@ export interface HostedService {
   id: number;
   name: string;
   description?: string;
-  dockerImage?: string; // Optional for external services
-  hostAddress?: string; // For external services
   port?: number;
+  status: string;
+  dockerImage?: string;
   healthCheckUrl?: string;
-  environment?: 'development' | 'staging' | 'production';
-  status: ServiceStatus;
-  uptime?: number;
-  lastHealthCheck?: string;
-  logsAvailable?: boolean; // Whether logs are accessible
-  serviceType?: 'docker' | 'external';
-  createdAt: string;
-  updatedAt: string;
+  hostAddress?: string;
+  isDockerContainer?: boolean;
+  serverId?: number;
+  containerId?: string;
+  lastCheckTime?: string;
+  createdAt?: string;
+  updatedAt?: string;
 }
 
 export interface CreateServiceDto {
   name: string;
   description?: string;
-  dockerImage?: string; // Optional for external services
-  hostAddress?: string; // For external services
+  dockerImage?: string;
   port?: number;
-  isDockerContainer: boolean; // Fixed: was 'bool', should be 'boolean'
+  isDockerContainer?: boolean;
   healthCheckUrl?: string;
-  environment?: 'development' | 'staging' | 'production';
+  hostAddress?: string;
+  serverId?: number;
+  containerId?: string;
 }
 
 export interface UpdateServiceDto {

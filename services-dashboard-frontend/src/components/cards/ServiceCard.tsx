@@ -1,21 +1,26 @@
 import React from 'react';
 import { 
-  Activity, 
-  Clock, 
   ExternalLink, 
+  Activity, 
+  AlertTriangle, 
+  CheckCircle, 
+  XCircle, 
+  MoreVertical,
+  Edit3,
   Trash2,
-  Globe,
-  Container,
-  FileText
+  PlayCircle,
+  Server
 } from 'lucide-react';
-import type { HostedService } from '../../types/Service';
+import { useState, useRef, useEffect } from 'react';
+import type { HostedService } from '../../types/Service.ts';
+import { ServiceStatus } from '../../types/ServiceStatus.ts';
 
 interface ServiceCardProps {
   service: HostedService;
   darkMode?: boolean;
   onHealthCheck: (service: HostedService) => void;
   onDelete: (service: HostedService) => void;
-  onViewLogs?: (service: HostedService) => void;
+  onEdit: (service: HostedService) => void;
 }
 
 export const ServiceCard: React.FC<ServiceCardProps> = ({
@@ -23,234 +28,242 @@ export const ServiceCard: React.FC<ServiceCardProps> = ({
   darkMode = true,
   onHealthCheck,
   onDelete,
-  onViewLogs
+  onEdit
 }) => {
-  const getStatusColor = (status: string) => {
-    switch (status.toLowerCase()) {
-      case 'healthy':
-      case 'running':
+  const [showMenu, setShowMenu] = useState(false);
+  const menuRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (menuRef.current && !menuRef.current.contains(event.target as Node)) {
+        setShowMenu(false);
+      }
+    };
+
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
+
+  const getStatusIcon = () => {
+    switch (service.status) {
+      case ServiceStatus.Running:
+        return <CheckCircle className="w-5 h-5 text-green-400" />;
+      case ServiceStatus.Stopped:
+        return <XCircle className="w-5 h-5 text-red-400" />;
+      case ServiceStatus.Failed:
+        return <AlertTriangle className="w-5 h-5 text-red-400" />;
+      default:
+        return <Activity className="w-5 h-5 text-yellow-400" />;
+    }
+  };
+
+  const getStatusColor = () => {
+    switch (service.status) {
+      case ServiceStatus.Running:
         return 'text-green-400';
-      case 'unknown':
-        return 'text-yellow-400';
-      case 'unhealthy':
-      case 'stopped':
-      case 'failed':
+      case ServiceStatus.Stopped:
+        return 'text-red-400';
+      case ServiceStatus.Failed:
         return 'text-red-400';
       default:
-        return 'text-gray-400';
+        return 'text-yellow-400';
     }
   };
 
-  const getStatusBg = (status: string) => {
-    switch (status.toLowerCase()) {
-      case 'healthy':
-      case 'running':
-        return 'bg-green-500/20 border-green-500/30';
-      case 'unknown':
-        return 'bg-yellow-500/20 border-yellow-500/30';
-      case 'unhealthy':
-      case 'stopped':
-      case 'failed':
-        return 'bg-red-500/20 border-red-500/30';
+  const getStatusBgColor = () => {
+    switch (service.status) {
+      case ServiceStatus.Running:
+        return darkMode ? 'bg-green-900/30' : 'bg-green-100';
+      case ServiceStatus.Stopped:
+        return darkMode ? 'bg-red-900/30' : 'bg-red-100';
+      case ServiceStatus.Failed:
+        return darkMode ? 'bg-red-900/30' : 'bg-red-100';
       default:
-        return 'bg-gray-500/20 border-gray-500/30';
+        return darkMode ? 'bg-yellow-900/30' : 'bg-yellow-100';
     }
   };
 
-  const getServiceTypeIcon = () => {
-    // Use serviceType from the interface, or fall back to checking dockerImage
-    if (service.serviceType === 'docker' || service.dockerImage) {
-      return <Container className="w-5 h-5" />;
-    }
-    return <Globe className="w-5 h-5" />;
+  const handleMenuClick = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    setShowMenu(!showMenu);
   };
 
-  const getServiceTypeLabel = () => {
-    // Use serviceType from the interface, or fall back to checking dockerImage
-    return (service.serviceType === 'docker' || service.dockerImage) ? 'Docker' : 'External';
+  const handleEditClick = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    onEdit(service);
+    setShowMenu(false);
+  };
+
+  const handleDeleteClick = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    onDelete(service);
+    setShowMenu(false);
+  };
+
+  const handleHealthCheckClick = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    onHealthCheck(service);
+    setShowMenu(false);
   };
 
   return (
-    <div className={`rounded-xl border backdrop-blur-sm transition-all duration-300 hover:scale-[1.02] ${
+    <div className={`relative p-6 rounded-xl border transition-all duration-200 hover:shadow-lg ${
       darkMode
-        ? 'bg-gray-800/50 border-gray-700/50 shadow-lg shadow-gray-900/20 hover:shadow-gray-900/40'
-        : 'bg-white/80 border-gray-200/50 shadow-lg shadow-gray-200/20 hover:shadow-gray-200/40'
+        ? 'bg-gray-800/50 border-gray-700 hover:border-gray-600'
+        : 'bg-white border-gray-200 hover:border-gray-300'
     }`}>
-      <div className="p-6">
-        {/* Header */}
-        <div className="flex justify-between items-start mb-4">
-          <div className="flex items-center space-x-3">
-            <div className={`p-2 rounded-lg ${darkMode ? 'bg-blue-900/50' : 'bg-blue-100/50'}`}>
-              {getServiceTypeIcon()}
-            </div>
-            <div>
-              <h3 className={`font-semibold ${darkMode ? 'text-white' : 'text-gray-900'}`}>
-                {service.name}
-              </h3>
-              <div className="flex items-center space-x-2 mt-1">
-                <span className={`text-xs px-2 py-1 rounded-full ${
-                  darkMode ? 'bg-gray-700/50 text-gray-300' : 'bg-gray-100/50 text-gray-600'
-                }`}>
-                  {getServiceTypeLabel()}
-                </span>
-                {service.environment && (
-                  <span className={`text-xs px-2 py-1 rounded-full ${
-                    darkMode ? 'bg-purple-700/50 text-purple-300' : 'bg-purple-100/50 text-purple-600'
-                  }`}>
-                    {service.environment}
-                  </span>
-                )}
-              </div>
-            </div>
+      {/* Card Header */}
+      <div className="flex items-start justify-between mb-4">
+        <div className="flex items-center space-x-3">
+          <div className={`p-2 rounded-lg ${getStatusBgColor()}`}>
+            {service.isDockerContainer ? (
+              <div className="text-lg">🐳</div>
+            ) : (
+              <Server className="w-5 h-5" />
+            )}
           </div>
-
-          <div className={`flex items-center space-x-1 px-3 py-1 rounded-full border text-xs font-medium ${
-            getStatusBg(service.status)
-          } ${getStatusColor(service.status)}`}>
-            <div className={`w-2 h-2 rounded-full ${
-              service.status.toLowerCase() === 'healthy' || service.status.toLowerCase() === 'running' ? 'bg-green-400' :
-              service.status.toLowerCase() === 'unknown' ? 'bg-yellow-400' :
-              'bg-red-400'
-            }`} />
-            <span>{service.status}</span>
+          <div>
+            <h3 className={`font-semibold text-lg ${
+              darkMode ? 'text-white' : 'text-gray-900'
+            }`}>
+              {service.name}
+            </h3>
+            <div className="flex items-center space-x-2">
+              <div className={`flex items-center space-x-1 ${getStatusColor()}`}>
+                {getStatusIcon()}
+                <span className="text-sm font-medium">{service.status}</span>
+              </div>
+              {service.port && (
+                <span className={`text-sm px-2 py-0.5 rounded-full ${
+                  darkMode ? 'bg-gray-600/50 text-gray-300' : 'bg-gray-100 text-gray-600'
+                }`}>
+                  :{service.port}
+                </span>
+              )}
+            </div>
           </div>
         </div>
 
-        {/* Service Details */}
-        <div className="space-y-3 mb-4">
-          {service.description && (
-            <p className={`text-sm ${darkMode ? 'text-gray-300' : 'text-gray-600'}`}>
-              {service.description}
-            </p>
-          )}
+        {/* Action Menu */}
+        <div className="relative" ref={menuRef}>
+          <button
+            onClick={handleMenuClick}
+            className={`p-2 rounded-lg transition-colors ${
+              darkMode
+                ? 'text-gray-400 hover:text-white hover:bg-gray-700'
+                : 'text-gray-500 hover:text-gray-700 hover:bg-gray-100'
+            }`}
+          >
+            <MoreVertical className="w-4 h-4" />
+          </button>
 
-          {/* Docker Image Information */}
-          {service.dockerImage && (
-            <div className={`p-3 rounded-lg border ${
-              darkMode ? 'bg-gray-700/30 border-gray-600/50' : 'bg-gray-50/50 border-gray-200/50'
+          {showMenu && (
+            <div className={`absolute right-0 top-full mt-2 py-2 w-48 rounded-lg border shadow-lg z-50 ${
+              darkMode 
+                ? 'bg-gray-800 border-gray-600' 
+                : 'bg-white border-gray-200'
             }`}>
-              <div className="flex items-center space-x-2 mb-2">
-                <Container className={`w-4 h-4 ${darkMode ? 'text-blue-400' : 'text-blue-600'}`} />
-                <span className={`text-sm font-medium ${darkMode ? 'text-white' : 'text-gray-900'}`}>
-                  Docker Container
-                </span>
-              </div>
-              <div className={`text-xs ${darkMode ? 'text-gray-400' : 'text-gray-600'}`}>
-                Image: {service.dockerImage}
-              </div>
-            </div>
-          )}
-
-          {/* Host Address (for external services) */}
-          {service.hostAddress && (
-            <div className="flex items-center justify-between">
-              <span className={`text-xs ${darkMode ? 'text-gray-400' : 'text-gray-600'}`}>
-                Host:
-              </span>
-              <span className={`text-xs ${darkMode ? 'text-gray-300' : 'text-gray-700'}`}>
-                {service.hostAddress}
-              </span>
-            </div>
-          )}
-
-          {/* Port */}
-          {service.port && (
-            <div className="flex items-center justify-between">
-              <span className={`text-xs ${darkMode ? 'text-gray-400' : 'text-gray-600'}`}>
-                Port:
-              </span>
-              <span className={`text-xs ${darkMode ? 'text-gray-300' : 'text-gray-700'}`}>
-                {service.port}
-              </span>
-            </div>
-          )}
-
-          {/* Health Check URL */}
-          {service.healthCheckUrl && (
-            <div className="flex items-center justify-between">
-              <span className={`text-xs ${darkMode ? 'text-gray-400' : 'text-gray-600'}`}>
-                Health Check:
-              </span>
-              <a
-                href={service.healthCheckUrl}
-                target="_blank"
-                rel="noopener noreferrer"
-                className={`inline-flex items-center text-xs ${
-                  darkMode ? 'text-blue-400 hover:text-blue-300' : 'text-blue-600 hover:text-blue-700'
+              <button
+                onClick={handleEditClick}
+                className={`w-full px-4 py-2 text-left flex items-center space-x-2 transition-colors ${
+                  darkMode 
+                    ? 'text-gray-300 hover:text-white hover:bg-gray-700' 
+                    : 'text-gray-700 hover:text-gray-900 hover:bg-gray-50'
                 }`}
               >
-                {service.healthCheckUrl}
-                <ExternalLink className="w-3 h-3 ml-1" />
-              </a>
-            </div>
-          )}
-
-          {/* Uptime */}
-          {service.uptime !== undefined && (
-            <div className="flex items-center justify-between">
-              <span className={`text-xs ${darkMode ? 'text-gray-400' : 'text-gray-600'}`}>
-                Uptime:
-              </span>
-              <span className={`text-xs ${darkMode ? 'text-gray-300' : 'text-gray-700'}`}>
-                {Math.round(service.uptime)}%
-              </span>
-            </div>
-          )}
-
-          {/* Last Health Check */}
-          {service.lastHealthCheck && (
-            <div className="flex items-center justify-between">
-              <span className={`text-xs ${darkMode ? 'text-gray-400' : 'text-gray-600'}`}>
-                Last checked:
-              </span>
-              <div className="flex items-center space-x-1">
-                <Clock className="w-3 h-3 text-gray-400" />
-                <span className={`text-xs ${darkMode ? 'text-gray-400' : 'text-gray-600'}`}>
-                  {new Date(service.lastHealthCheck).toLocaleString()}
-                </span>
-              </div>
+                <Edit3 className="w-4 h-4" />
+                <span>Edit Service</span>
+              </button>
+              
+              <button
+                onClick={handleHealthCheckClick}
+                className={`w-full px-4 py-2 text-left flex items-center space-x-2 transition-colors ${
+                  darkMode 
+                    ? 'text-gray-300 hover:text-white hover:bg-gray-700' 
+                    : 'text-gray-700 hover:text-gray-900 hover:bg-gray-50'
+                }`}
+              >
+                <PlayCircle className="w-4 h-4" />
+                <span>Check Health</span>
+              </button>
+              
+              <hr className={`my-1 ${darkMode ? 'border-gray-600' : 'border-gray-200'}`} />
+              
+              <button
+                onClick={handleDeleteClick}
+                className={`w-full px-4 py-2 text-left flex items-center space-x-2 transition-colors ${
+                  darkMode 
+                    ? 'text-red-400 hover:text-red-300 hover:bg-red-900/20' 
+                    : 'text-red-600 hover:text-red-700 hover:bg-red-50'
+                }`}
+              >
+                <Trash2 className="w-4 h-4" />
+                <span>Delete Service</span>
+              </button>
             </div>
           )}
         </div>
+      </div>
 
-        {/* Actions */}
-        <div className="flex space-x-2">
-          <button
-            onClick={() => onHealthCheck(service)}
-            className={`flex-1 inline-flex items-center justify-center px-3 py-2 rounded-lg text-xs font-medium transition-colors ${
-              darkMode
-                ? 'bg-blue-600/20 hover:bg-blue-600/30 text-blue-400'
-                : 'bg-blue-100 hover:bg-blue-200 text-blue-700'
-            }`}
-          >
-            <Activity className="w-3 h-3 mr-1" />
-            Check Health
-          </button>
+      {/* Service Description */}
+      {service.description && (
+        <p className={`text-sm mb-4 ${
+          darkMode ? 'text-gray-400' : 'text-gray-600'
+        }`}>
+          {service.description}
+        </p>
+      )}
 
-          {service.logsAvailable && onViewLogs && (
-            <button
-              onClick={() => onViewLogs(service)}
-              className={`flex-1 inline-flex items-center justify-center px-3 py-2 rounded-lg text-xs font-medium transition-colors ${
-                darkMode
-                  ? 'bg-green-600/20 hover:bg-green-600/30 text-green-400'
-                  : 'bg-green-100 hover:bg-green-200 text-green-700'
+      {/* Service Details */}
+      <div className={`space-y-2 text-sm ${
+        darkMode ? 'text-gray-400' : 'text-gray-600'
+      }`}>
+        {service.hostAddress && (
+          <div className="flex justify-between">
+            <span>Host:</span>
+            <span className="font-mono">{service.hostAddress}</span>
+          </div>
+        )}
+        
+        {service.dockerImage && (
+          <div className="flex justify-between">
+            <span>Image:</span>
+            <span className="font-mono text-xs">{service.dockerImage}</span>
+          </div>
+        )}
+        
+        {service.healthCheckUrl && (
+          <div className="flex justify-between items-center">
+            <span>Health URL:</span>
+            <a
+              href={service.healthCheckUrl}
+              target="_blank"
+              rel="noopener noreferrer"
+              className={`flex items-center space-x-1 ${
+                darkMode ? 'text-blue-400 hover:text-blue-300' : 'text-blue-600 hover:text-blue-700'
               }`}
             >
-              <FileText className="w-3 h-3 mr-1" />
-              View Logs
-            </button>
-          )}
+              <ExternalLink className="w-3 h-3" />
+            </a>
+          </div>
+        )}
+      </div>
 
-          <button
-            onClick={() => onDelete(service)}
-            className={`px-3 py-2 rounded-lg text-xs font-medium transition-colors ${
-              darkMode
-                ? 'bg-red-600/20 hover:bg-red-600/30 text-red-400'
-                : 'bg-red-100 hover:bg-red-200 text-red-700'
-            }`}
-          >
-            <Trash2 className="w-3 h-3" />
-          </button>
+      {/* Server Connection Indicator */}
+      <div className={`mt-4 pt-4 border-t ${
+        darkMode ? 'border-gray-700' : 'border-gray-200'
+      }`}>
+        <div className="flex items-center justify-between">
+          <span className={`text-sm ${darkMode ? 'text-gray-400' : 'text-gray-600'}`}>
+            Server Connection:
+          </span>
+          <span className={`text-sm font-medium ${
+            service.serverId 
+              ? darkMode ? 'text-green-400' : 'text-green-600'
+              : darkMode ? 'text-gray-400' : 'text-gray-500'
+          }`}>
+            {service.serverId ? 'Connected' : 'Standalone'}
+          </span>
         </div>
       </div>
     </div>

@@ -1,11 +1,11 @@
 import { useState } from 'react';
 import { QueryProvider } from './providers/QueryProvider';
 import { MonitoringProvider } from './providers/MonitoringProvider';
-import { ServicesList } from './components/ServicesList';
-import { ServerManagement } from './components/ServerManagement';
-import { NetworkDiscovery } from './components/NetworkDiscovery';
+import { ServicesList } from './components/pages/ServicesList.tsx';
+import { ServerManagement } from './components/pages/ServerManagement.tsx';
+import { NetworkDiscovery } from './components/pages/NetworkDiscovery.tsx';
 import ApiConnectionTest from './components/ApiConnectionTest';
-import { OllamaSettings } from './components/OllamaSettings';
+import { ApplicationSettings } from './components/pages/ApplicationSettings.tsx';
 import { 
   Monitor, 
   Server, 
@@ -43,7 +43,7 @@ function App() {
       case 'connection':
         return <ApiConnectionTest darkMode={darkMode} />;
       case 'settings':
-        return <OllamaSettings darkMode={darkMode} />;
+        return <ApplicationSettings darkMode={darkMode} />;
       default:
         return <ServicesList darkMode={darkMode} />;
     }

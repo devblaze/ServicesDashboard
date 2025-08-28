@@ -1,8 +1,8 @@
 import React, { useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Settings, TestTube2, Check, AlertCircle, Loader2, Bot, ChevronDown, ChevronUp } from 'lucide-react';
-import { settingsApi } from '../services/networkDiscoveryApi';
-import type { OllamaSettings as OllamaSettingsType } from '../types/networkDiscovery';
+import { settingsApi } from '../../services/networkDiscoveryApi.ts';
+import type { OllamaSettings as OllamaSettingsType } from '../../types/networkDiscovery.ts';
 
 interface OllamaSettingsProps {
     darkMode?: boolean;
@@ -13,7 +13,7 @@ interface TestResult {
     message: string;
 }
 
-export const OllamaSettings: React.FC<OllamaSettingsProps> = ({ darkMode = true }) => {
+export const ApplicationSettings: React.FC<OllamaSettingsProps> = ({ darkMode = true }) => {
     const [isOpen, setIsOpen] = useState(false);
     const [testResult, setTestResult] = useState<TestResult | null>(null);
 
