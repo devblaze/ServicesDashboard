@@ -295,16 +295,16 @@ public class NetworkDiscovery : INetworkDiscoveryService
         }
     }
 
-    private async Task<string?> GetServiceBannerAsync(TcpClient tcpClient, CancellationToken cancellationToken)
+private async Task<string?> GetServiceBannerAsync(TcpClient tcpClient, CancellationToken cancellationToken)
+{
+    try
     {
-        try
-        {
-            var stream = tcpClient.GetStream();
-            var buffer = new byte[1024];
-        
-            using var timeoutCts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
-            timeoutCts.CancelAfter(TimeSpan.FromMilliseconds(2000));
-        
+        var stream = tcpClient.GetStream();
+        var buffer = new byte[1024];
+    
+        using var timeoutCts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+        timeoutCts.CancelAfter(TimeSpan.FromMilliseconds(2000));
+    
         // Send a simple HTTP request for web services
         var httpRequest = "GET / HTTP/1.1\r\nHost: localhost\r\nConnection: close\r\n\r\n";
         var httpBytes = Encoding.UTF8.GetBytes(httpRequest);
@@ -321,15 +321,24 @@ public class NetworkDiscovery : INetworkDiscoveryService
             var charCount = decoder.GetChars(buffer, 0, bytesRead, charBuffer, 0);
             var rawString = new string(charBuffer, 0, charCount);
             
-            // Clean up the string - remove null bytes and control characters
-            var cleanedString = new string(rawString
-                .Where(c => !char.IsControl(c) || c == '\n' || c == '\r' || c == '\t')
-                .Take(500) // Limit banner length
-                .ToArray())
-                .Replace("\0", "") // Remove any remaining null bytes
-                .Trim();
+            // Parse HTTP response to extract useful banner information
+            var lines = rawString.Split(new[] { '\r', '\n' }, StringSplitOptions.RemoveEmptyEntries);
+            var bannerInfo = new List<string>();
             
-            return string.IsNullOrWhiteSpace(cleanedString) ? null : cleanedString;
+            foreach (var line in lines.Take(10)) // Limit to first 10 lines
+            {
+                if (line.StartsWith("HTTP/"))
+                    bannerInfo.Add($"Status: {line}");
+                else if (line.StartsWith("Server:", StringComparison.OrdinalIgnoreCase))
+                    bannerInfo.Add(line);
+                else if (line.StartsWith("X-Powered-By:", StringComparison.OrdinalIgnoreCase))
+                    bannerInfo.Add(line);
+                else if (line.StartsWith("Content-Type:", StringComparison.OrdinalIgnoreCase))
+                    bannerInfo.Add(line);
+            }
+            
+            var cleanedBanner = string.Join(" | ", bannerInfo);
+            return string.IsNullOrWhiteSpace(cleanedBanner) ? "HTTP Service" : cleanedBanner;
         }
     }
     catch (Exception ex)

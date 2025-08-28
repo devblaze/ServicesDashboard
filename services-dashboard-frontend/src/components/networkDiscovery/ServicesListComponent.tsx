@@ -19,6 +19,25 @@ interface ServicesListProps {
   isAddingService?: boolean;
 }
 
+// In your service display component
+const formatBanner = (banner: string | undefined) => {
+  if (!banner) return null;
+  
+  // If it's HTTP headers, format them nicely
+  if (banner.includes('HTTP/') || banner.includes('Server:')) {
+    const parts = banner.split('|').map(part => part.trim());
+    return (
+      <div className="text-xs space-y-1">
+        {parts.map((part, index) => (
+          <div key={index} className="font-mono">{part}</div>
+        ))}
+      </div>
+    );
+  }
+  
+  return <span className="text-xs font-mono">{banner}</span>;
+};
+
 export const ServicesList: React.FC<ServicesListProps> = ({
   darkMode = true,
   services,
@@ -222,7 +241,7 @@ export const ServicesList: React.FC<ServicesListProps> = ({
                       darkMode ? 'bg-gray-800/50 text-gray-300' : 'bg-gray-100/50 text-gray-700'
                     }`}>
                       <div className="font-medium mb-1">Banner:</div>
-                      <div className="truncate">{service.banner}</div>
+                      <div className="truncate">{formatBanner(service.banner)}</div>
                     </div>
                   )}
                 </div>
