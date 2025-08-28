@@ -1,18 +1,18 @@
-using ServicesDashboard.Data;
-using Microsoft.EntityFrameworkCore;
+using System.Globalization;
+using System.Text;
 using System.Text.Json;
+using System.Text.RegularExpressions;
+using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Options;
 using OllamaSharp;
 using OllamaSharp.Models;
 using Renci.SshNet;
+using ServicesDashboard.Data;
 using ServicesDashboard.Models;
-using System.Text;
-using System.Globalization;
 using ServicesDashboard.Models.Responses;
 using ServicesDashboard.Models.Results;
-using System.Text.RegularExpressions;
 
-namespace ServicesDashboard.Services.ServerManagement;
+namespace ServicesDashboard.Services.Servers;
 
 public interface IServerManagementService
 {

@@ -5,7 +5,6 @@ using ServicesDashboard.Data;
 using ServicesDashboard.Models;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.OpenApi.Models;
-using ServicesDashboard.Services.ServerManagement;
 using OllamaSharp;
 using System.Text.Json.Serialization;
 using ServicesDashboard.Services.ArtificialIntelligence;
@@ -71,6 +70,7 @@ builder.Services.AddScoped<IServerManagementService, ServerManagement>();
 builder.Services.AddSingleton<BackgroundNetworkScan>();
 builder.Services.AddSingleton<IBackgroundNetworkScanService>(provider => provider.GetService<BackgroundNetworkScan>()!);
 builder.Services.AddHostedService<BackgroundNetworkScan>(provider => provider.GetService<BackgroundNetworkScan>()!);
+builder.Services.AddScoped<ISettingsService, DatabaseSettingsService>();
 builder.Services.AddHttpClient();
 
 builder.Services.Configure<ForwardedHeadersOptions>(options =>

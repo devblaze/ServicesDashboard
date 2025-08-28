@@ -4,14 +4,12 @@ import { MonitoringProvider } from './providers/MonitoringProvider';
 import { ServicesList } from './components/pages/ServicesList.tsx';
 import { ServerManagement } from './components/pages/ServerManagement.tsx';
 import { NetworkDiscovery } from './components/pages/NetworkDiscovery.tsx';
-import ApiConnectionTest from './components/ApiConnectionTest';
 import { ApplicationSettings } from './components/pages/ApplicationSettings.tsx';
 import { 
   Monitor, 
   Server, 
   Network, 
-  Settings, 
-  TestTube,
+  Settings,
   Moon,
   Sun,
   Activity
@@ -28,8 +26,7 @@ function App() {
     { id: 'services' as const, name: 'Services', icon: Monitor },
     { id: 'servers' as const, name: 'Servers', icon: Server },
     { id: 'network' as const, name: 'Discovery', icon: Network },
-    { id: 'connection' as const, name: 'API Test', icon: TestTube },
-    { id: 'settings' as const, name: 'AI Settings', icon: Settings },
+    { id: 'settings' as const, name: 'Settings', icon: Settings },
   ];
 
   const renderContent = () => {
@@ -40,8 +37,6 @@ function App() {
         return <ServerManagement darkMode={darkMode} />;
       case 'network':
         return <NetworkDiscovery darkMode={darkMode} />;
-      case 'connection':
-        return <ApiConnectionTest darkMode={darkMode} />;
       case 'settings':
         return <ApplicationSettings darkMode={darkMode} />;
       default:

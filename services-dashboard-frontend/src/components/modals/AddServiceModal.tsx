@@ -1,6 +1,6 @@
 import React from 'react';
 import { X, HelpCircle } from 'lucide-react';
-import { ServerDropdown } from '../ServerDropdown.tsx';
+import { ServerDropdown } from '../networkDiscovery/ServerDropdown.tsx';
 import type { CreateServiceDto } from '../../types/Service.ts';
 
 interface FormData extends CreateServiceDto {

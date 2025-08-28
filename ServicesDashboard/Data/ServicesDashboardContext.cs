@@ -1,4 +1,5 @@
 using Microsoft.EntityFrameworkCore;
+using ServicesDashboard.Data.Entities;
 using ServicesDashboard.Models;
 
 namespace ServicesDashboard.Data;
@@ -17,6 +18,7 @@ public class ServicesDashboardContext : DbContext
     public DbSet<ServerAlert> ServerAlerts { get; set; }
     public DbSet<NetworkScanSession> NetworkScanSessions { get; set; }
     public DbSet<StoredDiscoveredService> StoredDiscoveredServices { get; set; }
+    public DbSet<ApplicationSetting> ApplicationSettings { get; set; }
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -120,5 +122,26 @@ public class ServicesDashboardContext : DbContext
             entity.HasIndex(s => s.DiscoveredAt);
             entity.HasIndex(s => s.ServiceKey);
         });
+        
+        modelBuilder.Entity<NetworkScanSession>()
+            .HasMany(s => s.DiscoveredServices)
+            .WithOne(d => d.ScanSession)
+            .HasForeignKey(d => d.ScanId)
+            .OnDelete(DeleteBehavior.Cascade);
+
+        modelBuilder.Entity<StoredDiscoveredService>()
+            .HasIndex(s => s.ServiceKey);
+
+        modelBuilder.Entity<StoredDiscoveredService>()
+            .HasIndex(s => new { s.HostAddress, s.Port });
+
+        // New ApplicationSetting configurations
+        modelBuilder.Entity<ApplicationSetting>()
+            .HasIndex(s => new { s.Category, s.Key })
+            .IsUnique();
+
+        modelBuilder.Entity<ApplicationSetting>()
+            .Property(s => s.UpdatedAt)
+            .HasDefaultValueSql("CURRENT_TIMESTAMP");
     }
 }

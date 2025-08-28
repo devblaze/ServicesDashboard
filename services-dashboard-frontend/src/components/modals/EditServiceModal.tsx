@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { X, HelpCircle, AlertTriangle, CheckCircle, Lightbulb } from 'lucide-react';
-import { ServerDropdown } from '../ServerDropdown.tsx';
+import { ServerDropdown } from '../networkDiscovery/ServerDropdown.tsx';
 import { useQuery } from '@tanstack/react-query';
 import { apiClient } from '../../services/servicesApi.ts';
 import type { HostedService } from '../../types/Service.ts';

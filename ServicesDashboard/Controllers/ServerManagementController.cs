@@ -3,7 +3,7 @@ using ServicesDashboard.Models;
 using ServicesDashboard.Models.Dtos;
 using ServicesDashboard.Models.Requests;
 using ServicesDashboard.Models.Results;
-using ServicesDashboard.Services.ServerManagement;
+using ServicesDashboard.Services.Servers;
 
 namespace ServicesDashboard.Controllers;
 
