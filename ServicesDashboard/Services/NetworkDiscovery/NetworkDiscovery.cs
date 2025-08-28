@@ -10,8 +10,10 @@ namespace ServicesDashboard.Services.NetworkDiscovery;
 
 public interface INetworkDiscoveryService
 {
-    Task<IEnumerable<DiscoveredServiceResult>> ScanNetworkAsync(string networkRange, int[] ports, CancellationToken cancellationToken = default);
-    Task<IEnumerable<DiscoveredServiceResult>> ScanHostAsync(string hostAddress, int[] ports, CancellationToken cancellationToken = default);
+    Task<IEnumerable<DiscoveredServiceResult>> ScanNetworkAsync(string networkRange, int[]? ports = null, bool fullScan = false, CancellationToken cancellationToken = default);
+    Task<IEnumerable<DiscoveredServiceResult>> ScanHostAsync(string hostAddress, int[]? ports = null, bool fullScan = false, CancellationToken cancellationToken = default);
+    int[] GetCommonPorts();
+    int[] GetExtendedPorts();
 }
 
 public class NetworkDiscovery : INetworkDiscoveryService
@@ -19,33 +21,57 @@ public class NetworkDiscovery : INetworkDiscoveryService
     private readonly ILogger<NetworkDiscovery> _logger;
     private readonly IAiServiceRecognitionService _aiService;
 
+    // Common ports for quick scanning
+    private static readonly int[] CommonPorts = {
+        21, 22, 23, 25, 53, 80, 110, 135, 139, 143, 443, 445, 993, 995, 
+        1723, 3306, 3389, 5432, 5900, 6379, 8080, 8443, 9200, 27017
+    };
+
+    // Extended ports for thorough scanning
+    private static readonly int[] ExtendedPorts = {
+        7, 9, 13, 21, 22, 23, 25, 26, 37, 53, 79, 80, 81, 88, 106, 110, 111,
+        113, 119, 135, 139, 143, 144, 179, 199, 389, 427, 443, 444, 445, 465,
+        513, 514, 515, 543, 544, 548, 554, 587, 631, 646, 873, 990, 993, 995,
+        1025, 1026, 1027, 1028, 1029, 1110, 1433, 1720, 1723, 1755, 1900, 2000,
+        2001, 2049, 2121, 2717, 3000, 3128, 3306, 3389, 3986, 4899, 5000, 5009,
+        5051, 5060, 5101, 5190, 5357, 5432, 5631, 5666, 5800, 5900, 6000, 6001,
+        6646, 7000, 7070, 7937, 7938, 8000, 8002, 8008, 8010, 8080, 8443, 8888,
+        9000, 9001, 9090, 9100, 9102, 9200, 9999, 10000, 32768, 49152, 49153, 49154, 49155, 49156, 49157
+    };
+
     public NetworkDiscovery(ILogger<NetworkDiscovery> logger, IAiServiceRecognitionService aiService)
     {
         _logger = logger;
         _aiService = aiService;
     }
 
-    public async Task<IEnumerable<DiscoveredServiceResult>> ScanNetworkAsync(string networkRange, int[] ports, CancellationToken cancellationToken)
+    public int[] GetCommonPorts() => CommonPorts;
+    public int[] GetExtendedPorts() => ExtendedPorts;
+
+    public async Task<IEnumerable<DiscoveredServiceResult>> ScanNetworkAsync(string networkRange, int[]? ports = null, bool fullScan = false, CancellationToken cancellationToken = default)
     {
-        _logger.LogInformation("Starting network scan for {NetworkRange}", networkRange);
+        _logger.LogInformation("Starting network scan for {NetworkRange} (FullScan: {FullScan})", networkRange, fullScan);
         
         var hosts = ParseNetworkRange(networkRange);
-        var services = new ConcurrentBag<DiscoveredServiceResult>(); // Use ConcurrentBag instead
+        var services = new ConcurrentBag<DiscoveredServiceResult>();
         
-        var semaphore = new SemaphoreSlim(20); // Limit concurrent scans
+        var scanPorts = GetPortsToScan(ports, fullScan);
+        _logger.LogInformation("Scanning {PortCount} ports per host", scanPorts.Length);
+        
+        var semaphore = new SemaphoreSlim(10); // Reduced concurrency for full scans
         var tasks = new List<Task>();
 
         foreach (var host in hosts)
         {
             if (cancellationToken.IsCancellationRequested) break;
             
-            tasks.Add(Task.Run(async () => // Fix the Task.Run signature
+            tasks.Add(Task.Run(async () =>
             {
                 await semaphore.WaitAsync(cancellationToken);
                 try
                 {
-                    var hostServices = await ScanHostAsync(host, ports, cancellationToken);
-                    foreach (var service in hostServices) // Add services individually
+                    var hostServices = await ScanHostAsync(host, scanPorts, fullScan, cancellationToken);
+                    foreach (var service in hostServices)
                     {
                         services.Add(service);
                     }
@@ -59,13 +85,16 @@ public class NetworkDiscovery : INetworkDiscoveryService
 
         await Task.WhenAll(tasks);
         
-        _logger.LogInformation("Network scan completed. Found {ServiceCount} services", services.Count);
-        return services.OrderBy(s => s.HostAddress).ThenBy(s => s.Port).ToList();
+        var resultList = services.OrderBy(s => s.HostAddress).ThenBy(s => s.Port).ToList();
+        _logger.LogInformation("Network scan completed. Found {ServiceCount} services", resultList.Count);
+        return resultList;
     }
 
-    public async Task<IEnumerable<DiscoveredServiceResult>> ScanHostAsync(string hostAddress, int[] ports, CancellationToken cancellationToken)
+    public async Task<IEnumerable<DiscoveredServiceResult>> ScanHostAsync(string hostAddress, int[]? ports = null, bool fullScan = false, CancellationToken cancellationToken = default)
     {
         var services = new List<DiscoveredServiceResult>();
+        
+        _logger.LogInformation("Starting host scan for {HostAddress} (FullScan: {FullScan})", hostAddress, fullScan);
         
         // First, check if host is reachable
         if (!await IsHostReachableAsync(hostAddress, cancellationToken))
@@ -75,25 +104,54 @@ public class NetworkDiscovery : INetworkDiscoveryService
         }
 
         var hostName = await GetHostNameAsync(hostAddress);
+        var scanPorts = GetPortsToScan(ports, fullScan);
         
-        var portTasks = ports.Select(async port =>
+        _logger.LogInformation("Scanning {PortCount} ports on {HostAddress}", scanPorts.Length, hostAddress);
+
+        // Use different concurrency limits based on scan type
+        var semaphore = new SemaphoreSlim(fullScan ? 100 : 50);
+        var portTasks = scanPorts.Select(async port =>
         {
+            await semaphore.WaitAsync(cancellationToken);
             try
             {
-                var service = await ScanPortAsync(hostAddress, hostName, port, cancellationToken);
-                return service;
+                return await ScanPortAsync(hostAddress, hostName, port, cancellationToken);
             }
             catch (Exception ex)
             {
                 _logger.LogDebug(ex, "Error scanning port {Port} on {HostAddress}", port, hostAddress);
                 return null;
             }
+            finally
+            {
+                semaphore.Release();
+            }
         });
 
         var results = await Task.WhenAll(portTasks);
         services.AddRange(results.Where(s => s != null).Cast<DiscoveredServiceResult>());
 
+        _logger.LogInformation("Host scan completed for {HostAddress}. Found {ServiceCount} open ports", 
+            hostAddress, services.Count);
+        
         return services;
+    }
+
+    private int[] GetPortsToScan(int[]? ports, bool fullScan)
+    {
+        if (ports != null && ports.Length > 0)
+        {
+            return ports;
+        }
+
+        if (fullScan)
+        {
+            // Generate full port range (1-65535) for comprehensive scanning
+            return Enumerable.Range(1, 65535).ToArray();
+        }
+
+        // Use extended ports for better coverage when no ports specified
+        return ExtendedPorts;
     }
 
     private async Task<bool> IsHostReachableAsync(string hostAddress, CancellationToken cancellationToken)
@@ -101,13 +159,41 @@ public class NetworkDiscovery : INetworkDiscoveryService
         try
         {
             using var ping = new Ping();
-            var reply = await ping.SendPingAsync(hostAddress, 3000);
+            var reply = await ping.SendPingAsync(hostAddress, 2000);
             return reply.Status == IPStatus.Success;
         }
         catch
         {
-            return false;
+            // If ping fails, try a quick TCP connect to common ports
+            return await QuickTcpCheck(hostAddress, cancellationToken);
         }
+    }
+
+    private async Task<bool> QuickTcpCheck(string hostAddress, CancellationToken cancellationToken)
+    {
+        var quickCheckPorts = new[] { 80, 443, 22, 21, 25 };
+        
+        foreach (var port in quickCheckPorts)
+        {
+            try
+            {
+                using var tcpClient = new TcpClient();
+                using var timeoutCts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+                timeoutCts.CancelAfter(TimeSpan.FromMilliseconds(1000));
+                
+                await tcpClient.ConnectAsync(hostAddress, port, timeoutCts.Token);
+                if (tcpClient.Connected)
+                {
+                    return true;
+                }
+            }
+            catch
+            {
+                // Continue to next port
+            }
+        }
+        
+        return false;
     }
 
     private async Task<string> GetHostNameAsync(string hostAddress)
@@ -131,7 +217,10 @@ public class NetworkDiscovery : INetworkDiscoveryService
         {
             using var tcpClient = new TcpClient();
             using var timeoutCts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
-            timeoutCts.CancelAfter(TimeSpan.FromMilliseconds(5000));
+            
+            // Shorter timeout for full scans to avoid taking too long
+            var timeout = port <= 1024 ? 3000 : 2000; // Well-known ports get more time
+            timeoutCts.CancelAfter(TimeSpan.FromMilliseconds(timeout));
             
             await tcpClient.ConnectAsync(hostAddress, port, timeoutCts.Token);
             stopwatch.Stop();
@@ -150,18 +239,21 @@ public class NetworkDiscovery : INetworkDiscoveryService
                 DiscoveredAt = DateTime.UtcNow
             };
 
-            // Try to get banner
+            // Try to get banner for identification
             try
             {
                 service.Banner = await GetServiceBannerAsync(tcpClient, timeoutCts.Token);
+                
+                // Enhance service type detection based on banner
+                if (!string.IsNullOrEmpty(service.Banner))
+                {
+                    service.ServiceType = EnhanceServiceTypeFromBanner(service.ServiceType, service.Banner);
+                }
             }
             catch (Exception ex)
             {
                 _logger.LogDebug(ex, "Could not get banner for {HostAddress}:{Port}", hostAddress, port);
             }
-
-            // For now, we'll skip AI-based service recognition since the method doesn't exist
-            // You can implement this later when the AI service interface is updated
 
             return service;
         }
@@ -184,7 +276,12 @@ public class NetworkDiscovery : INetworkDiscoveryService
             var buffer = new byte[1024];
             
             using var timeoutCts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
-            timeoutCts.CancelAfter(TimeSpan.FromMilliseconds(3000));
+            timeoutCts.CancelAfter(TimeSpan.FromMilliseconds(2000));
+            
+            // Send a simple HTTP request for web services
+            var httpRequest = "GET / HTTP/1.1\r\nHost: localhost\r\nConnection: close\r\n\r\n";
+            var httpBytes = Encoding.UTF8.GetBytes(httpRequest);
+            await stream.WriteAsync(httpBytes, 0, httpBytes.Length, timeoutCts.Token);
             
             var bytesRead = await stream.ReadAsync(buffer, 0, buffer.Length, timeoutCts.Token);
             if (bytesRead > 0)
@@ -204,25 +301,92 @@ public class NetworkDiscovery : INetworkDiscoveryService
     {
         return port switch
         {
+            7 => "Echo",
+            9 => "Discard",
+            13 => "Daytime",
             21 => "FTP",
             22 => "SSH",
             23 => "Telnet",
             25 => "SMTP",
+            37 => "Time",
             53 => "DNS",
+            79 => "Finger",
             80 => "HTTP",
+            81 => "HTTP Alt",
+            88 => "Kerberos",
             110 => "POP3",
+            111 => "RPC",
+            113 => "Ident",
+            119 => "NNTP",
+            135 => "RPC Endpoint Mapper",
+            139 => "NetBIOS",
             143 => "IMAP",
+            179 => "BGP",
+            389 => "LDAP",
             443 => "HTTPS",
+            445 => "SMB",
+            465 => "SMTPS",
+            514 => "Syslog",
+            515 => "LPD",
+            587 => "SMTP (Submission)",
+            631 => "IPP",
             993 => "IMAPS",
             995 => "POP3S",
+            1433 => "SQL Server",
+            1723 => "PPTP",
+            3000 => "Node.js/Development",
             3306 => "MySQL",
-            5432 => "PostgreSQL",
-            6379 => "Redis",
-            27017 => "MongoDB",
             3389 => "RDP",
+            5000 => "UPnP/Development",
+            5432 => "PostgreSQL",
             5900 => "VNC",
+            6379 => "Redis",
+            8000 => "HTTP Alt",
+            8080 => "HTTP Proxy",
+            8443 => "HTTPS Alt",
+            8888 => "HTTP Alt",
+            9000 => "Development",
+            9200 => "Elasticsearch",
+            27017 => "MongoDB",
             _ => "Unknown"
         };
+    }
+
+    private string EnhanceServiceTypeFromBanner(string currentType, string banner)
+    {
+        var bannerLower = banner.ToLower();
+        
+        // Web servers
+        if (bannerLower.Contains("nginx")) return "Nginx";
+        if (bannerLower.Contains("apache")) return "Apache";
+        if (bannerLower.Contains("iis")) return "IIS";
+        if (bannerLower.Contains("lighttpd")) return "Lighttpd";
+        
+        // Database servers
+        if (bannerLower.Contains("mysql")) return "MySQL";
+        if (bannerLower.Contains("postgresql")) return "PostgreSQL";
+        if (bannerLower.Contains("mongodb")) return "MongoDB";
+        if (bannerLower.Contains("redis")) return "Redis";
+        
+        // SSH servers
+        if (bannerLower.Contains("openssh")) return "OpenSSH";
+        
+        // FTP servers
+        if (bannerLower.Contains("filezilla")) return "FileZilla FTP";
+        if (bannerLower.Contains("proftpd")) return "ProFTPD";
+        if (bannerLower.Contains("vsftpd")) return "vsftpd";
+        
+        // Mail servers
+        if (bannerLower.Contains("postfix")) return "Postfix";
+        if (bannerLower.Contains("sendmail")) return "Sendmail";
+        if (bannerLower.Contains("dovecot")) return "Dovecot";
+        
+        // Development servers
+        if (bannerLower.Contains("express")) return "Express.js";
+        if (bannerLower.Contains("flask")) return "Flask";
+        if (bannerLower.Contains("django")) return "Django";
+        
+        return currentType;
     }
 
     private IEnumerable<string> ParseNetworkRange(string networkRange)
@@ -274,9 +438,12 @@ public class NetworkDiscovery : INetworkDiscoveryService
         var hostBits = 32 - prefixLength;
         var hostCount = (int)Math.Pow(2, hostBits) - 2; // Exclude network and broadcast addresses
         
+        // Limit large subnets to prevent excessive scanning
+        var maxHosts = Math.Min(hostCount, 1000);
+        
         var baseInt = BitConverter.ToUInt32(ipBytes.Reverse().ToArray(), 0);
         
-        for (uint i = 1; i <= hostCount && i < 254; i++) // Limit to reasonable range
+        for (uint i = 1; i <= maxHosts; i++)
         {
             var hostInt = baseInt + i;
             var hostBytes = BitConverter.GetBytes(hostInt).Reverse().ToArray();

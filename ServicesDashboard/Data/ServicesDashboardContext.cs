@@ -15,6 +15,8 @@ public class ServicesDashboardContext : DbContext
     public DbSet<ServerHealthCheck> ServerHealthChecks { get; set; }
     public DbSet<UpdateReport> UpdateReports { get; set; }
     public DbSet<ServerAlert> ServerAlerts { get; set; }
+    public DbSet<NetworkScanSession> NetworkScanSessions { get; set; }
+    public DbSet<StoredDiscoveredService> StoredDiscoveredServices { get; set; }
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -74,7 +76,7 @@ public class ServicesDashboardContext : DbContext
             entity.HasIndex(a => new { a.ServerId, a.IsResolved });
         });
 
-        // Configure HostedService if it exists
+        // Configure HostedService
         modelBuilder.Entity<HostedService>(entity =>
         {
             entity.HasKey(e => e.Id);
@@ -89,6 +91,32 @@ public class ServicesDashboardContext : DbContext
             entity.Property(e => e.Model).IsRequired().HasMaxLength(100);
             entity.Property(e => e.CreatedAt).HasDefaultValueSql("CURRENT_TIMESTAMP");
             entity.Property(e => e.UpdatedAt).HasDefaultValueSql("CURRENT_TIMESTAMP");
+        });
+
+        // Configure NetworkScanSession
+        modelBuilder.Entity<NetworkScanSession>(entity =>
+        {
+            entity.HasKey(e => e.Id);
+            entity.Property(e => e.Target).IsRequired().HasMaxLength(255);
+            entity.Property(e => e.StartedAt).HasDefaultValueSql("CURRENT_TIMESTAMP");
+            entity.HasIndex(s => new { s.Target, s.StartedAt });
+        });
+
+        // Configure StoredDiscoveredService
+        modelBuilder.Entity<StoredDiscoveredService>(entity =>
+        {
+            entity.HasKey(e => e.Id);
+            entity.HasOne(e => e.ScanSession)
+                  .WithMany(e => e.DiscoveredServices)
+                  .HasForeignKey(e => e.ScanSessionId)
+                  .OnDelete(DeleteBehavior.Cascade);
+            entity.Property(e => e.HostAddress).IsRequired().HasMaxLength(255);
+            entity.Property(e => e.HostName).HasMaxLength(255);
+            entity.Property(e => e.ServiceType).HasMaxLength(100);
+            entity.Property(e => e.DiscoveredAt).HasDefaultValueSql("CURRENT_TIMESTAMP");
+            entity.Property(e => e.LastSeenAt).HasDefaultValueSql("CURRENT_TIMESTAMP");
+            entity.HasIndex(s => new { s.HostAddress, s.Port });
+            entity.HasIndex(s => s.LastSeenAt);
         });
     }
 }

@@ -8,9 +8,14 @@ interface OllamaSettingsProps {
     darkMode?: boolean;
 }
 
+interface TestResult {
+    success: boolean;
+    message: string;
+}
+
 export const OllamaSettings: React.FC<OllamaSettingsProps> = ({ darkMode = true }) => {
     const [isOpen, setIsOpen] = useState(false);
-    const [testResult, setTestResult] = useState<{ success: boolean; message: string } | null>(null);
+    const [testResult, setTestResult] = useState<TestResult | null>(null);
 
     const queryClient = useQueryClient();
 
@@ -35,22 +40,28 @@ export const OllamaSettings: React.FC<OllamaSettingsProps> = ({ darkMode = true 
             queryClient.invalidateQueries({ queryKey: ['ollama-models'] });
             setTestResult({ success: true, message: 'Settings saved successfully!' });
         },
-        onError: (error: any) => {
-            setTestResult({ success: false, message: error.response?.data || 'Failed to save settings' });
+        onError: (error: Error) => {
+            setTestResult({ 
+                success: false, 
+                message: error.message || 'Failed to save settings' 
+            });
         }
     });
 
     // Test connection mutation
     const testMutation = useMutation({
         mutationFn: settingsApi.testOllamaConnection,
-        onSuccess: (result) => {
+        onSuccess: (result: boolean) => {
             setTestResult({
                 success: result,
                 message: result ? 'Connection successful!' : 'Connection failed!'
             });
         },
-        onError: (error: any) => {
-            setTestResult({ success: false, message: error.response?.data || 'Connection test failed' });
+        onError: (error: Error) => {
+            setTestResult({ 
+                success: false, 
+                message: error.message || 'Connection test failed' 
+            });
         }
     });
 
@@ -195,7 +206,7 @@ export const OllamaSettings: React.FC<OllamaSettingsProps> = ({ darkMode = true 
                                     }`}
                                     required
                                 >
-                                    {availableModels.map(model => (
+                                    {availableModels.map((model: string) => (
                                         <option key={model} value={model}>{model}</option>
                                     ))}
                                     {availableModels.length === 0 && (

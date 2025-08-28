@@ -36,7 +36,6 @@
     <ItemGroup>
       <Folder Include="Data\" />
       <Folder Include="Entities\" />
-      <Folder Include="Models\Dtos\" />
       <Folder Include="Services\Settings\" />
     </ItemGroup>
 

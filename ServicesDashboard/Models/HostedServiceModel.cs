@@ -12,4 +12,6 @@ public class HostedService
     public string Status { get; set; } = "Unknown";
     public DateTime LastChecked { get; set; }
     public DateTime DateAdded { get; set; }
+    public int? ServerId { get; set; }
+    public virtual ManagedServer? Server { get; set; }
 }

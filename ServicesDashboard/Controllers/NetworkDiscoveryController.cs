@@ -12,15 +12,18 @@ namespace ServicesDashboard.Controllers;
 public class NetworkDiscoveryController : ControllerBase
 {
     private readonly INetworkDiscoveryService _networkDiscoveryService;
+    private readonly IBackgroundNetworkScanService _backgroundScanService;
     private readonly IUserServices _userServices;
     private readonly ILogger<NetworkDiscoveryController> _logger;
 
     public NetworkDiscoveryController(
         INetworkDiscoveryService networkDiscoveryService,
+        IBackgroundNetworkScanService backgroundScanService,
         IUserServices userServices,
         ILogger<NetworkDiscoveryController> logger)
     {
         _networkDiscoveryService = networkDiscoveryService;
+        _backgroundScanService = backgroundScanService;
         _userServices = userServices;
         _logger = logger;
     }
@@ -28,75 +31,176 @@ public class NetworkDiscoveryController : ControllerBase
     [HttpGet("common-ports")]
     public ActionResult<int[]> GetCommonPorts()
     {
-        var commonPorts = new[] { 21, 22, 23, 25, 53, 80, 110, 143, 443, 993, 995, 3306, 3389, 5432, 5900, 6379, 27017 };
-        return Ok(commonPorts);
+        return Ok(_networkDiscoveryService.GetCommonPorts());
     }
 
-    [HttpPost("scan-network")]
-    public async Task<ActionResult<IEnumerable<DiscoveredServiceResult>>> ScanNetwork([FromBody] NetworkScanRequest request)
+    [HttpGet("extended-ports")]
+    public ActionResult<int[]> GetExtendedPorts()
+    {
+        return Ok(_networkDiscoveryService.GetExtendedPorts());
+    }
+
+    [HttpPost("start-scan")]
+    public async Task<ActionResult<Guid>> StartScan([FromBody] StartScanRequest request)
     {
         try
         {
-            _logger.LogInformation("Starting network scan for {NetworkRange}", request.NetworkRange);
-            
-            var ports = request.Ports?.Length > 0 ? request.Ports : GetCommonPorts().Value ?? Array.Empty<int>();
-            var services = await _networkDiscoveryService.ScanNetworkAsync(request.NetworkRange, ports, CancellationToken.None);
-            
-            _logger.LogInformation("Network scan completed. Found {ServiceCount} services", services.Count());
-            return Ok(services);
+            _logger.LogInformation("Starting background scan for {Target} ({ScanType})", 
+                request.Target, request.ScanType);
+
+            var scanId = await _backgroundScanService.StartScanAsync(
+                request.Target,
+                request.ScanType,
+                request.Ports,
+                request.FullScan);
+
+            return Ok(new { scanId, message = "Scan started successfully" });
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Error during network scan for {NetworkRange}", request.NetworkRange);
-            return StatusCode(500, "Error during network scan");
+            _logger.LogError(ex, "Error starting scan for {Target}", request.Target);
+            return StatusCode(500, "Error starting scan");
         }
     }
 
-    [HttpPost("scan-host")]
-    public async Task<ActionResult<IEnumerable<DiscoveredServiceResult>>> ScanHost([FromBody] HostScanRequest request)
+    [HttpGet("scan-status/{scanId:guid}")]
+    public async Task<ActionResult<object>> GetScanStatus(Guid scanId)
     {
         try
         {
-            _logger.LogInformation("Starting host scan for {HostAddress}", request.HostAddress);
-            
-            var ports = request.Ports?.Length > 0 ? request.Ports : GetCommonPorts().Value ?? Array.Empty<int>();
-            var services = await _networkDiscoveryService.ScanHostAsync(request.HostAddress, ports, CancellationToken.None);
-            
-            _logger.LogInformation("Host scan completed. Found {ServiceCount} services", services.Count());
-            return Ok(services);
+            var scanSession = await _backgroundScanService.GetScanStatusAsync(scanId);
+            if (scanSession == null)
+            {
+                return NotFound("Scan not found");
+            }
+
+            return Ok(new
+            {
+                scanId = scanSession.Id,
+                target = scanSession.Target,
+                scanType = scanSession.ScanType,
+                status = scanSession.Status,
+                startedAt = scanSession.StartedAt,
+                completedAt = scanSession.CompletedAt,
+                serviceCount = scanSession.DiscoveredServices.Count,
+                errorMessage = scanSession.ErrorMessage
+            });
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Error during host scan for {HostAddress}", request.HostAddress);
-            return StatusCode(500, "Error during host scan");
+            _logger.LogError(ex, "Error getting scan status for {ScanId}", scanId);
+            return StatusCode(500, "Error getting scan status");
+        }
+    }
+
+    [HttpGet("scan-results/{scanId:guid}")]
+    public async Task<ActionResult<IEnumerable<StoredDiscoveredService>>> GetScanResults(Guid scanId)
+    {
+        try
+        {
+            var results = await _backgroundScanService.GetScanResultsAsync(scanId);
+            return Ok(results);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error getting scan results for {ScanId}", scanId);
+            return StatusCode(500, "Error getting scan results");
+        }
+    }
+
+    [HttpGet("recent-scans")]
+    public async Task<ActionResult<IEnumerable<NetworkScanSession>>> GetRecentScans([FromQuery] int limit = 10)
+    {
+        try
+        {
+            var scans = await _backgroundScanService.GetRecentScansAsync(limit);
+            return Ok(scans);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error getting recent scans");
+            return StatusCode(500, "Error getting recent scans");
+        }
+    }
+
+    [HttpGet("latest-results/{target}")]
+    public async Task<ActionResult<IEnumerable<StoredDiscoveredService>>> GetLatestResults(string target)
+    {
+        try
+        {
+            var results = await _backgroundScanService.GetLatestDiscoveredServicesAsync(target);
+            return Ok(results);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error getting latest results for {Target}", target);
+            return StatusCode(500, "Error getting latest results");
+        }
+    }
+
+    // Quick scan for immediate results (small scans only)
+    [HttpPost("quick-scan")]
+    public async Task<ActionResult<IEnumerable<DiscoveredServiceResult>>> QuickScan([FromBody] QuickScanRequest request)
+    {
+        try
+        {
+            _logger.LogInformation("Starting quick scan for {Target}", request.Target);
+            
+            // Use a shorter timeout for quick scans
+            using var cts = new CancellationTokenSource(TimeSpan.FromMinutes(2));
+            
+            var isNetwork = request.Target.Contains('/') || request.Target.Contains('-');
+            
+            IEnumerable<DiscoveredServiceResult> services;
+            if (isNetwork)
+            {
+                // For network quick scans, limit to common ports only
+                services = await _networkDiscoveryService.ScanNetworkAsync(
+                    request.Target, 
+                    ports: _networkDiscoveryService.GetCommonPorts(), 
+                    fullScan: false,
+                    cts.Token);
+            }
+            else
+            {
+                services = await _networkDiscoveryService.ScanHostAsync(
+                    request.Target, 
+                    ports: _networkDiscoveryService.GetCommonPorts(), 
+                    fullScan: false,
+                    cts.Token);
+            }
+            
+            _logger.LogInformation("Quick scan completed. Found {ServiceCount} services", services.Count());
+            return Ok(services);
+        }
+        catch (OperationCanceledException)
+        {
+            return StatusCode(408, "Quick scan timed out - use background scan for larger operations");
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error during quick scan for {Target}", request.Target);
+            return StatusCode(500, "Error during quick scan");
         }
     }
 
     [HttpPost("add-to-services")]
-    public async Task<ActionResult<HostedService>> AddDiscoveredServiceResultToServices([FromBody] AddDiscoveredServiceRequest request)
+    public async Task<ActionResult<HostedService>> AddDiscoveredServiceToServices([FromBody] AddDiscoveredServiceRequest request)
     {
         try
         {
             _logger.LogInformation("Adding discovered service: {Name} at {HostAddress}:{Port}", 
                 request.Name, request.HostAddress, request.Port);
 
-            // Validate the request
             if (string.IsNullOrWhiteSpace(request.Name))
-            {
                 return BadRequest("Service name is required");
-            }
 
             if (string.IsNullOrWhiteSpace(request.HostAddress))
-            {
                 return BadRequest("Host address is required");
-            }
 
             if (request.Port <= 0 || request.Port > 65535)
-            {
                 return BadRequest("Invalid port number");
-            }
 
-            // Create the service URL
             var protocol = request.ServiceType?.ToLower() switch
             {
                 "https" => "https",
@@ -108,17 +212,14 @@ public class NetworkDiscoveryController : ControllerBase
 
             var serviceUrl = $"{protocol}://{request.HostAddress}:{request.Port}";
 
-            // Create the HostedService object directly
             var hostedService = new HostedService
             {
                 Name = request.Name,
                 Description = request.Description,
                 Url = serviceUrl,
-                IsDockerContainer = false, // Discovered services are not Docker containers
+                IsDockerContainer = false,
                 LastChecked = DateTime.UtcNow
             };
-
-            _logger.LogInformation("Creating service with URL: {Url}", serviceUrl);
 
             var createdService = await _userServices.AddServiceAsync(hostedService);
             
@@ -130,11 +231,8 @@ public class NetworkDiscoveryController : ControllerBase
             _logger.LogError(ex, "Error adding discovered service: {Name} at {HostAddress}:{Port}", 
                 request.Name, request.HostAddress, request.Port);
             
-            // Return more specific error information
             if (ex.InnerException != null)
-            {
                 return BadRequest($"Database error: {ex.InnerException.Message}");
-            }
             
             return StatusCode(500, $"Error adding service: {ex.Message}");
         }

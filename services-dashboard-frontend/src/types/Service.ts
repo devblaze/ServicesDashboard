@@ -27,6 +27,7 @@ export interface CreateServiceDto {
   dockerImage?: string; // Optional for external services
   hostAddress?: string; // For external services
   port?: number;
+  isDockerContainer: boolean; // Fixed: was 'bool', should be 'boolean'
   healthCheckUrl?: string;
   environment?: 'development' | 'staging' | 'production';
 }

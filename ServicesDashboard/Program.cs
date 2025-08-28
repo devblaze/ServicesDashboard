@@ -71,6 +71,11 @@ builder.Services.AddScoped<IApplicationSettings, ApplicationSettings>();
 builder.Services.AddScoped<IServerManagementService, ServerManagement>();
 builder.Services.AddHttpClient();
 
+// Add after other service registrations
+builder.Services.AddSingleton<IBackgroundNetworkScanService, BackgroundNetworkScan>();
+builder.Services.AddHostedService<BackgroundNetworkScan>(provider => 
+    (BackgroundNetworkScan)provider.GetRequiredService<IBackgroundNetworkScanService>());
+
 // Add this after builder.Services.AddHttpClient();
 builder.Services.Configure<ForwardedHeadersOptions>(options =>
 {

@@ -1,14 +1,15 @@
-import axios, {type AxiosInstance, type AxiosResponse } from 'axios';
-import type { HostedService, CreateServiceDto } from '../types/Service.ts';
+import axios from 'axios';
+import type { AxiosInstance, AxiosResponse } from 'axios';
+import type { HostedService, CreateServiceDto } from '../types/Service';
 
 class ApiClient {
     private client: AxiosInstance;
 
     constructor() {
-        // In Docker, use relative path since nginx proxies to backend
-        // In development, use full URL to backend
+        // In development, use proxy path (Vite will proxy /api to backend:8080)
+        // In production/Docker, use relative path since nginx proxies to backend
         const baseURL = import.meta.env.VITE_API_URL || (
-            import.meta.env.DEV ? 'http://localhost:5000/api' : '/api'
+            import.meta.env.DEV ? '/api' : '/api'
         );
 
         this.client = axios.create({
@@ -93,4 +94,6 @@ class ApiClient {
     }
 }
 
+// Export a singleton instance
 export const apiClient = new ApiClient();
+export default apiClient;

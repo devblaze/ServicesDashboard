@@ -268,7 +268,7 @@ public class ServerManagementController : ControllerBase
                 request.HostAddress,
                 request.SshPort,
                 request.Username,
-                request.Password // Pass plain text password directly
+                request.Password
             );
             return Ok(canConnect);
         }
@@ -423,7 +423,6 @@ public class ServerManagementController : ControllerBase
                 Description = request.Description,
                 DockerImage = "", // You might want to store the original image
                 Port = request.Port,
-                Environment = request.Environment,
                 ServiceUrl = request.ServiceUrl
             };
 

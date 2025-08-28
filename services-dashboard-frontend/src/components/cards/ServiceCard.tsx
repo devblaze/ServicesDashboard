@@ -5,71 +5,69 @@ import {
   ExternalLink, 
   Trash2,
   Globe,
-  Container
+  Container,
+  FileText
 } from 'lucide-react';
 import type { HostedService } from '../../types/Service';
-import { ServiceStatus } from '../../types/ServiceStatus';
 
 interface ServiceCardProps {
   service: HostedService;
   darkMode?: boolean;
   onHealthCheck: (service: HostedService) => void;
   onDelete: (service: HostedService) => void;
+  onViewLogs?: (service: HostedService) => void;
 }
 
 export const ServiceCard: React.FC<ServiceCardProps> = ({
   service,
   darkMode = true,
   onHealthCheck,
-  onDelete
+  onDelete,
+  onViewLogs
 }) => {
-  const getStatusColor = (status: ServiceStatus) => {
-    switch (status) {
-      case ServiceStatus.Running:
+  const getStatusColor = (status: string) => {
+    switch (status.toLowerCase()) {
+      case 'healthy':
+      case 'running':
         return 'text-green-400';
-      case ServiceStatus.Unknown:
+      case 'unknown':
         return 'text-yellow-400';
-      case ServiceStatus.Stopped:
-      case ServiceStatus.Failed:
+      case 'unhealthy':
+      case 'stopped':
+      case 'failed':
         return 'text-red-400';
       default:
         return 'text-gray-400';
     }
   };
 
-  const getStatusBg = (status: ServiceStatus) => {
-    switch (status) {
-      case ServiceStatus.Running:
+  const getStatusBg = (status: string) => {
+    switch (status.toLowerCase()) {
+      case 'healthy':
+      case 'running':
         return 'bg-green-500/20 border-green-500/30';
-      case ServiceStatus.Unknown:
+      case 'unknown':
         return 'bg-yellow-500/20 border-yellow-500/30';
-      case ServiceStatus.Stopped:
-      case ServiceStatus.Failed:
+      case 'unhealthy':
+      case 'stopped':
+      case 'failed':
         return 'bg-red-500/20 border-red-500/30';
       default:
         return 'bg-gray-500/20 border-gray-500/30';
     }
   };
 
-  const formatUptime = (uptime: number) => {
-    if (uptime < 60) return `${Math.floor(uptime)}s`;
-    if (uptime < 3600) return `${Math.floor(uptime / 60)}m`;
-    if (uptime < 86400) return `${Math.floor(uptime / 3600)}h`;
-    return `${Math.floor(uptime / 86400)}d`;
-  };
-
   const getServiceTypeIcon = () => {
-    if (service.dockerImage || service.serviceType === 'docker') {
+    // Use serviceType from the interface, or fall back to checking dockerImage
+    if (service.serviceType === 'docker' || service.dockerImage) {
       return <Container className="w-5 h-5" />;
     }
     return <Globe className="w-5 h-5" />;
   };
 
   const getServiceTypeLabel = () => {
-    if (service.dockerImage || service.serviceType === 'docker') {
-      return 'Docker';
-    }
-    return 'External';
+    // Use serviceType from the interface, or fall back to checking dockerImage
+    return (service.serviceType === 'docker' || service.dockerImage) ? 'Docker' : 'External';
   };
 
   return (
@@ -97,11 +95,7 @@ export const ServiceCard: React.FC<ServiceCardProps> = ({
                 </span>
                 {service.environment && (
                   <span className={`text-xs px-2 py-1 rounded-full ${
-                    service.environment === 'production'
-                      ? 'bg-red-500/20 text-red-400'
-                      : service.environment === 'staging'
-                      ? 'bg-yellow-500/20 text-yellow-400'
-                      : 'bg-green-500/20 text-green-400'
+                    darkMode ? 'bg-purple-700/50 text-purple-300' : 'bg-purple-100/50 text-purple-600'
                   }`}>
                     {service.environment}
                   </span>
@@ -114,8 +108,8 @@ export const ServiceCard: React.FC<ServiceCardProps> = ({
             getStatusBg(service.status)
           } ${getStatusColor(service.status)}`}>
             <div className={`w-2 h-2 rounded-full ${
-              service.status === ServiceStatus.Running ? 'bg-green-400' :
-              service.status === ServiceStatus.Unknown ? 'bg-yellow-400' :
+              service.status.toLowerCase() === 'healthy' || service.status.toLowerCase() === 'running' ? 'bg-green-400' :
+              service.status.toLowerCase() === 'unknown' ? 'bg-yellow-400' :
               'bg-red-400'
             }`} />
             <span>{service.status}</span>
@@ -125,67 +119,96 @@ export const ServiceCard: React.FC<ServiceCardProps> = ({
         {/* Service Details */}
         <div className="space-y-3 mb-4">
           {service.description && (
-            <p className={`text-sm ${darkMode ? 'text-gray-400' : 'text-gray-600'}`}>
+            <p className={`text-sm ${darkMode ? 'text-gray-300' : 'text-gray-600'}`}>
               {service.description}
             </p>
           )}
 
-          <div className="grid grid-cols-2 gap-4 text-sm">
-            {/* Service location */}
-            <div>
-              <span className={`font-medium ${darkMode ? 'text-gray-300' : 'text-gray-700'}`}>
-                {service.serviceType === 'external' || service.hostAddress ? 'Host:' : 'Image:'}
-              </span>
-              <p className={`${darkMode ? 'text-gray-400' : 'text-gray-600'} truncate`}>
-                {service.hostAddress || service.dockerImage || 'N/A'}
-              </p>
-            </div>
-
-            {/* Port */}
-            {service.port && (
-              <div>
-                <span className={`font-medium ${darkMode ? 'text-gray-300' : 'text-gray-700'}`}>
-                  Port:
-                </span>
-                <p className={darkMode ? 'text-gray-400' : 'text-gray-600'}>
-                  {service.port}
-                </p>
-              </div>
-            )}
-
-            {/* Uptime */}
-            {service.uptime !== undefined && (
-              <div>
-                <span className={`font-medium ${darkMode ? 'text-gray-300' : 'text-gray-700'}`}>
-                  Uptime:
-                </span>
-                <p className={`${darkMode ? 'text-gray-400' : 'text-gray-600'} flex items-center`}>
-                  <Clock className="w-3 h-3 mr-1" />
-                  {formatUptime(service.uptime)}
-                </p>
-              </div>
-            )}
-
-            {/* Last Health Check */}
-            {service.lastHealthCheck && (
-              <div>
-                <span className={`font-medium ${darkMode ? 'text-gray-300' : 'text-gray-700'}`}>
-                  Last Check:
-                </span>
-                <p className={darkMode ? 'text-gray-400' : 'text-gray-600'}>
-                  {new Date(service.lastHealthCheck).toLocaleTimeString()}
-                </p>
-              </div>
-            )}
-          </div>
-
-          {/* Logs availability indicator */}
-          {service.logsAvailable && (
-            <div className={`flex items-center space-x-2 text-xs ${
-              darkMode ? 'text-green-400' : 'text-green-600'
+          {/* Docker Image Information */}
+          {service.dockerImage && (
+            <div className={`p-3 rounded-lg border ${
+              darkMode ? 'bg-gray-700/30 border-gray-600/50' : 'bg-gray-50/50 border-gray-200/50'
             }`}>
-              <div className="w-2 h-2 rounded-full bg-green-400" />
-              <span>Logs available</span>
+              <div className="flex items-center space-x-2 mb-2">
+                <Container className={`w-4 h-4 ${darkMode ? 'text-blue-400' : 'text-blue-600'}`} />
+                <span className={`text-sm font-medium ${darkMode ? 'text-white' : 'text-gray-900'}`}>
+                  Docker Container
+                </span>
+              </div>
+              <div className={`text-xs ${darkMode ? 'text-gray-400' : 'text-gray-600'}`}>
+                Image: {service.dockerImage}
+              </div>
+            </div>
+          )}
+
+          {/* Host Address (for external services) */}
+          {service.hostAddress && (
+            <div className="flex items-center justify-between">
+              <span className={`text-xs ${darkMode ? 'text-gray-400' : 'text-gray-600'}`}>
+                Host:
+              </span>
+              <span className={`text-xs ${darkMode ? 'text-gray-300' : 'text-gray-700'}`}>
+                {service.hostAddress}
+              </span>
+            </div>
+          )}
+
+          {/* Port */}
+          {service.port && (
+            <div className="flex items-center justify-between">
+              <span className={`text-xs ${darkMode ? 'text-gray-400' : 'text-gray-600'}`}>
+                Port:
+              </span>
+              <span className={`text-xs ${darkMode ? 'text-gray-300' : 'text-gray-700'}`}>
+                {service.port}
+              </span>
+            </div>
+          )}
+
+          {/* Health Check URL */}
+          {service.healthCheckUrl && (
+            <div className="flex items-center justify-between">
+              <span className={`text-xs ${darkMode ? 'text-gray-400' : 'text-gray-600'}`}>
+                Health Check:
+              </span>
+              <a
+                href={service.healthCheckUrl}
+                target="_blank"
+                rel="noopener noreferrer"
+                className={`inline-flex items-center text-xs ${
+                  darkMode ? 'text-blue-400 hover:text-blue-300' : 'text-blue-600 hover:text-blue-700'
+                }`}
+              >
+                {service.healthCheckUrl}
+                <ExternalLink className="w-3 h-3 ml-1" />
+              </a>
+            </div>
+          )}
+
+          {/* Uptime */}
+          {service.uptime !== undefined && (
+            <div className="flex items-center justify-between">
+              <span className={`text-xs ${darkMode ? 'text-gray-400' : 'text-gray-600'}`}>
+                Uptime:
+              </span>
+              <span className={`text-xs ${darkMode ? 'text-gray-300' : 'text-gray-700'}`}>
+                {Math.round(service.uptime)}%
+              </span>
+            </div>
+          )}
+
+          {/* Last Health Check */}
+          {service.lastHealthCheck && (
+            <div className="flex items-center justify-between">
+              <span className={`text-xs ${darkMode ? 'text-gray-400' : 'text-gray-600'}`}>
+                Last checked:
+              </span>
+              <div className="flex items-center space-x-1">
+                <Clock className="w-3 h-3 text-gray-400" />
+                <span className={`text-xs ${darkMode ? 'text-gray-400' : 'text-gray-600'}`}>
+                  {new Date(service.lastHealthCheck).toLocaleString()}
+                </span>
+              </div>
             </div>
           )}
         </div>
@@ -194,38 +217,39 @@ export const ServiceCard: React.FC<ServiceCardProps> = ({
         <div className="flex space-x-2">
           <button
             onClick={() => onHealthCheck(service)}
-            className={`flex items-center flex-1 px-3 py-2 rounded-lg text-sm font-medium transition-colors ${
+            className={`flex-1 inline-flex items-center justify-center px-3 py-2 rounded-lg text-xs font-medium transition-colors ${
               darkMode
-                ? 'bg-gray-700/50 hover:bg-gray-600/50 text-gray-300 hover:text-white'
-                : 'bg-gray-100/50 hover:bg-gray-200/50 text-gray-700 hover:text-gray-900'
+                ? 'bg-blue-600/20 hover:bg-blue-600/30 text-blue-400'
+                : 'bg-blue-100 hover:bg-blue-200 text-blue-700'
             }`}
           >
-            <Activity className="w-4 h-4 mr-2" />
-            Health Check
+            <Activity className="w-3 h-3 mr-1" />
+            Check Health
           </button>
 
-          {service.healthCheckUrl && (
+          {service.logsAvailable && onViewLogs && (
             <button
-              onClick={() => window.open(service.healthCheckUrl, '_blank')}
-              className={`flex items-center px-3 py-2 rounded-lg text-sm font-medium transition-colors ${
+              onClick={() => onViewLogs(service)}
+              className={`flex-1 inline-flex items-center justify-center px-3 py-2 rounded-lg text-xs font-medium transition-colors ${
                 darkMode
-                  ? 'bg-gray-700/50 hover:bg-gray-600/50 text-gray-300 hover:text-white'
-                  : 'bg-gray-100/50 hover:bg-gray-200/50 text-gray-700 hover:text-gray-900'
+                  ? 'bg-green-600/20 hover:bg-green-600/30 text-green-400'
+                  : 'bg-green-100 hover:bg-green-200 text-green-700'
               }`}
             >
-              <ExternalLink className="w-4 h-4" />
+              <FileText className="w-3 h-3 mr-1" />
+              View Logs
             </button>
           )}
 
           <button
             onClick={() => onDelete(service)}
-            className={`flex items-center px-3 py-2 rounded-lg text-sm font-medium transition-colors ${
+            className={`px-3 py-2 rounded-lg text-xs font-medium transition-colors ${
               darkMode
-                ? 'bg-red-900/30 hover:bg-red-900/50 text-red-400 hover:text-red-300'
-                : 'bg-red-100/50 hover:bg-red-200/50 text-red-600 hover:text-red-700'
+                ? 'bg-red-600/20 hover:bg-red-600/30 text-red-400'
+                : 'bg-red-100 hover:bg-red-200 text-red-700'
             }`}
           >
-            <Trash2 className="w-4 h-4" />
+            <Trash2 className="w-3 h-3" />
           </button>
         </div>
       </div>

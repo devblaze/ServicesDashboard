@@ -1,6 +1,15 @@
 import { BaseApiClient } from './BaseApiClient';
 import type { HostedService, CreateServiceDto } from '../types/Service.ts';
 
+export interface ServerSummary {
+  id: number;
+  name: string;
+  hostAddress: string;
+  status: string;
+  type: string;
+  lastCheckTime?: string;
+}
+
 class ServicesApiClient extends BaseApiClient {
   constructor() {
     super({ serviceName: 'Services API' });
@@ -28,6 +37,10 @@ class ServicesApiClient extends BaseApiClient {
 
   async checkServiceHealth(id: string): Promise<void> {
     return this.request<void>('post', `/api/services/${id}/check-health`);
+  }
+
+  async getServersForServices(): Promise<ServerSummary[]> {
+    return this.request<ServerSummary[]>('get', '/api/services/servers');
   }
 }
 

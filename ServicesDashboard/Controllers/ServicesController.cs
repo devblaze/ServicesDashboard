@@ -1,6 +1,8 @@
 ﻿using Microsoft.AspNetCore.Mvc;
 using ServicesDashboard.Models;
+using ServicesDashboard.Models.Dtos;
 using ServicesDashboard.Services;
+using ServicesDashboard.Services.ServerManagement;
 
 namespace ServicesDashboard.Controllers;
 
@@ -10,11 +12,13 @@ public class ServicesController : ControllerBase
 {
     private readonly IUserServices _userServices;
     private readonly ILogger<ServicesController> _logger;
+    private readonly IServerManagementService _serverManagementService;
 
-    public ServicesController(IUserServices userServices, ILogger<ServicesController> logger)
+    public ServicesController(IUserServices userServices, ILogger<ServicesController> logger, IServerManagementService serverManagementService)
     {
         _userServices = userServices;
         _logger = logger;
+        _serverManagementService = serverManagementService;
     }
 
     [HttpGet]
@@ -72,5 +76,30 @@ public class ServicesController : ControllerBase
             return NotFound();
 
         return NoContent();
+    }
+    
+    [HttpGet("servers")]
+    public async Task<ActionResult<IEnumerable<ServerSummaryDto>>> GetServersForServices()
+    {
+        try
+        {
+            var servers = await _serverManagementService.GetServersAsync();
+            var serverSummaries = servers.Select(s => new ServerSummaryDto
+            {
+                Id = s.Id,
+                Name = s.Name,
+                HostAddress = s.HostAddress,
+                Status = s.Status.ToString(),
+                Type = s.Type.ToString(),
+                LastCheckTime = s.LastCheckTime
+            }).ToList();
+
+            return Ok(serverSummaries);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Failed to get servers for services");
+            return StatusCode(500, "Failed to retrieve servers");
+        }
     }
 }
