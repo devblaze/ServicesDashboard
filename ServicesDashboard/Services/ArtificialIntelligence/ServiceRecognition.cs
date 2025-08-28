@@ -1,24 +1,24 @@
-using ServicesDashboard.Models;
+using System.Text;
+using System.Text.Json;
+using System.Text.RegularExpressions;
+using HtmlAgilityPack;
 using Microsoft.Extensions.Options;
 using OllamaSharp;
 using OllamaSharp.Models;
 using PuppeteerSharp;
-using HtmlAgilityPack;
-using System.Text.Json;
-using System.Text.RegularExpressions;
-using System.Text;
+using ServicesDashboard.Models;
 using ServicesDashboard.Models.Results;
 
-namespace ServicesDashboard.Services.AIServiceRecognition;
+namespace ServicesDashboard.Services.ArtificialIntelligence;
 
-public interface IAiServiceRecognitionService
+public interface IServiceRecognitionService
 {
     Task<ServiceRecognitionResult> RecognizeServiceAsync(string hostAddress, int port, string serviceType, string? banner = null, string? htmlContent = null, CancellationToken cancellationToken = default);
     Task<byte[]?> TakeScreenshotAsync(string url, CancellationToken cancellationToken = default);
     Task<bool> TestOllamaConnectionAsync();
 }
 
-public class ServiceRecognition : IAiServiceRecognitionService
+public class ServiceRecognition : IServiceRecognitionService
 {
     private readonly IOllamaApiClient _ollamaClient;
     private readonly ILogger<ServiceRecognition> _logger;
@@ -89,7 +89,8 @@ public class ServiceRecognition : IAiServiceRecognitionService
             // Try to get HTML content if it's a web service
             if (IsWebService(serviceType) && string.IsNullOrEmpty(htmlContent))
             {
-                htmlContent = await FetchHtmlContentAsync($"http://{hostAddress}:{port}", cancellationToken);
+                // htmlContent = await FetchHtmlContentAsync($"http://{hostAddress}:{port}", cancellationToken);
+                htmlContent = await FetchHtmlContentAsync($"http://192.168.4.253:11434", cancellationToken);
             }
 
             // Extract title from HTML

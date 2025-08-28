@@ -2,6 +2,7 @@
 using System;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 using ServicesDashboard.Data;
@@ -11,9 +12,11 @@ using ServicesDashboard.Data;
 namespace ServicesDashboard.Migrations
 {
     [DbContext(typeof(ServicesDashboardContext))]
-    partial class ServicesDashboardContextModelSnapshot : ModelSnapshot
+    [Migration("20250828173845_FixStoredDiscoveredServiceProperties")]
+    partial class FixStoredDiscoveredServiceProperties
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
@@ -381,11 +384,6 @@ namespace ServicesDashboard.Migrations
                     b.Property<string>("ServiceCategory")
                         .HasColumnType("text");
 
-                    b.Property<string>("ServiceKey")
-                        .IsRequired()
-                        .HasMaxLength(300)
-                        .HasColumnType("character varying(300)");
-
                     b.Property<string>("ServiceType")
                         .IsRequired()
                         .HasMaxLength(100)
@@ -402,8 +400,6 @@ namespace ServicesDashboard.Migrations
                     b.HasIndex("DiscoveredAt");
 
                     b.HasIndex("ScanId");
-
-                    b.HasIndex("ServiceKey");
 
                     b.HasIndex("HostAddress", "Port");
 

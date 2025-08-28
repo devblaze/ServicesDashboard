@@ -16,23 +16,23 @@ class ServicesApiClient extends BaseApiClient {
   }
 
   async getServices(): Promise<HostedService[]> {
-    return this.request<HostedService[]>('get', '/api/services');
+    return this.request<HostedService[]>('get', '/services');
   }
 
   async getService(id: string): Promise<HostedService> {
-    return this.request<HostedService>('get', `/api/services/${id}`);
+    return this.request<HostedService>('get', `/services/${id}`);
   }
 
   async createService(service: CreateServiceDto): Promise<HostedService> {
-    return this.request<HostedService>('post', '/api/services', service);
+    return this.request<HostedService>('post', '/services', service);
   }
 
   async updateService(id: string, service: Partial<HostedService>): Promise<HostedService> {
-    return this.request<HostedService>('put', `/api/services/${id}`, service);
+    return this.request<HostedService>('put', `/services/${id}`, service);
   }
 
   async deleteService(id: string): Promise<void> {
-    return this.request<void>('delete', `/api/services/${id}`);
+    return this.request<void>('delete', `/services/${id}`);
   }
 
   async checkServiceHealth(id: string): Promise<void> {
@@ -40,7 +40,7 @@ class ServicesApiClient extends BaseApiClient {
   }
 
   async getServersForServices(): Promise<ServerSummary[]> {
-    return this.request<ServerSummary[]>('get', '/api/services/servers');
+    return this.request<ServerSummary[]>('get', '/services/servers');
   }
 }
 

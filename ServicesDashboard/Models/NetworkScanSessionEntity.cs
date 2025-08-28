@@ -31,35 +31,26 @@ public class NetworkScanSession
 
 public class StoredDiscoveredService
 {
-    [Key]
     public int Id { get; set; }
-    
-    public Guid ScanSessionId { get; set; }
-    
-    [Required]
-    [MaxLength(255)]
+    public Guid ScanId { get; set; }
     public string HostAddress { get; set; } = string.Empty;
-    
-    [MaxLength(255)]
     public string HostName { get; set; } = string.Empty;
-    
     public int Port { get; set; }
-    
     public bool IsReachable { get; set; }
-    
-    [MaxLength(100)]
+    public long ResponseTimeMs { get; set; }
     public string ServiceType { get; set; } = string.Empty;
-    
     public string? Banner { get; set; }
-    
-    public TimeSpan ResponseTime { get; set; }
-    
-    public DateTime DiscoveredAt { get; set; } = DateTime.UtcNow;
-    
-    public DateTime LastSeenAt { get; set; } = DateTime.UtcNow;
-    
+    public DateTime DiscoveredAt { get; set; }
     public bool IsActive { get; set; } = true;
+    public string ServiceKey { get; set; } = string.Empty;
     
-    // Navigation property
-    public virtual NetworkScanSession ScanSession { get; set; } = null!;
+    // Navigation properties
+    public NetworkScanSession ScanSession { get; set; } = null!;
+    
+    // AI Recognition fields
+    public string? RecognizedName { get; set; }
+    public string? SuggestedDescription { get; set; }
+    public string? ServiceCategory { get; set; }
+    public string? SuggestedIcon { get; set; }
+    public double? AiConfidence { get; set; }
 }

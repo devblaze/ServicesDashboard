@@ -1,5 +1,4 @@
-﻿
-namespace ServicesDashboard.Models;
+﻿namespace ServicesDashboard.Models;
 
 public class HostedService
 {
@@ -14,4 +13,7 @@ public class HostedService
     public DateTime DateAdded { get; set; }
     public int? ServerId { get; set; }
     public virtual ManagedServer? Server { get; set; }
+    
+    // Metadata field to store AI analysis data and other additional information
+    public string? Metadata { get; set; }
 }

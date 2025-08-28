@@ -4,7 +4,7 @@ using System.Net.NetworkInformation;
 using System.Net.Sockets;
 using System.Text;
 using ServicesDashboard.Models.Results;
-using ServicesDashboard.Services.AIServiceRecognition;
+using ServicesDashboard.Services.ArtificialIntelligence;
 
 namespace ServicesDashboard.Services.NetworkDiscovery;
 
@@ -19,7 +19,7 @@ public interface INetworkDiscoveryService
 public class NetworkDiscovery : INetworkDiscoveryService
 {
     private readonly ILogger<NetworkDiscovery> _logger;
-    private readonly IAiServiceRecognitionService _aiService;
+    private readonly IServiceRecognitionService _service;
 
     // Common ports for quick scanning
     private static readonly int[] CommonPorts = {
@@ -39,10 +39,10 @@ public class NetworkDiscovery : INetworkDiscoveryService
         9000, 9001, 9090, 9100, 9102, 9200, 9999, 10000, 32768, 49152, 49153, 49154, 49155, 49156, 49157
     };
 
-    public NetworkDiscovery(ILogger<NetworkDiscovery> logger, IAiServiceRecognitionService aiService)
+    public NetworkDiscovery(ILogger<NetworkDiscovery> logger, IServiceRecognitionService service)
     {
         _logger = logger;
-        _aiService = aiService;
+        _service = service;
     }
 
     public int[] GetCommonPorts() => CommonPorts;
@@ -243,7 +243,7 @@ public class NetworkDiscovery : INetworkDiscoveryService
             try
             {
                 service.Banner = await GetServiceBannerAsync(tcpClient, timeoutCts.Token);
-                
+            
                 // Enhance service type detection based on banner
                 if (!string.IsNullOrEmpty(service.Banner))
                 {
@@ -255,6 +255,33 @@ public class NetworkDiscovery : INetworkDiscoveryService
                 _logger.LogDebug(ex, "Could not get banner for {HostAddress}:{Port}", hostAddress, port);
             }
 
+            // Use AI service recognition for better identification
+            try
+            {
+                var recognition = await _service.RecognizeServiceAsync(
+                    hostAddress, 
+                    port, 
+                    service.ServiceType, 
+                    service.Banner,
+                    cancellationToken: timeoutCts.Token
+                );
+
+                if (recognition.Confidence > 0.5)
+                {
+                    service.RecognizedName = recognition.RecognizedName;
+                    service.SuggestedDescription = recognition.Description;
+                    service.ServiceCategory = recognition.Category;
+                    service.SuggestedIcon = recognition.IconName;
+                    service.AiConfidence = recognition.Confidence;
+                }
+                
+                _logger.LogInformation("AI Recognition completed: {RecognizedName} with confidence {Confidence}", 
+                    recognition.RecognizedName, recognition.Confidence);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogDebug(ex, "AI service recognition failed for {HostAddress}:{Port}", hostAddress, port);
+            }
             return service;
         }
         catch (OperationCanceledException)

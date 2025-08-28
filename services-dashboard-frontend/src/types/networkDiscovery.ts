@@ -7,23 +7,21 @@ export interface DiscoveredService {
   serviceType: string;
   banner?: string;
   discoveredAt: string;
-  lastSeenAt?: string;
-  isActive?: boolean;
+  
+  // AI Recognition fields
+  recognizedName?: string;
+  suggestedDescription?: string;
+  serviceCategory?: string;
+  suggestedIcon?: string;
+  aiConfidence?: number;
 }
 
-export interface StoredDiscoveredService {
+export interface StoredDiscoveredService extends DiscoveredService {
   id: number;
-  scanSessionId: string;
-  hostAddress: string;
-  hostName: string;
-  port: number;
-  isReachable: boolean;
-  serviceType: string;
-  banner?: string;
-  responseTime: string;
-  discoveredAt: string;
-  lastSeenAt: string;
+  scanId: string;
+  responseTimeMs: number;
   isActive: boolean;
+  serviceKey: string;
 }
 
 export interface NetworkScanSession {

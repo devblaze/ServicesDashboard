@@ -1,7 +1,6 @@
 using ServicesDashboard.Services;
 using ServicesDashboard.Services.LogCollection;
 using ServicesDashboard.Services.NetworkDiscovery;
-using ServicesDashboard.Services.AIServiceRecognition;
 using ServicesDashboard.Data;
 using ServicesDashboard.Models;
 using Microsoft.EntityFrameworkCore;
@@ -66,11 +65,12 @@ builder.Services.AddSingleton<ILogAnalyzer, LogAnalyzer>();
 builder.Services.AddSingleton<IServerConnectionManager, ServerConnectionManager>();
 builder.Services.AddScoped<IRemoteLogCollector, RemoteDockerLogCollector>();
 builder.Services.AddScoped<INetworkDiscoveryService, NetworkDiscovery>();
-builder.Services.AddScoped<IAiServiceRecognitionService, ServiceRecognition>();
+builder.Services.AddScoped<IServiceRecognitionService, ServiceRecognition>();
 builder.Services.AddScoped<IApplicationSettings, ApplicationSettings>();
 builder.Services.AddScoped<IServerManagementService, ServerManagement>();
-builder.Services.AddSingleton<IBackgroundNetworkScanService, BackgroundNetworkScan>();
-builder.Services.AddHostedService<BackgroundNetworkScan>();
+builder.Services.AddSingleton<BackgroundNetworkScan>();
+builder.Services.AddSingleton<IBackgroundNetworkScanService>(provider => provider.GetService<BackgroundNetworkScan>()!);
+builder.Services.AddHostedService<BackgroundNetworkScan>(provider => provider.GetService<BackgroundNetworkScan>()!);
 builder.Services.AddHttpClient();
 
 builder.Services.Configure<ForwardedHeadersOptions>(options =>

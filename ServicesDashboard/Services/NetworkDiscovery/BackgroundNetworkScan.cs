@@ -99,7 +99,7 @@ public class BackgroundNetworkScan : BackgroundService, IBackgroundNetworkScanSe
         var context = scope.ServiceProvider.GetRequiredService<ServicesDashboardContext>();
 
         return await context.StoredDiscoveredServices
-            .Where(s => s.ScanSessionId == scanId)
+            .Where(s => s.ScanId == scanId)
             .OrderBy(s => s.HostAddress)
             .ThenBy(s => s.Port)
             .ToListAsync();
@@ -120,7 +120,7 @@ public class BackgroundNetworkScan : BackgroundService, IBackgroundNetworkScanSe
             return Enumerable.Empty<StoredDiscoveredService>();
 
         return await context.StoredDiscoveredServices
-            .Where(s => s.ScanSessionId == latestScan.Id)
+            .Where(s => s.ScanId == latestScan.Id)
             .OrderBy(s => s.HostAddress)
             .ThenBy(s => s.Port)
             .ToListAsync();
@@ -378,36 +378,58 @@ public class BackgroundNetworkScan : BackgroundService, IBackgroundNetworkScanSe
         DiscoveredServiceResult result,
         List<string> currentServiceKeys)
     {
-        try
+        var serviceKey = $"{result.HostAddress}:{result.Port}";
+        currentServiceKeys.Add(serviceKey);
+
+        // Check if this service already exists for this scan
+        var existing = await context.StoredDiscoveredServices
+            .FirstOrDefaultAsync(s => s.ScanId == scanId && s.ServiceKey == serviceKey);
+
+        if (existing != null)
         {
+            // Update existing service
+            existing.IsReachable = result.IsReachable;
+            existing.ResponseTimeMs = (long)result.ResponseTime.TotalMilliseconds;
+            existing.ServiceType = result.ServiceType;
+            existing.Banner = result.Banner;
+            existing.DiscoveredAt = result.DiscoveredAt;
+            existing.IsActive = true;
+        
+            // Update AI recognition data
+            existing.RecognizedName = result.RecognizedName;
+            existing.SuggestedDescription = result.SuggestedDescription;
+            existing.ServiceCategory = result.ServiceCategory;
+            existing.SuggestedIcon = result.SuggestedIcon;
+            existing.AiConfidence = result.AiConfidence;
+        }
+        else
+        {
+            // Create new service
             var storedService = new StoredDiscoveredService
             {
-                ScanSessionId = scanId,
+                ScanId = scanId,
                 HostAddress = result.HostAddress,
                 HostName = result.HostName,
                 Port = result.Port,
                 IsReachable = result.IsReachable,
+                ResponseTimeMs = (long)result.ResponseTime.TotalMilliseconds,
                 ServiceType = result.ServiceType,
                 Banner = result.Banner,
-                ResponseTime = result.ResponseTime,
                 DiscoveredAt = result.DiscoveredAt,
-                LastSeenAt = DateTime.UtcNow,
-                IsActive = true
+                IsActive = true,
+            
+                // AI recognition data
+                RecognizedName = result.RecognizedName,
+                SuggestedDescription = result.SuggestedDescription,
+                ServiceCategory = result.ServiceCategory,
+                SuggestedIcon = result.SuggestedIcon,
+                AiConfidence = result.AiConfidence
             };
 
             context.StoredDiscoveredServices.Add(storedService);
-            await context.SaveChangesAsync();
-
-            currentServiceKeys.Add($"{result.HostAddress}:{result.Port}");
-
-            _logger.LogInformation("Discovered service: {HostAddress}:{Port} ({ServiceType}) for scan {ScanId}",
-                result.HostAddress, result.Port, result.ServiceType, scanId);
         }
-        catch (Exception ex)
-        {
-            _logger.LogError(ex, "Error saving discovered service {HostAddress}:{Port} for scan {ScanId}",
-                result.HostAddress, result.Port, scanId);
-        }
+
+        await context.SaveChangesAsync();
     }
 
     private class ScanRequest

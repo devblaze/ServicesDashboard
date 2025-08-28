@@ -1,9 +1,9 @@
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.Extensions.Options;
 using ServicesDashboard.Models;
-using ServicesDashboard.Services.AIServiceRecognition;
 using ServicesDashboard.Services;
 using System.Text.Json;
+using ServicesDashboard.Services.ArtificialIntelligence;
 using ServicesDashboard.Services.Settings;
 
 namespace ServicesDashboard.Controllers;
@@ -14,7 +14,7 @@ public class SettingsController : ControllerBase
 {
     private readonly IOptionsSnapshot<AppSettings> _settings;
     private readonly IConfiguration _configuration;
-    private readonly IAiServiceRecognitionService _aiService;
+    private readonly IServiceRecognitionService _service;
     private readonly IApplicationSettings _applicationSettings;
     private readonly ILogger<SettingsController> _logger;
     private readonly HttpClient _httpClient;
@@ -22,14 +22,14 @@ public class SettingsController : ControllerBase
     public SettingsController(
         IOptionsSnapshot<AppSettings> settings,
         IConfiguration configuration,
-        IAiServiceRecognitionService aiService,
+        IServiceRecognitionService service,
         IApplicationSettings applicationSettings,
         ILogger<SettingsController> logger,
         HttpClient httpClient)
     {
         _settings = settings;
         _configuration = configuration;
-        _aiService = aiService;
+        _service = service;
         _applicationSettings = applicationSettings;
         _logger = logger;
         _httpClient = httpClient;
@@ -93,7 +93,7 @@ public class SettingsController : ControllerBase
     [HttpPost("ollama/test")]
     public async Task<ActionResult<bool>> TestOllamaConnection()
     {
-        var result = await _aiService.TestOllamaConnectionAsync();
+        var result = await _service.TestOllamaConnectionAsync();
         return Ok(result);
     }
 

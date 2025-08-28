@@ -1,6 +1,6 @@
 using Microsoft.Extensions.Logging;
 using Moq;
-using ServicesDashboard.Services.AIServiceRecognition;
+using ServicesDashboard.Services.ArtificialIntelligence;
 using ServicesDashboard.Services.NetworkDiscovery;
 using Xunit;
 
@@ -9,13 +9,13 @@ namespace ServicesDashboard.Tests.Services;
 public class NetworkDiscoveryTests
 {
     private readonly Mock<ILogger<NetworkDiscovery>> _mockLogger;
-    private readonly Mock<IAiServiceRecognitionService> _mockAiService;
+    private readonly Mock<IServiceRecognitionService> _mockAiService;
     private readonly NetworkDiscovery _service;
 
     public NetworkDiscoveryTests()
     {
         _mockLogger = new Mock<ILogger<NetworkDiscovery>>();
-        _mockAiService = new Mock<IAiServiceRecognitionService>();
+        _mockAiService = new Mock<IServiceRecognitionService>();
         _service = new NetworkDiscovery(_mockLogger.Object, _mockAiService.Object);
     }
 

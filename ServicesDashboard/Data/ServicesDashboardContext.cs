@@ -82,6 +82,8 @@ public class ServicesDashboardContext : DbContext
             entity.HasKey(e => e.Id);
             entity.Property(e => e.Name).IsRequired();
             entity.Property(e => e.Status).HasConversion<string>();
+            entity.Property(e => e.DateAdded).HasDefaultValueSql("CURRENT_TIMESTAMP");
+            entity.Property(e => e.LastChecked).HasDefaultValueSql("CURRENT_TIMESTAMP");
         });
 
         modelBuilder.Entity<OllamaSettingsEntity>(entity =>
@@ -101,22 +103,22 @@ public class ServicesDashboardContext : DbContext
             entity.Property(e => e.StartedAt).HasDefaultValueSql("CURRENT_TIMESTAMP");
             entity.HasIndex(s => new { s.Target, s.StartedAt });
         });
-
-        // Configure StoredDiscoveredService
+        
         modelBuilder.Entity<StoredDiscoveredService>(entity =>
         {
             entity.HasKey(e => e.Id);
             entity.HasOne(e => e.ScanSession)
                   .WithMany(e => e.DiscoveredServices)
-                  .HasForeignKey(e => e.ScanSessionId)
+                  .HasForeignKey(e => e.ScanId)
                   .OnDelete(DeleteBehavior.Cascade);
             entity.Property(e => e.HostAddress).IsRequired().HasMaxLength(255);
             entity.Property(e => e.HostName).HasMaxLength(255);
             entity.Property(e => e.ServiceType).HasMaxLength(100);
             entity.Property(e => e.DiscoveredAt).HasDefaultValueSql("CURRENT_TIMESTAMP");
-            entity.Property(e => e.LastSeenAt).HasDefaultValueSql("CURRENT_TIMESTAMP");
+            entity.Property(e => e.ServiceKey).HasMaxLength(300);
             entity.HasIndex(s => new { s.HostAddress, s.Port });
-            entity.HasIndex(s => s.LastSeenAt);
+            entity.HasIndex(s => s.DiscoveredAt);
+            entity.HasIndex(s => s.ServiceKey);
         });
     }
 }

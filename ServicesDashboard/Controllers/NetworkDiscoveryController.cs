@@ -5,6 +5,7 @@ using ServicesDashboard.Models.Requests;
 using ServicesDashboard.Models.Results;
 using ServicesDashboard.Services;
 using ServicesDashboard.Services.NetworkDiscovery;
+using System.Text.Json;
 
 namespace ServicesDashboard.Controllers;
 
@@ -196,51 +197,75 @@ public class NetworkDiscoveryController : ControllerBase
             _logger.LogInformation("Adding discovered service: {Name} at {HostAddress}:{Port}", 
                 request.Name, request.HostAddress, request.Port);
 
-            if (string.IsNullOrWhiteSpace(request.Name))
-                return BadRequest("Service name is required");
+        if (string.IsNullOrWhiteSpace(request.Name))
+            return BadRequest("Service name is required");
 
-            if (string.IsNullOrWhiteSpace(request.HostAddress))
-                return BadRequest("Host address is required");
+        if (string.IsNullOrWhiteSpace(request.HostAddress))
+            return BadRequest("Host address is required");
 
-            if (request.Port <= 0 || request.Port > 65535)
-                return BadRequest("Invalid port number");
+        if (request.Port <= 0 || request.Port > 65535)
+            return BadRequest("Invalid port number");
 
-            var protocol = request.ServiceType?.ToLower() switch
-            {
-                "https" => "https",
-                "http" => "http",
-                var type when type?.Contains("ssl") == true => "https",
-                var type when type?.Contains("tls") == true => "https",
-                _ => request.Port == 443 ? "https" : "http"
-            };
-
-            var serviceUrl = $"{protocol}://{request.HostAddress}:{request.Port}";
-
-            var hostedService = new HostedService
-            {
-                Name = request.Name,
-                Description = request.Description,
-                Url = serviceUrl,
-                IsDockerContainer = false,
-                LastChecked = DateTime.UtcNow
-            };
-
-            var createdService = await _userServices.AddServiceAsync(hostedService);
-            
-            _logger.LogInformation("Successfully added service: {ServiceId}", createdService.Id);
-            return Ok(createdService);
-        }
-        catch (Exception ex)
+        var protocol = request.ServiceType?.ToLower() switch
         {
-            _logger.LogError(ex, "Error adding discovered service: {Name} at {HostAddress}:{Port}", 
-                request.Name, request.HostAddress, request.Port);
-            
-            if (ex.InnerException != null)
-                return BadRequest($"Database error: {ex.InnerException.Message}");
-            
-            return StatusCode(500, $"Error adding service: {ex.Message}");
+            "https" => "https",
+            "http" => "http",
+            var type when type?.Contains("ssl") == true => "https",
+            var type when type?.Contains("tls") == true => "https",
+            _ => request.Port == 443 ? "https" : "http"
+        };
+
+        var serviceUrl = $"{protocol}://{request.HostAddress}:{request.Port}";
+
+        // Use AI-suggested name if provided and confident
+        var serviceName = request.Name;
+        if (!string.IsNullOrEmpty(request.RecognizedName) && 
+            request.AiConfidence.HasValue && 
+            request.AiConfidence.Value > 0.7)
+        {
+            serviceName = request.RecognizedName;
         }
+
+        // Use AI-suggested description if provided
+        var description = request.Description;
+        if (string.IsNullOrEmpty(description) && !string.IsNullOrEmpty(request.SuggestedDescription))
+        {
+            description = request.SuggestedDescription;
+        }
+
+        var hostedService = new HostedService
+        {
+            Name = serviceName,
+            Description = description,
+            Url = serviceUrl,
+            IsDockerContainer = false,
+            LastChecked = DateTime.UtcNow,
+            // Store AI metadata for future reference
+            Metadata = !string.IsNullOrEmpty(request.ServiceCategory) 
+                ? JsonSerializer.Serialize(new { 
+                    Category = request.ServiceCategory,
+                    AiConfidence = request.AiConfidence,
+                    SuggestedIcon = request.SuggestedIcon
+                })
+                : null
+        };
+
+        var createdService = await _userServices.AddServiceAsync(hostedService);
+        
+        _logger.LogInformation("Successfully added service: {ServiceId}", createdService.Id);
+        return Ok(createdService);
     }
+    catch (Exception ex)
+    {
+        _logger.LogError(ex, "Error adding discovered service: {Name} at {HostAddress}:{Port}", 
+            request.Name, request.HostAddress, request.Port);
+        
+        if (ex.InnerException != null)
+            return BadRequest($"Database error: {ex.InnerException.Message}");
+        
+        return StatusCode(500, $"Error adding service: {ex.Message}");
+    }
+}
 
     [HttpGet("scan-progress/{scanId:guid}")]
     public async Task<ActionResult<object>> GetScanProgress(Guid scanId)
