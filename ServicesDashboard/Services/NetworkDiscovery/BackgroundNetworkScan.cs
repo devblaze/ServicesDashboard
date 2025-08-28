@@ -23,7 +23,7 @@ public class BackgroundNetworkScan : BackgroundService, IBackgroundNetworkScanSe
     private readonly SemaphoreSlim _queueSemaphore = new(1, 1);
 
     public BackgroundNetworkScan(
-        IServiceProvider serviceProvider, 
+        IServiceProvider serviceProvider,
         ILogger<BackgroundNetworkScan> logger)
     {
         _serviceProvider = serviceProvider;
@@ -154,7 +154,7 @@ public class BackgroundNetworkScan : BackgroundService, IBackgroundNetworkScanSe
 
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
     {
-        _logger.LogInformation("Background Network Scan Service started");
+        _logger.LogInformation("Background Network Scan Service started at {StartTime}", DateTime.UtcNow);
 
         while (!stoppingToken.IsCancellationRequested)
         {
@@ -168,6 +168,12 @@ public class BackgroundNetworkScan : BackgroundService, IBackgroundNetworkScanSe
                     if (_scanQueue.Count > 0)
                     {
                         scanRequest = _scanQueue.Dequeue();
+                        _logger.LogInformation("Dequeued scan request {ScanId} from queue. Queue size: {QueueSize}",
+                            scanRequest.ScanId, _scanQueue.Count);
+                    }
+                    else
+                    {
+                        _logger.LogDebug("Queue is empty, waiting for scans...");
                     }
                 }
                 finally
@@ -177,7 +183,12 @@ public class BackgroundNetworkScan : BackgroundService, IBackgroundNetworkScanSe
 
                 if (scanRequest != null)
                 {
+                    _logger.LogInformation("Processing scan request {ScanId} for target {Target}",
+                        scanRequest.ScanId, scanRequest.Target);
+
                     await ProcessScanAsync(scanRequest, stoppingToken);
+
+                    _logger.LogInformation("Finished processing scan request {ScanId}", scanRequest.ScanId);
                 }
                 else
                 {
@@ -187,102 +198,215 @@ public class BackgroundNetworkScan : BackgroundService, IBackgroundNetworkScanSe
             }
             catch (OperationCanceledException)
             {
+                _logger.LogInformation("Background scan service cancelled");
                 break;
             }
             catch (Exception ex)
             {
-                _logger.LogError(ex, "Error in background scan service");
+                _logger.LogError(ex, "Error in background scan service main loop");
                 await Task.Delay(5000, stoppingToken); // Wait before retrying
             }
         }
 
-        _logger.LogInformation("Background Network Scan Service stopped");
+        _logger.LogInformation("Background Network Scan Service stopped at {StopTime}", DateTime.UtcNow);
     }
 
     private async Task ProcessScanAsync(ScanRequest request, CancellationToken cancellationToken)
     {
-        using var scope = _serviceProvider.CreateScope();
-        var context = scope.ServiceProvider.GetRequiredService<ServicesDashboardContext>();
-        var networkDiscoveryService = scope.ServiceProvider.GetRequiredService<INetworkDiscoveryService>();
-
-        var scanSession = await context.NetworkScanSessions.FindAsync(request.ScanId);
-        if (scanSession == null)
-        {
-            _logger.LogWarning("Scan session {ScanId} not found", request.ScanId);
-            return;
-        }
-
+        ServicesDashboardContext? context = null;
+        var scope = _serviceProvider.CreateScope();
+        
         try
         {
-            _logger.LogInformation("Starting scan {ScanId} for target {Target}", request.ScanId, request.Target);
-            
-            // Update scan status
-            scanSession.Status = "running";
-            await context.SaveChangesAsync();
+            context = scope.ServiceProvider.GetRequiredService<ServicesDashboardContext>();
+            var networkDiscoveryService = scope.ServiceProvider.GetRequiredService<INetworkDiscoveryService>();
 
-            // Perform the actual scan
-            IEnumerable<DiscoveredServiceResult> results;
-            var isNetwork = request.Target.Contains('/') || request.Target.Contains('-');
-
-            if (isNetwork)
+            var scanSession = await context.NetworkScanSessions.FindAsync(request.ScanId);
+            if (scanSession == null)
             {
-                results = await networkDiscoveryService.ScanNetworkAsync(
-                    request.Target, 
-                    request.Ports, 
-                    request.FullScan, 
-                    cancellationToken);
+                _logger.LogWarning("Scan session {ScanId} not found in database", request.ScanId);
+                return;
+            }
+
+            _logger.LogInformation("Found scan session {ScanId} with status {Status}", request.ScanId, scanSession.Status);
+
+            try
+            {
+                _logger.LogInformation(
+                    "Starting scan {ScanId} for target {Target} (ScanType: {ScanType}, FullScan: {FullScan})",
+                    request.ScanId, request.Target, request.ScanType, request.FullScan);
+
+                // Update scan status to running
+                await UpdateScanStatus(context, request.ScanId, "running");
+
+                // Perform the actual scan
+                IEnumerable<DiscoveredServiceResult> results;
+                var isNetwork = request.Target.Contains('/') || request.Target.Contains('-');
+
+                _logger.LogInformation("Scan type detection: {Target} -> Network: {IsNetwork}", request.Target, isNetwork);
+
+                var scanStartTime = DateTime.UtcNow;
+
+                if (isNetwork)
+                {
+                    _logger.LogInformation("Starting network scan for {Target} with ports: {Ports}",
+                        request.Target, request.Ports != null ? string.Join(",", request.Ports) : "default");
+
+                    results = await networkDiscoveryService.ScanNetworkAsync(
+                        request.Target,
+                        request.Ports,
+                        request.FullScan,
+                        cancellationToken);
+                }
+                else
+                {
+                    _logger.LogInformation("Starting host scan for {Target} with ports: {Ports}",
+                        request.Target, request.Ports != null ? string.Join(",", request.Ports) : "default");
+
+                    results = await networkDiscoveryService.ScanHostAsync(
+                        request.Target,
+                        request.Ports,
+                        request.FullScan,
+                        cancellationToken);
+                }
+
+                var scanEndTime = DateTime.UtcNow;
+                var scanDuration = scanEndTime - scanStartTime;
+
+                _logger.LogInformation("Scan completed for {ScanId} in {Duration}. Found {ResultCount} services",
+                    request.ScanId, scanDuration, results.Count());
+
+                // Store results and save each one immediately for real-time feedback
+                var currentServiceKeys = new List<string>();
+                var savedCount = 0;
+
+                foreach (var result in results)
+                {
+                    if (cancellationToken.IsCancellationRequested)
+                    {
+                        _logger.LogWarning("Scan {ScanId} cancelled during result processing", request.ScanId);
+                        break;
+                    }
+
+                    await SaveDiscoveredService(context, request.ScanId, result, currentServiceKeys);
+                    savedCount++;
+
+                    if (savedCount % 10 == 0) // Log every 10 saved services
+                    {
+                        _logger.LogInformation("Saved {SavedCount}/{TotalCount} services for scan {ScanId}",
+                            savedCount, results.Count(), request.ScanId);
+                    }
+                }
+
+                _logger.LogInformation("Finished saving {SavedCount} services for scan {ScanId}",
+                    savedCount, request.ScanId);
+
+                // Mark previously discovered services as inactive if they're no longer found
+                await MarkServicesInactiveAsync(request.Target, currentServiceKeys);
+
+                // Update scan completion with dedicated method
+                await UpdateScanStatus(context, request.ScanId, "completed", DateTime.UtcNow);
+
+                _logger.LogInformation(
+                    "Completed scan {ScanId}. Status set to 'completed'. Found {ResultCount} services in {Duration}",
+                    request.ScanId, results.Count(), scanDuration);
+            }
+            catch (OperationCanceledException)
+            {
+                _logger.LogWarning("Scan {ScanId} was cancelled", request.ScanId);
+                await UpdateScanStatus(context, request.ScanId, "cancelled", DateTime.UtcNow, "Scan was cancelled");
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error processing scan {ScanId}: {ErrorMessage}", request.ScanId, ex.Message);
+                await UpdateScanStatus(context, request.ScanId, "failed", DateTime.UtcNow, ex.Message);
+            }
+        }
+        finally
+        {
+            scope?.Dispose();
+        }
+    }
+
+    private async Task UpdateScanStatus(ServicesDashboardContext context, Guid scanId, string status, DateTime? completedAt = null, string? errorMessage = null)
+    {
+        try
+        {
+            var scanSession = await context.NetworkScanSessions.FindAsync(scanId);
+            if (scanSession != null)
+            {
+                scanSession.Status = status;
+                if (completedAt.HasValue)
+                {
+                    scanSession.CompletedAt = completedAt.Value;
+                }
+                if (!string.IsNullOrEmpty(errorMessage))
+                {
+                    scanSession.ErrorMessage = errorMessage;
+                }
+
+                var changeCount = await context.SaveChangesAsync();
+                _logger.LogInformation("Updated scan {ScanId} status to '{Status}'. Changes saved: {ChangeCount}", 
+                    scanId, status, changeCount);
+
+                // Verify the update was successful
+                var verifySession = await context.NetworkScanSessions.FindAsync(scanId);
+                if (verifySession?.Status != status)
+                {
+                    _logger.LogError("Status update verification failed for scan {ScanId}. Expected: {ExpectedStatus}, Actual: {ActualStatus}",
+                        scanId, status, verifySession?.Status ?? "null");
+                }
+                else
+                {
+                    _logger.LogInformation("Status update verified for scan {ScanId}: {Status}", scanId, status);
+                }
             }
             else
             {
-                results = await networkDiscoveryService.ScanHostAsync(
-                    request.Target, 
-                    request.Ports, 
-                    request.FullScan, 
-                    cancellationToken);
+                _logger.LogError("Could not find scan session {ScanId} to update status", scanId);
             }
-
-            // Store results
-            var currentServiceKeys = new List<string>();
-            foreach (var result in results)
-            {
-                var storedService = new StoredDiscoveredService
-                {
-                    ScanSessionId = request.ScanId,
-                    HostAddress = result.HostAddress,
-                    HostName = result.HostName,
-                    Port = result.Port,
-                    IsReachable = result.IsReachable,
-                    ServiceType = result.ServiceType,
-                    Banner = result.Banner,
-                    ResponseTime = result.ResponseTime,
-                    DiscoveredAt = result.DiscoveredAt,
-                    LastSeenAt = DateTime.UtcNow,
-                    IsActive = true
-                };
-
-                context.StoredDiscoveredServices.Add(storedService);
-                currentServiceKeys.Add($"{result.HostAddress}:{result.Port}");
-            }
-
-            // Mark previously discovered services as inactive if they're no longer found
-            await MarkServicesInactiveAsync(request.Target, currentServiceKeys);
-
-            // Update scan completion
-            scanSession.Status = "completed";
-            scanSession.CompletedAt = DateTime.UtcNow;
-            await context.SaveChangesAsync();
-
-            _logger.LogInformation("Completed scan {ScanId}. Found {ResultCount} services", 
-                request.ScanId, results.Count());
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Error processing scan {ScanId}", request.ScanId);
-            
-            scanSession.Status = "failed";
-            scanSession.ErrorMessage = ex.Message;
-            scanSession.CompletedAt = DateTime.UtcNow;
+            _logger.LogError(ex, "Failed to update scan {ScanId} status to '{Status}'", scanId, status);
+        }
+    }
+
+    private async Task SaveDiscoveredService(
+        ServicesDashboardContext context,
+        Guid scanId,
+        DiscoveredServiceResult result,
+        List<string> currentServiceKeys)
+    {
+        try
+        {
+            var storedService = new StoredDiscoveredService
+            {
+                ScanSessionId = scanId,
+                HostAddress = result.HostAddress,
+                HostName = result.HostName,
+                Port = result.Port,
+                IsReachable = result.IsReachable,
+                ServiceType = result.ServiceType,
+                Banner = result.Banner,
+                ResponseTime = result.ResponseTime,
+                DiscoveredAt = result.DiscoveredAt,
+                LastSeenAt = DateTime.UtcNow,
+                IsActive = true
+            };
+
+            context.StoredDiscoveredServices.Add(storedService);
             await context.SaveChangesAsync();
+
+            currentServiceKeys.Add($"{result.HostAddress}:{result.Port}");
+
+            _logger.LogInformation("Discovered service: {HostAddress}:{Port} ({ServiceType}) for scan {ScanId}",
+                result.HostAddress, result.Port, result.ServiceType, scanId);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error saving discovered service {HostAddress}:{Port} for scan {ScanId}",
+                result.HostAddress, result.Port, scanId);
         }
     }
 

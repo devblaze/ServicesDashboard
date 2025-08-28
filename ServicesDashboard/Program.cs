@@ -69,14 +69,10 @@ builder.Services.AddScoped<INetworkDiscoveryService, NetworkDiscovery>();
 builder.Services.AddScoped<IAiServiceRecognitionService, ServiceRecognition>();
 builder.Services.AddScoped<IApplicationSettings, ApplicationSettings>();
 builder.Services.AddScoped<IServerManagementService, ServerManagement>();
+builder.Services.AddSingleton<IBackgroundNetworkScanService, BackgroundNetworkScan>();
+builder.Services.AddHostedService<BackgroundNetworkScan>();
 builder.Services.AddHttpClient();
 
-// Add after other service registrations
-builder.Services.AddSingleton<IBackgroundNetworkScanService, BackgroundNetworkScan>();
-builder.Services.AddHostedService<BackgroundNetworkScan>(provider => 
-    (BackgroundNetworkScan)provider.GetRequiredService<IBackgroundNetworkScanService>());
-
-// Add this after builder.Services.AddHttpClient();
 builder.Services.Configure<ForwardedHeadersOptions>(options =>
 {
     options.ForwardedHeaders = Microsoft.AspNetCore.HttpOverrides.ForwardedHeaders.XForwardedFor |

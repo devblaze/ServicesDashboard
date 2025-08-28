@@ -19,6 +19,19 @@ const STORAGE_KEYS = {
   CURRENT_TARGET: 'networkDiscovery_currentTarget',
 } as const;
 
+// Type for API errors
+interface ApiError extends Error {
+  response?: {
+    status: number;
+    data?: unknown;
+  };
+}
+
+// Type guard to check if error is an API error
+const isApiError = (error: unknown): error is ApiError => {
+  return error instanceof Error && 'response' in error;
+};
+
 const getStoredScanId = (): string | null => {
   try {
     return localStorage.getItem(STORAGE_KEYS.CURRENT_SCAN_ID);
@@ -108,10 +121,10 @@ export const useNetworkDiscovery = () => {
     staleTime: 30 * 1000, // 30 seconds
   });
 
-  // Poll scan status when we have an active scan
-  const scanStatusQuery = useQuery({
-    queryKey: ['scan-status', currentScanId],
-    queryFn: () => currentScanId ? networkDiscoveryApi.getScanStatus(currentScanId) : null,
+  // Poll scan progress when we have an active scan - Using the new progress endpoint
+  const scanProgressQuery = useQuery({
+    queryKey: ['scan-progress', currentScanId],
+    queryFn: () => currentScanId ? networkDiscoveryApi.getScanProgress(currentScanId) : null,
     enabled: !!currentScanId,
     refetchInterval: (query) => {
       const data = query.state.data;
@@ -122,7 +135,7 @@ export const useNetworkDiscovery = () => {
     },
     retry: (failureCount, error) => {
       // If scan ID is not found, clear it and stop retrying
-      if (error && 'response' in error && (error as any).response?.status === 404) {
+      if (isApiError(error) && error.response?.status === 404) {
         setCurrentScanId(null);
         return false;
       }
@@ -130,26 +143,38 @@ export const useNetworkDiscovery = () => {
     }
   });
 
-  const scanStatus = scanStatusQuery.data;
-  const refetchScanStatus = scanStatusQuery.refetch;
+  const scanProgress = scanProgressQuery.data;
+  const refetchScanProgress = scanProgressQuery.refetch;
+
+  // Keep backward compatibility with scanStatus
+  const scanStatus = scanProgress ? {
+    scanId: scanProgress.scanId,
+    target: scanProgress.target,
+    scanType: scanProgress.scanType,
+    status: scanProgress.status,
+    startedAt: scanProgress.startedAt,
+    completedAt: scanProgress.completedAt,
+    serviceCount: scanProgress.discoveredCount,
+    errorMessage: scanProgress.errorMessage
+  } : null;
 
   // Check for active scans on component mount
   useEffect(() => {
     const checkForActiveScan = async () => {
-      if (currentScanId && !scanStatus) {
+      if (currentScanId && !scanProgress) {
         try {
-          // Try to get scan status to see if it's still valid
-          await networkDiscoveryApi.getScanStatus(currentScanId);
-        } catch (error) {
+          // Try to get scan progress to see if it's still valid
+          await networkDiscoveryApi.getScanProgress(currentScanId);
+        } catch (err) {
           // If scan ID is invalid, clear it
-          console.warn('Stored scan ID is no longer valid, clearing it');
+          console.warn('Stored scan ID is no longer valid, clearing it', err);
           setCurrentScanId(null);
         }
       }
     };
 
     checkForActiveScan();
-  }, [currentScanId, scanStatus]);
+  }, [currentScanId, scanProgress]);
 
   // Start background scan mutation
   const startBackgroundScanMutation = useMutation({
@@ -195,13 +220,13 @@ export const useNetworkDiscovery = () => {
 
   // Load scan results when scan completes
   useEffect(() => {
-    if (scanStatus?.status === 'completed' && currentScanId) {
+    if (scanProgress?.status === 'completed' && currentScanId) {
       loadScanResults(currentScanId);
-    } else if (scanStatus?.status === 'failed' && currentScanId) {
+    } else if (scanProgress?.status === 'failed' && currentScanId) {
       // Clear failed scans
       setCurrentScanId(null);
     }
-  }, [scanStatus?.status, currentScanId]);
+  }, [scanProgress?.status, currentScanId]);
 
   // Load latest results for current target when component mounts
   useEffect(() => {
@@ -377,7 +402,8 @@ export const useNetworkDiscovery = () => {
     // Computed values
     commonPorts,
     recentScans,
-    scanStatus,
+    scanStatus, // Keep for backward compatibility
+    scanProgress, // New detailed progress data
     uniqueServiceTypes,
     uniquePorts,
     filteredServices,
@@ -393,7 +419,7 @@ export const useNetworkDiscovery = () => {
     resetFilters,
     isServiceAdded,
     refetchRecentScans,
-    refetchScanStatus,
-    cancelCurrentScan // New function to manually clear scans
+    refetchScanStatus: refetchScanProgress, // Renamed to match new endpoint
+    cancelCurrentScan
   };
 };

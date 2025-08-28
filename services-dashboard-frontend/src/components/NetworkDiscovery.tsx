@@ -1,8 +1,10 @@
 import React from 'react';
-import { Target, History, AlertCircle, X } from 'lucide-react';
+import { Target, History, AlertCircle, X, Clock } from 'lucide-react';
 import { useNetworkDiscovery } from '../hooks/useNetworkDiscovery';
 import { ScanControls } from './networkDiscovery/ScanControls';
-import { getScanStatusIcon } from './networkDiscovery/serviceUtilities';
+import { ServicesFilters } from './networkDiscovery/ServicesFiltersComponent';
+import { ServicesList } from './networkDiscovery/ServicesListComponent.tsx';
+import { getScanStatusIcon, getServiceIcon } from './networkDiscovery/serviceUtilities';
 
 interface NetworkDiscoveryProps {
   darkMode?: boolean;
@@ -19,21 +21,36 @@ export const NetworkDiscovery: React.FC<NetworkDiscoveryProps> = ({ darkMode = t
     fullScan, setFullScan,
     showHistory, setShowHistory,
     
+    // Filter state
+    searchFilter, setSearchFilter,
+    serviceTypeFilter, setServiceTypeFilter,
+    portFilter, setPortFilter,
+    showOnlyAdded, setShowOnlyAdded,
+    showOnlyActive, setShowOnlyActive,
+    showFilters, setShowFilters,
+    
     // Data
     commonPorts,
-    scanStatus,
+    scanProgress,
     filteredServices,
     discoveredServices,
     currentTarget,
+    uniqueServiceTypes,
+    uniquePorts,
     
     // Computed
     isScanning,
     error,
+    hasActiveFilters,
+    hasStoredServices,
     
     // Functions
     handleScan,
+    handleAddToServices,
     refetchRecentScans,
-    cancelCurrentScan
+    cancelCurrentScan,
+    resetFilters,
+    isServiceAdded
   } = useNetworkDiscovery();
 
   return (
@@ -86,8 +103,8 @@ export const NetworkDiscovery: React.FC<NetworkDiscoveryProps> = ({ darkMode = t
           </button>
         </div>
 
-        {/* Scan Status */}
-        {scanStatus && (
+        {/* Scan Status with Real-time Progress */}
+        {scanProgress && (
           <div className={`mb-6 p-4 rounded-xl border ${
             darkMode
               ? 'bg-blue-900/20 border-blue-600/30'
@@ -95,30 +112,30 @@ export const NetworkDiscovery: React.FC<NetworkDiscoveryProps> = ({ darkMode = t
           }`}>
             <div className="flex items-center justify-between">
               <div className="flex items-center space-x-3">
-                {getScanStatusIcon(scanStatus.status)}
+                {getScanStatusIcon(scanProgress.status)}
                 <div>
                   <p className={`font-medium ${
                     darkMode ? 'text-blue-300' : 'text-blue-700'
                   }`}>
-                    Scan Status: {scanStatus.status.charAt(0).toUpperCase() + scanStatus.status.slice(1)}
+                    Scan Status: {scanProgress.status.charAt(0).toUpperCase() + scanProgress.status.slice(1)}
                   </p>
                   <p className={`text-sm ${
                     darkMode ? 'text-blue-400' : 'text-blue-600'
                   }`}>
-                    Target: {scanStatus.target} • Started: {new Date(scanStatus.startedAt).toLocaleTimeString()}
+                    Target: {scanProgress.target} • Started: {new Date(scanProgress.startedAt).toLocaleTimeString()}
                   </p>
-                  {scanStatus.serviceCount > 0 && (
+                  {scanProgress.discoveredCount > 0 && (
                     <p className={`text-sm ${
                       darkMode ? 'text-blue-400' : 'text-blue-600'
                     }`}>
-                      Found {scanStatus.serviceCount} services
+                      Discovered {scanProgress.discoveredCount} services so far
                     </p>
                   )}
                 </div>
               </div>
 
               {/* Cancel Button */}
-              {(scanStatus.status === 'running' || scanStatus.status === 'pending') && (
+              {(scanProgress.status === 'running' || scanProgress.status === 'pending') && (
                 <button
                   onClick={cancelCurrentScan}
                   className={`p-2 rounded-lg transition-colors duration-200 ${
@@ -133,13 +150,58 @@ export const NetworkDiscovery: React.FC<NetworkDiscoveryProps> = ({ darkMode = t
               )}
             </div>
 
-            {scanStatus.errorMessage && (
+            {/* Real-time Latest Services */}
+            {scanProgress.latestServices && scanProgress.latestServices.length > 0 && (
+              <div className="mt-4">
+                <p className={`text-sm font-medium mb-2 ${
+                  darkMode ? 'text-blue-300' : 'text-blue-700'
+                }`}>
+                  Latest discovered services:
+                </p>
+                <div className="space-y-2">
+                  {scanProgress.latestServices.map((service, index) => (
+                    <div
+                      key={`${service.hostAddress}-${service.port}-${index}`}
+                      className={`flex items-center justify-between p-2 rounded-lg ${
+                        darkMode
+                          ? 'bg-blue-800/20 border border-blue-700/30'
+                          : 'bg-blue-100 border border-blue-200'
+                      }`}
+                    >
+                      <div className="flex items-center space-x-2">
+                        {getServiceIcon(service.serviceType)}
+                        <span className={`text-sm font-medium ${
+                          darkMode ? 'text-blue-200' : 'text-blue-800'
+                        }`}>
+                          {service.hostAddress}:{service.port}
+                        </span>
+                        <span className={`text-xs px-2 py-1 rounded-full ${
+                          darkMode
+                            ? 'bg-blue-700/50 text-blue-300'
+                            : 'bg-blue-200 text-blue-700'
+                        }`}>
+                          {service.serviceType}
+                        </span>
+                      </div>
+                      <div className="flex items-center space-x-1 text-xs">
+                        <Clock className="w-3 h-3" />
+                        <span className={darkMode ? 'text-blue-400' : 'text-blue-600'}>
+                          {new Date(service.discoveredAt).toLocaleTimeString()}
+                        </span>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {scanProgress.errorMessage && (
               <div className={`mt-3 p-3 rounded-lg ${
                 darkMode
                   ? 'bg-red-900/20 text-red-300'
                   : 'bg-red-100 text-red-700'
               }`}>
-                <p className="text-sm">{scanStatus.errorMessage}</p>
+                <p className="text-sm">{scanProgress.errorMessage}</p>
               </div>
             )}
           </div>
@@ -179,18 +241,55 @@ export const NetworkDiscovery: React.FC<NetworkDiscoveryProps> = ({ darkMode = t
         )}
       </div>
 
-      {/* Results Section - You can create more components for this part */}
+      {/* Results Section */}
       {discoveredServices.length > 0 && (
         <div className="p-6">
-          <div className="text-center">
-            <p className={`text-lg ${darkMode ? 'text-white' : 'text-gray-900'}`}>
-              Found {filteredServices.length} services
-              {currentTarget && ` on ${currentTarget}`}
-            </p>
-            <p className={`text-sm ${darkMode ? 'text-gray-400' : 'text-gray-600'}`}>
-              Results and filters section can be further broken down into components
-            </p>
+          {/* Results Header */}
+          <div className="mb-6">
+            <h3 className={`text-lg font-semibold mb-2 ${
+              darkMode ? 'text-white' : 'text-gray-900'
+            }`}>
+              Discovered Services
+              <span className={`ml-2 text-sm font-normal ${
+                darkMode ? 'text-gray-400' : 'text-gray-600'
+              }`}>
+                ({filteredServices.length} of {discoveredServices.length} services
+                {currentTarget && ` on ${currentTarget}`})
+              </span>
+            </h3>
           </div>
+
+          {/* Filters */}
+          <div className="mb-6">
+            <ServicesFilters
+              darkMode={darkMode}
+              searchFilter={searchFilter}
+              setSearchFilter={setSearchFilter}
+              serviceTypeFilter={serviceTypeFilter}
+              setServiceTypeFilter={setServiceTypeFilter}
+              portFilter={portFilter}
+              setPortFilter={setPortFilter}
+              showOnlyAdded={showOnlyAdded}
+              setShowOnlyAdded={setShowOnlyAdded}
+              showOnlyActive={showOnlyActive}
+              setShowOnlyActive={setShowOnlyActive}
+              showFilters={showFilters}
+              setShowFilters={setShowFilters}
+              uniqueServiceTypes={uniqueServiceTypes}
+              uniquePorts={uniquePorts}
+              hasActiveFilters={Boolean(hasActiveFilters)}
+              hasStoredServices={Boolean(hasStoredServices)}
+              onResetFilters={resetFilters}
+            />
+          </div>
+
+          {/* Services List */}
+          <ServicesList
+            darkMode={darkMode}
+            services={filteredServices}
+            onAddToServices={handleAddToServices}
+            isServiceAdded={isServiceAdded}
+          />
         </div>
       )}
     </div>

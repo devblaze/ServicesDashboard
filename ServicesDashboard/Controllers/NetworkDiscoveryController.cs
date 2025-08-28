@@ -1,4 +1,5 @@
 using Microsoft.AspNetCore.Mvc;
+using ServicesDashboard.Data;
 using ServicesDashboard.Models;
 using ServicesDashboard.Models.Requests;
 using ServicesDashboard.Models.Results;
@@ -15,17 +16,20 @@ public class NetworkDiscoveryController : ControllerBase
     private readonly IBackgroundNetworkScanService _backgroundScanService;
     private readonly IUserServices _userServices;
     private readonly ILogger<NetworkDiscoveryController> _logger;
+    private readonly IServiceProvider _serviceProvider;
 
     public NetworkDiscoveryController(
         INetworkDiscoveryService networkDiscoveryService,
         IBackgroundNetworkScanService backgroundScanService,
         IUserServices userServices,
-        ILogger<NetworkDiscoveryController> logger)
+        ILogger<NetworkDiscoveryController> logger,
+        IServiceProvider serviceProvider)
     {
         _networkDiscoveryService = networkDiscoveryService;
         _backgroundScanService = backgroundScanService;
         _userServices = userServices;
         _logger = logger;
+        _serviceProvider = serviceProvider;
     }
 
     [HttpGet("common-ports")]
@@ -235,6 +239,153 @@ public class NetworkDiscoveryController : ControllerBase
                 return BadRequest($"Database error: {ex.InnerException.Message}");
             
             return StatusCode(500, $"Error adding service: {ex.Message}");
+        }
+    }
+
+    [HttpGet("scan-progress/{scanId:guid}")]
+    public async Task<ActionResult<object>> GetScanProgress(Guid scanId)
+    {
+        try
+        {
+            var scanSession = await _backgroundScanService.GetScanStatusAsync(scanId);
+            if (scanSession == null)
+            {
+                return NotFound("Scan not found");
+            }
+
+            // Get real-time count of discovered services
+            var discoveredServices = await _backgroundScanService.GetScanResultsAsync(scanId);
+
+            return Ok(new
+            {
+                scanId = scanSession.Id,
+                target = scanSession.Target,
+                scanType = scanSession.ScanType,
+                status = scanSession.Status,
+                startedAt = scanSession.StartedAt,
+                completedAt = scanSession.CompletedAt,
+                discoveredCount = discoveredServices.Count(),
+                latestServices = discoveredServices
+                    .OrderByDescending(s => s.DiscoveredAt)
+                    .Take(5) // Show latest 5 discovered services
+                    .Select(s => new {
+                        hostAddress = s.HostAddress,
+                        port = s.Port,
+                        serviceType = s.ServiceType,
+                        discoveredAt = s.DiscoveredAt
+                    }),
+                errorMessage = scanSession.ErrorMessage
+            });
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error getting scan progress for {ScanId}", scanId);
+            return StatusCode(500, "Error getting scan progress");
+        }
+    }
+
+    [HttpGet("debug/scan-queue")]
+    public ActionResult<object> GetScanQueueDebug()
+    {
+        try
+        {
+            // This will help us see if scans are being processed
+            return Ok(new
+            {
+                message = "Check application logs for background scan service activity",
+                timestamp = DateTime.UtcNow,
+                suggestion = "Look for log entries with 'BackgroundNetworkScan' in the name"
+            });
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error getting debug info");
+            return StatusCode(500, "Error getting debug info");
+        }
+    }
+
+    [HttpGet("debug/all-scans")]
+    public async Task<ActionResult<object>> GetAllScansDebug()
+    {
+        try
+        {
+            var scans = await _backgroundScanService.GetRecentScansAsync(50);
+            return Ok(new
+            {
+                totalScans = scans.Count(),
+                scans = scans.Select(s => new
+                {
+                    scanId = s.Id,
+                    target = s.Target,
+                    status = s.Status,
+                    startedAt = s.StartedAt,
+                    completedAt = s.CompletedAt,
+                    errorMessage = s.ErrorMessage,
+                    servicesCount = s.DiscoveredServices?.Count ?? 0
+                })
+            });
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error getting all scans debug info");
+            return StatusCode(500, "Error getting all scans debug info");
+        }
+    }
+
+    [HttpPost("debug/fix-scan-status/{scanId:guid}")]
+    public async Task<ActionResult<object>> FixScanStatus(Guid scanId)
+    {
+        try
+        {
+            _logger.LogInformation("Attempting to fix scan status for {ScanId}", scanId);
+
+            var scanSession = await _backgroundScanService.GetScanStatusAsync(scanId);
+            if (scanSession == null)
+            {
+                return NotFound("Scan not found");
+            }
+
+            var discoveredServices = await _backgroundScanService.GetScanResultsAsync(scanId);
+            var serviceCount = discoveredServices.Count();
+
+            // If we have results but status is still pending/running, fix it
+            if (serviceCount > 0 && (scanSession.Status == "pending" || scanSession.Status == "running"))
+            {
+                using var scope = _serviceProvider.CreateScope();
+                var context = scope.ServiceProvider.GetRequiredService<ServicesDashboardContext>();
+            
+                var dbScan = await context.NetworkScanSessions.FindAsync(scanId);
+                if (dbScan != null)
+                {
+                    dbScan.Status = "completed";
+                    dbScan.CompletedAt = DateTime.UtcNow;
+                    await context.SaveChangesAsync();
+                
+                    _logger.LogInformation("Fixed scan {ScanId} status to completed", scanId);
+                
+                    return Ok(new
+                    {
+                        message = "Scan status fixed",
+                        scanId = scanId,
+                        newStatus = "completed",
+                        serviceCount = serviceCount,
+                        fixedAt = DateTime.UtcNow
+                    });
+                }
+            }
+
+            return Ok(new
+            {
+                message = "No fix needed",
+                scanId = scanId,
+                currentStatus = scanSession.Status,
+                serviceCount = serviceCount
+            });
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error fixing scan status for {ScanId}", scanId);
+            return StatusCode(500, "Error fixing scan status");
         }
     }
 }

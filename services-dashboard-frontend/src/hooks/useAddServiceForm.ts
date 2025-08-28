@@ -17,7 +17,8 @@ const initialFormData: FormData = {
   environment: undefined,
   hostAddress: '',
   serviceType: undefined,
-  banner: ''
+  banner: '',
+  isDockerContainer: false
 };
 
 export const useAddServiceForm = () => {

@@ -52,6 +52,25 @@ export interface ScanStatus {
   errorMessage?: string;
 }
 
+export interface LatestService {
+  hostAddress: string;
+  port: number;
+  serviceType: string;
+  discoveredAt: string;
+}
+
+export interface ScanProgress {
+  scanId: string;
+  target: string;
+  scanType: string;
+  status: 'pending' | 'running' | 'completed' | 'failed';
+  startedAt: string;
+  completedAt?: string;
+  discoveredCount: number;
+  latestServices: LatestService[];
+  errorMessage?: string;
+}
+
 export interface StartScanRequest {
   target: string;
   scanType: string;

@@ -9,6 +9,7 @@ import type {
   StoredDiscoveredService,
   NetworkScanSession,
   ScanStatus,
+  ScanProgress,
   OllamaSettings
 } from '../types/networkDiscovery';
 
@@ -28,6 +29,10 @@ class NetworkDiscoveryApiClient extends BaseApiClient {
 
   async getScanStatus(scanId: string): Promise<ScanStatus> {
     return this.request<ScanStatus>('get', `/networkdiscovery/scan-status/${scanId}`);
+  }
+
+  async getScanProgress(scanId: string): Promise<ScanProgress> {
+    return this.request<ScanProgress>('get', `/networkdiscovery/scan-progress/${scanId}`);
   }
 
   async getScanResults(scanId: string): Promise<StoredDiscoveredService[]> {
