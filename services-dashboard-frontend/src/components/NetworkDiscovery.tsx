@@ -1,5 +1,5 @@
 import React from 'react';
-import { Target, History, AlertCircle } from 'lucide-react';
+import { Target, History, AlertCircle, X } from 'lucide-react';
 import { useNetworkDiscovery } from '../hooks/useNetworkDiscovery';
 import { ScanControls } from './networkDiscovery/ScanControls';
 import { getScanStatusIcon } from './networkDiscovery/serviceUtilities';
@@ -32,7 +32,8 @@ export const NetworkDiscovery: React.FC<NetworkDiscoveryProps> = ({ darkMode = t
     
     // Functions
     handleScan,
-    refetchRecentScans
+    refetchRecentScans,
+    cancelCurrentScan
   } = useNetworkDiscovery();
 
   return (
@@ -115,6 +116,21 @@ export const NetworkDiscovery: React.FC<NetworkDiscoveryProps> = ({ darkMode = t
                   )}
                 </div>
               </div>
+
+              {/* Cancel Button */}
+              {(scanStatus.status === 'running' || scanStatus.status === 'pending') && (
+                <button
+                  onClick={cancelCurrentScan}
+                  className={`p-2 rounded-lg transition-colors duration-200 ${
+                    darkMode
+                      ? 'text-gray-400 hover:text-red-400 hover:bg-red-900/20'
+                      : 'text-gray-500 hover:text-red-600 hover:bg-red-100'
+                  }`}
+                  title="Cancel scan tracking"
+                >
+                  <X className="w-4 h-4" />
+                </button>
+              )}
             </div>
 
             {scanStatus.errorMessage && (

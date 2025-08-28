@@ -13,6 +13,52 @@ import type {
 
 export type { ScanMode };
 
+// Helper functions for localStorage
+const STORAGE_KEYS = {
+  CURRENT_SCAN_ID: 'networkDiscovery_currentScanId',
+  CURRENT_TARGET: 'networkDiscovery_currentTarget',
+} as const;
+
+const getStoredScanId = (): string | null => {
+  try {
+    return localStorage.getItem(STORAGE_KEYS.CURRENT_SCAN_ID);
+  } catch {
+    return null;
+  }
+};
+
+const setStoredScanId = (scanId: string | null) => {
+  try {
+    if (scanId) {
+      localStorage.setItem(STORAGE_KEYS.CURRENT_SCAN_ID, scanId);
+    } else {
+      localStorage.removeItem(STORAGE_KEYS.CURRENT_SCAN_ID);
+    }
+  } catch {
+    // Ignore localStorage errors
+  }
+};
+
+const getStoredTarget = (): string | null => {
+  try {
+    return localStorage.getItem(STORAGE_KEYS.CURRENT_TARGET);
+  } catch {
+    return null;
+  }
+};
+
+const setStoredTarget = (target: string | null) => {
+  try {
+    if (target) {
+      localStorage.setItem(STORAGE_KEYS.CURRENT_TARGET, target);
+    } else {
+      localStorage.removeItem(STORAGE_KEYS.CURRENT_TARGET);
+    }
+  } catch {
+    // Ignore localStorage errors
+  }
+};
+
 export const useNetworkDiscovery = () => {
   const [networkRange, setNetworkRange] = useState('192.168.4.0/24');
   const [hostAddress, setHostAddress] = useState('');
@@ -21,11 +67,11 @@ export const useNetworkDiscovery = () => {
   const [scanMode, setScanMode] = useState<ScanMode>('background');
   const [fullScan, setFullScan] = useState(false);
   
-  // Results state
+  // Results state - Initialize from localStorage
   const [discoveredServices, setDiscoveredServices] = useState<(DiscoveredService | StoredDiscoveredService)[]>([]);
   const [addedServices, setAddedServices] = useState<Set<string>>(new Set());
-  const [currentScanId, setCurrentScanId] = useState<string | null>(null);
-  const [currentTarget, setCurrentTarget] = useState<string>('');
+  const [currentScanId, setCurrentScanId] = useState<string | null>(getStoredScanId());
+  const [currentTarget, setCurrentTarget] = useState<string>(getStoredTarget() || '');
   
   // Filter states
   const [searchFilter, setSearchFilter] = useState('');
@@ -37,6 +83,15 @@ export const useNetworkDiscovery = () => {
   const [showHistory, setShowHistory] = useState(false);
 
   const queryClient = useQueryClient();
+
+  // Update localStorage whenever currentScanId or currentTarget changes
+  useEffect(() => {
+    setStoredScanId(currentScanId);
+  }, [currentScanId]);
+
+  useEffect(() => {
+    setStoredTarget(currentTarget);
+  }, [currentTarget]);
 
   // Get common ports
   const { data: commonPorts = [] } = useQuery({
@@ -64,11 +119,37 @@ export const useNetworkDiscovery = () => {
         return false;
       }
       return 2000; // Poll every 2 seconds
+    },
+    retry: (failureCount, error) => {
+      // If scan ID is not found, clear it and stop retrying
+      if (error && 'response' in error && (error as any).response?.status === 404) {
+        setCurrentScanId(null);
+        return false;
+      }
+      return failureCount < 3;
     }
   });
 
   const scanStatus = scanStatusQuery.data;
   const refetchScanStatus = scanStatusQuery.refetch;
+
+  // Check for active scans on component mount
+  useEffect(() => {
+    const checkForActiveScan = async () => {
+      if (currentScanId && !scanStatus) {
+        try {
+          // Try to get scan status to see if it's still valid
+          await networkDiscoveryApi.getScanStatus(currentScanId);
+        } catch (error) {
+          // If scan ID is invalid, clear it
+          console.warn('Stored scan ID is no longer valid, clearing it');
+          setCurrentScanId(null);
+        }
+      }
+    };
+
+    checkForActiveScan();
+  }, [currentScanId, scanStatus]);
 
   // Start background scan mutation
   const startBackgroundScanMutation = useMutation({
@@ -90,6 +171,8 @@ export const useNetworkDiscovery = () => {
       setDiscoveredServices(data);
       setAddedServices(new Set());
       resetFilters();
+      // Clear any stored scan state for quick scans
+      setCurrentScanId(null);
     },
     onError: (error: Error) => {
       console.error('Quick scan failed:', error);
@@ -114,17 +197,20 @@ export const useNetworkDiscovery = () => {
   useEffect(() => {
     if (scanStatus?.status === 'completed' && currentScanId) {
       loadScanResults(currentScanId);
+    } else if (scanStatus?.status === 'failed' && currentScanId) {
+      // Clear failed scans
+      setCurrentScanId(null);
     }
   }, [scanStatus?.status, currentScanId]);
 
   // Load latest results for current target when component mounts
   useEffect(() => {
     const target = scanType === 'network' ? networkRange : hostAddress;
-    if (target && target !== currentTarget) {
+    if (target && target !== currentTarget && !currentScanId) {
       setCurrentTarget(target);
       loadLatestResults(target);
     }
-  }, [networkRange, hostAddress, scanType, currentTarget]);
+  }, [networkRange, hostAddress, scanType, currentTarget, currentScanId]);
 
   const loadScanResults = async (scanId: string) => {
     try {
@@ -132,9 +218,10 @@ export const useNetworkDiscovery = () => {
       setDiscoveredServices(results);
       setAddedServices(new Set());
       resetFilters();
-      setCurrentScanId(null);
+      setCurrentScanId(null); // Clear after loading results
     } catch (error) {
       console.error('Failed to load scan results:', error);
+      setCurrentScanId(null); // Clear if results can't be loaded
     }
   };
 
@@ -251,6 +338,12 @@ export const useNetworkDiscovery = () => {
     }
   };
 
+  // Add a function to manually cancel/clear current scan
+  const cancelCurrentScan = () => {
+    setCurrentScanId(null);
+    console.log('Current scan cleared');
+  };
+
   const isScanning = quickScanMutation.isPending || !!currentScanId;
   const isServiceAdded = (service: DiscoveredService | StoredDiscoveredService) => {
     const serviceKey = `${service.hostAddress}:${service.port}`;
@@ -300,6 +393,7 @@ export const useNetworkDiscovery = () => {
     resetFilters,
     isServiceAdded,
     refetchRecentScans,
-    refetchScanStatus
+    refetchScanStatus,
+    cancelCurrentScan // New function to manually clear scans
   };
 };
