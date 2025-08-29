@@ -231,7 +231,7 @@ export const useAutoMonitoring = (config: Partial<AutoMonitoringConfig> = {}) =>
 
                 return {
                   ...service,
-                  status: newStatus,
+                  status: newStatus, // This should now work correctly
                   lastHealthCheck: healthResult.timestamp,
                   uptime: healthResult.isHealthy ? (service.uptime || 0) + (finalConfig.healthCheckInterval / 1000) : 0
                 };

@@ -8,7 +8,7 @@ export interface HostedService {
   name: string;
   description?: string;
   port?: number;
-  status: string;
+  status: ServiceStatus;
   dockerImage?: string;
   healthCheckUrl?: string;
   hostAddress?: string;
@@ -18,18 +18,21 @@ export interface HostedService {
   lastCheckTime?: string;
   createdAt?: string;
   updatedAt?: string;
+  uptime?: number;
 }
 
 export interface CreateServiceDto {
   name: string;
   description?: string;
-  dockerImage?: string;
   port?: number;
-  isDockerContainer?: boolean;
+  dockerImage?: string;
+  serviceUrl?: string;
   healthCheckUrl?: string;
   hostAddress?: string;
+  isDockerContainer?: boolean;
   serverId?: number;
   containerId?: string;
+  environment?: string;
 }
 
 export interface UpdateServiceDto {

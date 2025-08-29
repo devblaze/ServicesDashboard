@@ -7,6 +7,7 @@ interface FormData extends CreateServiceDto {
   hostAddress?: string;
   serviceType?: 'docker' | 'external';
   banner?: string;
+  environment?: string; // Added environment property
 }
 
 const initialFormData: FormData = {

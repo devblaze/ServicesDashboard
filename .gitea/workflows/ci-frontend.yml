@@ -16,10 +16,12 @@ jobs:
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: '20'
+          node-version: '24'
+          cache: 'yarn'
+          cache-dependency-path: './services-dashboard-frontend/yarn.lock'
           
       - name: Build Frontend
         working-directory: ./services-dashboard-frontend
         run: |
-          npm install
-          npm run build
+          yarn install --frozen-lockfile
+          yarn build
