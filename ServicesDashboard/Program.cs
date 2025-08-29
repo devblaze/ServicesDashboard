@@ -8,6 +8,7 @@ using Microsoft.OpenApi.Models;
 using OllamaSharp;
 using System.Text.Json.Serialization;
 using ServicesDashboard.Services.ArtificialIntelligence;
+using ServicesDashboard.Services.Docker;
 using ServicesDashboard.Services.Servers;
 using ServicesDashboard.Services.Settings;
 
@@ -71,6 +72,7 @@ builder.Services.AddSingleton<BackgroundNetworkScan>();
 builder.Services.AddSingleton<IBackgroundNetworkScanService>(provider => provider.GetService<BackgroundNetworkScan>()!);
 builder.Services.AddHostedService<BackgroundNetworkScan>(provider => provider.GetService<BackgroundNetworkScan>()!);
 builder.Services.AddScoped<ISettingsService, DatabaseSettingsService>();
+builder.Services.AddScoped<IDockerServicesService, DockerServicesService>();
 builder.Services.AddHttpClient();
 
 builder.Services.Configure<ForwardedHeadersOptions>(options =>

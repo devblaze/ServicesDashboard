@@ -19,6 +19,7 @@ public class ServicesDashboardContext : DbContext
     public DbSet<NetworkScanSession> NetworkScanSessions { get; set; }
     public DbSet<StoredDiscoveredService> StoredDiscoveredServices { get; set; }
     public DbSet<ApplicationSetting> ApplicationSettings { get; set; }
+    public DbSet<DockerServiceArrangement> DockerServiceArrangements { get; set; }
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -36,6 +37,22 @@ public class ServicesDashboardContext : DbContext
             entity.Property(e => e.CreatedAt).HasDefaultValueSql("CURRENT_TIMESTAMP");
             entity.Property(e => e.UpdatedAt).HasDefaultValueSql("CURRENT_TIMESTAMP");
             entity.HasIndex(s => s.HostAddress).IsUnique();
+        });
+
+        // Configure DockerServiceArrangement
+        modelBuilder.Entity<DockerServiceArrangement>(entity =>
+        {
+            entity.HasKey(e => e.Id);
+            entity.Property(e => e.ContainerId).IsRequired().HasMaxLength(64);
+            entity.Property(e => e.ContainerName).IsRequired().HasMaxLength(255);
+            entity.Property(e => e.CreatedAt).HasDefaultValueSql("CURRENT_TIMESTAMP");
+            entity.Property(e => e.UpdatedAt).HasDefaultValueSql("CURRENT_TIMESTAMP");
+            entity.HasOne(e => e.Server)
+                  .WithMany()
+                  .HasForeignKey(e => e.ServerId)
+                  .OnDelete(DeleteBehavior.Cascade);
+            entity.HasIndex(e => new { e.ServerId, e.ContainerId }).IsUnique();
+            entity.HasIndex(e => e.Order);
         });
 
         // Configure ServerHealthCheck
@@ -87,7 +104,8 @@ public class ServicesDashboardContext : DbContext
             entity.Property(e => e.DateAdded).HasDefaultValueSql("CURRENT_TIMESTAMP");
             entity.Property(e => e.LastChecked).HasDefaultValueSql("CURRENT_TIMESTAMP");
         });
-
+        
+        // Configure OllamaSettings
         modelBuilder.Entity<OllamaSettingsEntity>(entity =>
         {
             entity.HasKey(e => e.Id);
@@ -106,6 +124,13 @@ public class ServicesDashboardContext : DbContext
             entity.HasIndex(s => new { s.Target, s.StartedAt });
         });
         
+        modelBuilder.Entity<NetworkScanSession>()
+            .HasMany(s => s.DiscoveredServices)
+            .WithOne(d => d.ScanSession)
+            .HasForeignKey(d => d.ScanId)
+            .OnDelete(DeleteBehavior.Cascade);
+        
+        // Configure StoredDiscoveredService
         modelBuilder.Entity<StoredDiscoveredService>(entity =>
         {
             entity.HasKey(e => e.Id);
@@ -121,21 +146,10 @@ public class ServicesDashboardContext : DbContext
             entity.HasIndex(s => new { s.HostAddress, s.Port });
             entity.HasIndex(s => s.DiscoveredAt);
             entity.HasIndex(s => s.ServiceKey);
+            entity.HasIndex(s => new { s.HostAddress, s.Port, s.ServiceKey });
         });
-        
-        modelBuilder.Entity<NetworkScanSession>()
-            .HasMany(s => s.DiscoveredServices)
-            .WithOne(d => d.ScanSession)
-            .HasForeignKey(d => d.ScanId)
-            .OnDelete(DeleteBehavior.Cascade);
 
-        modelBuilder.Entity<StoredDiscoveredService>()
-            .HasIndex(s => s.ServiceKey);
-
-        modelBuilder.Entity<StoredDiscoveredService>()
-            .HasIndex(s => new { s.HostAddress, s.Port });
-
-        // New ApplicationSetting configurations
+        // Configure ApplicationSetting
         modelBuilder.Entity<ApplicationSetting>()
             .HasIndex(s => new { s.Category, s.Key })
             .IsUnique();

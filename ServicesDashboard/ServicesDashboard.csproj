@@ -35,6 +35,7 @@
 
     <ItemGroup>
       <Folder Include="Data\Entities\" />
+      <Folder Include="Services\Docker\" />
       <Folder Include="Services\Settings\" />
     </ItemGroup>
 
