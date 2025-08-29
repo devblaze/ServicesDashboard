@@ -32,6 +32,9 @@ public interface IServerManagementService
     Task<CommandResult> ExecuteCommandAsync(int serverId, string command);
     Task<SystemDiscoveryResult> PerformSystemDiscoveryAsync(ManagedServer server);
     Task<DockerServiceDiscoveryResult> DiscoverDockerServicesAsync(int serverId);
+    Task<bool> StartDockerContainerAsync(int serverId, string containerId);
+    Task<bool> StopDockerContainerAsync(int serverId, string containerId);
+    Task<bool> RestartDockerContainerAsync(int serverId, string containerId);
 }
 
 public class ServerManagement : IServerManagementService
@@ -822,6 +825,60 @@ If some information cannot be determined, use null or reasonable defaults. Focus
         }
     }
 
+    public async Task<bool> StartDockerContainerAsync(int serverId, string containerId)
+    {
+        try
+        {
+            var server = await GetServerAsync(serverId);
+            if (server == null) return false;
+
+            var command = $"docker start {containerId}";
+            var result = await ExecuteCommandAsync(serverId, command);
+            return true;
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Failed to start Docker container {ContainerId} on server {ServerId}", containerId, serverId);
+            return false;
+        }
+    }
+
+    public async Task<bool> StopDockerContainerAsync(int serverId, string containerId)
+    {
+        try
+        {
+            var server = await GetServerAsync(serverId);
+            if (server == null) return false;
+
+            var command = $"docker stop {containerId}";
+            var result = await ExecuteCommandAsync(serverId, command);
+            return true;
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Failed to stop Docker container {ContainerId} on server {ServerId}", containerId, serverId);
+            return false;
+        }
+    }
+
+    public async Task<bool> RestartDockerContainerAsync(int serverId, string containerId)
+    {
+        try
+        {
+            var server = await GetServerAsync(serverId);
+            if (server == null) return false;
+
+            var command = $"docker restart {containerId}";
+            var result = await ExecuteCommandAsync(serverId, command);
+            return true;
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Failed to restart Docker container {ContainerId} on server {ServerId}", containerId, serverId);
+            return false;
+        }
+    }
+    
     private async Task<List<DockerService>> GetDockerServicesAsync(SshClient client, string hostAddress)
     {
         var services = new List<DockerService>();

@@ -167,7 +167,7 @@ class BaseApiClient {
   }
 
   // Generic request method with type safety and custom timeout support
-  protected async request<T>(
+  async request<T>(
     method: 'get' | 'post' | 'put' | 'patch' | 'delete',
     url: string,
     data?: unknown,

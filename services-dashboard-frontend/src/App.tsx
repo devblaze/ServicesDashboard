@@ -3,11 +3,13 @@ import { QueryProvider } from './providers/QueryProvider';
 import { MonitoringProvider } from './providers/MonitoringProvider';
 import { ServicesList } from './components/pages/ServicesList.tsx';
 import { ServerManagement } from './components/pages/ServerManagement.tsx';
+import { DockerServices } from './components/pages/DockerServicesManager.tsx';
 import { NetworkDiscovery } from './components/pages/NetworkDiscovery.tsx';
 import { ApplicationSettings } from './components/pages/ApplicationSettings.tsx';
 import { 
   Monitor, 
   Server, 
+  Container,
   Network, 
   Settings,
   Moon,
@@ -16,7 +18,7 @@ import {
 } from 'lucide-react';
 import './App.css';
 
-type TabType = 'services' | 'servers' | 'network' | 'connection' | 'settings';
+type TabType = 'services' | 'servers' | 'docker' | 'network' | 'connection' | 'settings';
 
 function App() {
   const [activeTab, setActiveTab] = useState<TabType>('services');
@@ -25,6 +27,7 @@ function App() {
   const tabs = [
     { id: 'services' as const, name: 'Services', icon: Monitor },
     { id: 'servers' as const, name: 'Servers', icon: Server },
+    { id: 'docker' as const, name: 'Docker Services', icon: Container },
     { id: 'network' as const, name: 'Discovery', icon: Network },
     { id: 'settings' as const, name: 'Settings', icon: Settings },
   ];
@@ -35,6 +38,8 @@ function App() {
         return <ServicesList darkMode={darkMode} />;
       case 'servers':
         return <ServerManagement darkMode={darkMode} />;
+      case 'docker':
+        return <DockerServices darkMode={darkMode} />;
       case 'network':
         return <NetworkDiscovery darkMode={darkMode} />;
       case 'settings':
