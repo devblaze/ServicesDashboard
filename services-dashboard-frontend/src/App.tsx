@@ -1,11 +1,14 @@
-import { useState } from 'react';
+import { useState, lazy, Suspense } from 'react';
 import { QueryProvider } from './providers/QueryProvider';
 import { MonitoringProvider } from './providers/MonitoringProvider';
-import { ServicesList } from './components/pages/ServicesList.tsx';
-import { ServerManagement } from './components/pages/ServerManagement.tsx';
-import { DockerServices } from './components/pages/DockerServicesManager.tsx';
-import { NetworkDiscovery } from './components/pages/NetworkDiscovery.tsx';
-import { ApplicationSettings } from './components/pages/ApplicationSettings.tsx';
+import { LoadingSpinner } from './components/ui/LoadingSpinner';
+
+// Lazy load page components for better code splitting
+const ServicesList = lazy(() => import('./components/pages/ServicesList.tsx').then(module => ({ default: module.ServicesList })));
+const ServerManagement = lazy(() => import('./components/pages/ServerManagement.tsx').then(module => ({ default: module.ServerManagement })));
+const DockerServices = lazy(() => import('./components/pages/DockerServicesManager.tsx').then(module => ({ default: module.DockerServices })));
+const NetworkDiscovery = lazy(() => import('./components/pages/NetworkDiscovery.tsx').then(module => ({ default: module.NetworkDiscovery })));
+const ApplicationSettings = lazy(() => import('./components/pages/ApplicationSettings.tsx').then(module => ({ default: module.ApplicationSettings })));
 import { 
   Monitor, 
   Server, 
@@ -33,20 +36,32 @@ function App() {
   ];
 
   const renderContent = () => {
-    switch (activeTab) {
-      case 'services':
-        return <ServicesList darkMode={darkMode} />;
-      case 'servers':
-        return <ServerManagement darkMode={darkMode} />;
-      case 'docker':
-        return <DockerServices darkMode={darkMode} />;
-      case 'network':
-        return <NetworkDiscovery darkMode={darkMode} />;
-      case 'settings':
-        return <ApplicationSettings darkMode={darkMode} />;
-      default:
-        return <ServicesList darkMode={darkMode} />;
-    }
+    const loadingFallback = (
+      <div className="flex justify-center items-center min-h-[400px]">
+        <LoadingSpinner />
+      </div>
+    );
+
+    return (
+      <Suspense fallback={loadingFallback}>
+        {(() => {
+          switch (activeTab) {
+            case 'services':
+              return <ServicesList darkMode={darkMode} />;
+            case 'servers':
+              return <ServerManagement darkMode={darkMode} />;
+            case 'docker':
+              return <DockerServices darkMode={darkMode} />;
+            case 'network':
+              return <NetworkDiscovery darkMode={darkMode} />;
+            case 'settings':
+              return <ApplicationSettings darkMode={darkMode} />;
+            default:
+              return <ServicesList darkMode={darkMode} />;
+          }
+        })()}
+      </Suspense>
+    );
   };
 
   return (
