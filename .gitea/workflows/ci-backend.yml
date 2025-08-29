@@ -3,8 +3,14 @@ name: Backend Basic Build Check
 on:
   push:
     branches: [main, develop]
+    paths:
+      - 'ServicesDashboard/**'
+      - '.github/workflows/ci-backend.yml'
   pull_request:
     branches: [main]
+    paths:
+      - 'ServicesDashboard/**'
+      - '.github/workflows/ci-backend.yml'
 
 jobs:
   backend:

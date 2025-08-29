@@ -3,8 +3,14 @@ name: Frontend Basic Build Check
 on:
   push:
     branches: [main, develop]
+    paths:
+      - 'services-dashboard-frontend/**'
+      - '.github/workflows/ci-frontend.yml'
   pull_request:
     branches: [main]
+    paths:
+      - 'services-dashboard-frontend/**'
+      - '.github/workflows/ci-frontend.yml'
 
 jobs:
   frontend:

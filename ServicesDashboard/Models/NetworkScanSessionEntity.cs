@@ -19,8 +19,11 @@ public class NetworkScanSession
     public DateTime? CompletedAt { get; set; }
     
     public int TotalHosts { get; set; }
+    
     public int ScannedHosts { get; set; }
+    
     public int TotalPorts { get; set; }
+    
     public int ScannedPorts { get; set; }
     
     public string? ErrorMessage { get; set; }
@@ -38,7 +41,7 @@ public class StoredDiscoveredService
     public int Port { get; set; }
     public bool IsReachable { get; set; }
     public long ResponseTimeMs { get; set; }
-    public string ServiceType { get; set; } = string.Empty;
+    public string? ServiceType { get; set; } = string.Empty;
     public string? Banner { get; set; }
     public DateTime DiscoveredAt { get; set; }
     public bool IsActive { get; set; } = true;
