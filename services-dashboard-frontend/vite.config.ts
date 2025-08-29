@@ -8,6 +8,17 @@ export default defineConfig({
     react(),
     tailwindcss()
   ],
+  build: {
+    chunkSizeWarningLimit: 600,
+    rollupOptions: {
+      output: {
+        manualChunks: {
+          vendor: ['react', 'react-dom', '@tanstack/react-query', 'lucide-react'],
+          utils: ['axios']
+        }
+      }
+    }
+  },
   server: {
     host: '0.0.0.0',
     port: 5173,
