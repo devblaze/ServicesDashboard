@@ -25,6 +25,7 @@
       - ASPNETCORE_ENVIRONMENT=Development
       - ASPNETCORE_URLS=http://+:5050
       - ConnectionStrings__DefaultConnection=Host=database;Database=servicesdashboard;Username=admin;Password=admin123
+    command: ["dotnet", "watch", "run", "--urls", "http://+:5050"]
     volumes:
       - ./ServicesDashboard:/app
       - /app/bin
