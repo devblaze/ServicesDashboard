@@ -20,12 +20,12 @@ export default defineConfig({
     ],
     proxy: {
       '/api': {
-        target: 'http://backend:8080',
+        target: 'http://servicesdashboard:5050',
         changeOrigin: true,
         secure: false,
       },
       '/swagger': {
-        target: 'http://backend:8080',
+        target: 'http://servicesdashboard:5050',
         changeOrigin: true,
         secure: false,
       }

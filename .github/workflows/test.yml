@@ -1,0 +1,103 @@
+name: Unit Tests
+
+on:
+  push:
+    branches: [ main, develop ]
+  pull_request:
+    branches: [ main, develop ]
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+      
+    - name: Setup .NET
+      uses: actions/setup-dotnet@v4
+      with:
+        dotnet-version: '9.0.x'
+        
+    - name: Restore dependencies
+      run: dotnet restore
+      
+    - name: Build solution
+      run: dotnet build --no-restore --configuration Release
+      
+    - name: Run unit tests
+      run: |
+        dotnet test \
+          --no-build \
+          --configuration Release \
+          --filter "FullyQualifiedName!~Integration" \
+          --logger trx \
+          --logger "console;verbosity=detailed" \
+          --collect:"XPlat Code Coverage" \
+          --results-directory ./TestResults
+      
+    - name: Publish test results
+      uses: dorny/test-reporter@v1
+      if: success() || failure()
+      with:
+        name: Unit Test Results
+        path: './TestResults/*.trx'
+        reporter: dotnet-trx
+        fail-on-error: true
+        
+    - name: Upload coverage reports to Codecov
+      if: success() || failure()
+      uses: codecov/codecov-action@v4
+      with:
+        directory: ./TestResults
+        fail_ci_if_error: false
+        verbose: true
+      env:
+        CODECOV_TOKEN: ${{ secrets.CODECOV_TOKEN }}
+        
+    - name: Comment test results on PR
+      if: github.event_name == 'pull_request' && (success() || failure())
+      uses: actions/github-script@v7
+      with:
+        script: |
+          const fs = require('fs');
+          const path = require('path');
+          
+          // Find the test results file
+          const testResultsDir = './TestResults';
+          const files = fs.readdirSync(testResultsDir);
+          const trxFile = files.find(file => file.endsWith('.trx'));
+          
+          if (trxFile) {
+            const testResults = fs.readFileSync(path.join(testResultsDir, trxFile), 'utf8');
+            
+            // Extract basic metrics (this is simplified - you might want a more robust parser)
+            const passedMatch = testResults.match(/passed="(\d+)"/);
+            const failedMatch = testResults.match(/failed="(\d+)"/);
+            const totalMatch = testResults.match(/total="(\d+)"/);
+            
+            const passed = passedMatch ? passedMatch[1] : '0';
+            const failed = failedMatch ? failedMatch[1] : '0';
+            const total = totalMatch ? totalMatch[1] : '0';
+            
+            const status = failed === '0' ? '✅ PASSED' : '❌ FAILED';
+            
+            const comment = `## Unit Test Results ${status}
+            
+**Summary:**
+- 🧪 Total Tests: ${total}
+- ✅ Passed: ${passed}  
+- ❌ Failed: ${failed}
+- 📊 Success Rate: ${total > 0 ? Math.round((passed / total) * 100) : 0}%
+
+> Note: Integration tests are excluded from CI pipeline. Only unit tests are executed.
+
+${failed > 0 ? '⚠️ Please check the failed tests and fix them before merging.' : '🎉 All unit tests are passing!'}`;
+
+            github.rest.issues.createComment({
+              issue_number: context.issue.number,
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              body: comment
+            });
+          }

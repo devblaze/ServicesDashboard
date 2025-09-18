@@ -20,10 +20,10 @@
       context: ./ServicesDashboard
       dockerfile: Dockerfile.dev
     ports:
-      - "5000:5000"
+      - "5050:5050"
     environment:
       - ASPNETCORE_ENVIRONMENT=Development
-      - ASPNETCORE_URLS=http://+:5000
+      - ASPNETCORE_URLS=http://+:5050
       - ConnectionStrings__DefaultConnection=Host=database;Database=servicesdashboard;Username=admin;Password=admin123
     volumes:
       - ./ServicesDashboard:/app
@@ -44,9 +44,9 @@
       - ./services-dashboard-frontend:/app
       - /app/node_modules
     environment:
-      # Use OrbStack domain
-      - VITE_API_BASE_URL=http://servicesdashboard.servicesdashboard.orb.local
-      - VITE_API_URL=http://servicesdashboard.servicesdashboard.orb.local/api
+      # Leave empty to use Vite proxy configuration
+      - VITE_API_BASE_URL=
+      - VITE_API_URL=/api
     command: ["npm", "run", "dev", "--", "--host", "0.0.0.0"]
 
 volumes:

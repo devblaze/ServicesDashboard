@@ -1,0 +1,45 @@
+# Dockerfile for running tests in a consistent environment
+FROM mcr.microsoft.com/dotnet/sdk:9.0
+
+WORKDIR /src
+
+# Copy solution file and project files
+COPY *.sln ./
+COPY ServicesDashboard/ServicesDashboard.csproj ./ServicesDashboard/
+COPY ServicesDashboard.Tests/ServicesDashboard.Tests.csproj ./ServicesDashboard.Tests/
+
+# Restore dependencies
+RUN dotnet restore
+
+# Copy source code
+COPY . ./
+
+# Build the solution
+RUN dotnet build --no-restore --configuration Release
+
+# Create a script to run tests
+RUN echo '#!/bin/bash\n\
+echo "🧪 Running ServicesDashboard Unit Tests"\n\
+echo "======================================"\n\
+\n\
+# Run unit tests only (excluding integration tests)\n\
+dotnet test \\\n\
+  --no-build \\\n\
+  --configuration Release \\\n\
+  --filter "FullyQualifiedName!~Integration" \\\n\
+  --logger "console;verbosity=detailed" \\\n\
+  --collect:"XPlat Code Coverage" \\\n\
+  --results-directory ./TestResults\n\
+\n\
+exit_code=$?\n\
+\n\
+if [ $exit_code -eq 0 ]; then\n\
+  echo "✅ All unit tests passed!"\n\
+else\n\
+  echo "❌ Some unit tests failed. Exit code: $exit_code"\n\
+fi\n\
+\n\
+exit $exit_code' > /run-tests.sh && chmod +x /run-tests.sh
+
+# Default command runs the tests
+CMD ["/run-tests.sh"]

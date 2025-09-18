@@ -3,12 +3,10 @@ using Microsoft.Extensions.Logging;
 using Moq;
 using ServicesDashboard.Controllers;
 using ServicesDashboard.Models;
+using ServicesDashboard.Models.Results;
 using ServicesDashboard.Services.LogCollection;
-using ServicesDashboard.Services;
 using ServicesDashboard.Services.ArtificialIntelligence;
-using ServicesDashboard.Services.Interfaces; // Add this for the Services LogAnalysisResult
 using Xunit;
-using LogAnalysisResult = ServicesDashboard.Services.Interfaces.LogAnalysisResult;
 
 namespace ServicesDashboard.Tests.Controllers;
 
@@ -97,17 +95,17 @@ public class LogsControllerTests
         // Arrange
         var logs = "Sample log content";
         
-        // Use the correct LogAnalysisResult from Services namespace
         var expectedResult = new LogAnalysisResult
         {
-            HasErrors = true,
+            ServiceId = "test-service",
             Summary = "Analysis complete",
-            Errors = new List<string> { "Error found in logs" },
-            Suggestions = new List<string> { "Consider checking configuration" },
+            Recommendations = new List<string> { "Consider checking configuration" },
             Issues = new List<LogIssue>
             {
                 new LogIssue { Severity = "warning", Description = "Test issue" }
-            }
+            },
+            Confidence = 0.8,
+            AnalyzedAt = DateTime.UtcNow
         };
 
         _mockLogAnalyzer.Setup(x => x.AnalyzeLogsAsync(logs)).ReturnsAsync(expectedResult);
@@ -119,7 +117,7 @@ public class LogsControllerTests
         var okResult = Assert.IsType<OkObjectResult>(result.Result);
         var analysisResult = Assert.IsType<LogAnalysisResult>(okResult.Value);
         Assert.Equal(expectedResult.Summary, analysisResult.Summary);
-        Assert.True(analysisResult.HasErrors);
         Assert.Single(analysisResult.Issues);
+        Assert.Single(analysisResult.Recommendations);
     }
 }

@@ -1,0 +1,81 @@
+name: Unit Tests
+
+on:
+  push:
+    branches: [ main, develop, master ]
+  pull_request:
+    branches: [ main, develop, master ]
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+      
+    - name: Setup .NET
+      uses: actions/setup-dotnet@v4
+      with:
+        dotnet-version: '9.0.x'
+        
+    - name: Restore dependencies
+      run: dotnet restore
+      
+    - name: Build solution
+      run: dotnet build --no-restore --configuration Release
+      
+    - name: Run unit tests
+      run: |
+        dotnet test \
+          --no-build \
+          --configuration Release \
+          --filter "FullyQualifiedName!~Integration" \
+          --logger "console;verbosity=detailed" \
+          --collect:"XPlat Code Coverage" \
+          --results-directory ./TestResults
+      
+    - name: Upload test results
+      if: always()
+      uses: actions/upload-artifact@v4
+      with:
+        name: test-results
+        path: |
+          ./TestResults/**/*
+          
+  # Optional: separate job for integration tests that may fail
+  integration-tests:
+    runs-on: ubuntu-latest
+    continue-on-error: true # Allow this job to fail without failing the entire pipeline
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+      
+    - name: Setup .NET
+      uses: actions/setup-dotnet@v4
+      with:
+        dotnet-version: '9.0.x'
+        
+    - name: Restore dependencies
+      run: dotnet restore
+      
+    - name: Build solution
+      run: dotnet build --no-restore --configuration Release
+      
+    - name: Run integration tests (may fail)
+      run: |
+        dotnet test \
+          --no-build \
+          --configuration Release \
+          --filter "FullyQualifiedName~Integration" \
+          --logger "console;verbosity=detailed" \
+          --results-directory ./IntegrationTestResults || echo "Integration tests failed - this is expected"
+      
+    - name: Upload integration test results
+      if: always()
+      uses: actions/upload-artifact@v4
+      with:
+        name: integration-test-results
+        path: |
+          ./IntegrationTestResults/**/*

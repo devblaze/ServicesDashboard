@@ -27,7 +27,7 @@ public class NetworkDiscoveryTests
         var ports = new[] { 80, 443 };
 
         // Act
-        var result = await _service.ScanNetworkAsync(networkRange, ports, CancellationToken.None);
+        var result = await _service.ScanNetworkAsync(networkRange, ports, false, CancellationToken.None);
 
         // Assert
         Assert.NotNull(result);
@@ -44,7 +44,7 @@ public class NetworkDiscoveryTests
         cts.Cancel(); // Cancel immediately
 
         // Act & Assert
-        var result = await _service.ScanNetworkAsync(networkRange, ports, cts.Token);
+        var result = await _service.ScanNetworkAsync(networkRange, ports, false, cts.Token);
         Assert.NotNull(result);
         // Should return empty or partial results due to cancellation
     }
@@ -57,7 +57,7 @@ public class NetworkDiscoveryTests
         var ports = new[] { 80, 443 };
 
         // Act
-        var result = await _service.ScanHostAsync(hostAddress, ports, CancellationToken.None);
+        var result = await _service.ScanHostAsync(hostAddress, ports, false, CancellationToken.None);
 
         // Assert
         Assert.NotNull(result);
@@ -75,7 +75,7 @@ public class NetworkDiscoveryTests
 
         // Act & Assert
         // Should not throw even if hosts are unreachable
-        var result = await _service.ScanHostAsync(hostAddress, ports, CancellationToken.None);
+        var result = await _service.ScanHostAsync(hostAddress, ports, false, CancellationToken.None);
         Assert.NotNull(result);
     }
 
@@ -87,7 +87,7 @@ public class NetworkDiscoveryTests
         var ports = new[] { 80 };
 
         // Act
-        var result = await _service.ScanNetworkAsync(networkRange, ports, CancellationToken.None);
+        var result = await _service.ScanNetworkAsync(networkRange, ports, false, CancellationToken.None);
 
         // Assert
         Assert.NotNull(result);
@@ -101,7 +101,7 @@ public class NetworkDiscoveryTests
         var ports = new[] { 80 };
 
         // Act
-        var result = await _service.ScanNetworkAsync(networkRange, ports, CancellationToken.None);
+        var result = await _service.ScanNetworkAsync(networkRange, ports, false, CancellationToken.None);
 
         // Assert
         Assert.NotNull(result);

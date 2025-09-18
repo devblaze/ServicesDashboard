@@ -4,5 +4,65 @@
         <name>ServicesDashboard</name>
     </assembly>
     <members>
+        <member name="T:ServicesDashboard.Migrations.FixOllamaSettingsEntity">
+            <inheritdoc />
+        </member>
+        <member name="M:ServicesDashboard.Migrations.FixOllamaSettingsEntity.Up(Microsoft.EntityFrameworkCore.Migrations.MigrationBuilder)">
+            <inheritdoc />
+        </member>
+        <member name="M:ServicesDashboard.Migrations.FixOllamaSettingsEntity.Down(Microsoft.EntityFrameworkCore.Migrations.MigrationBuilder)">
+            <inheritdoc />
+        </member>
+        <member name="M:ServicesDashboard.Migrations.FixOllamaSettingsEntity.BuildTargetModel(Microsoft.EntityFrameworkCore.ModelBuilder)">
+            <inheritdoc />
+        </member>
+        <member name="T:ServicesDashboard.Migrations.AddNetworkDiscoveryTables">
+            <inheritdoc />
+        </member>
+        <member name="M:ServicesDashboard.Migrations.AddNetworkDiscoveryTables.Up(Microsoft.EntityFrameworkCore.Migrations.MigrationBuilder)">
+            <inheritdoc />
+        </member>
+        <member name="M:ServicesDashboard.Migrations.AddNetworkDiscoveryTables.Down(Microsoft.EntityFrameworkCore.Migrations.MigrationBuilder)">
+            <inheritdoc />
+        </member>
+        <member name="M:ServicesDashboard.Migrations.AddNetworkDiscoveryTables.BuildTargetModel(Microsoft.EntityFrameworkCore.ModelBuilder)">
+            <inheritdoc />
+        </member>
+        <member name="T:ServicesDashboard.Migrations.FixStoredDiscoveredServiceProperties">
+            <inheritdoc />
+        </member>
+        <member name="M:ServicesDashboard.Migrations.FixStoredDiscoveredServiceProperties.Up(Microsoft.EntityFrameworkCore.Migrations.MigrationBuilder)">
+            <inheritdoc />
+        </member>
+        <member name="M:ServicesDashboard.Migrations.FixStoredDiscoveredServiceProperties.Down(Microsoft.EntityFrameworkCore.Migrations.MigrationBuilder)">
+            <inheritdoc />
+        </member>
+        <member name="M:ServicesDashboard.Migrations.FixStoredDiscoveredServiceProperties.BuildTargetModel(Microsoft.EntityFrameworkCore.ModelBuilder)">
+            <inheritdoc />
+        </member>
+        <member name="T:ServicesDashboard.Migrations.AddServiceKeyToStoredDiscoveredService">
+            <inheritdoc />
+        </member>
+        <member name="M:ServicesDashboard.Migrations.AddServiceKeyToStoredDiscoveredService.Up(Microsoft.EntityFrameworkCore.Migrations.MigrationBuilder)">
+            <inheritdoc />
+        </member>
+        <member name="M:ServicesDashboard.Migrations.AddServiceKeyToStoredDiscoveredService.Down(Microsoft.EntityFrameworkCore.Migrations.MigrationBuilder)">
+            <inheritdoc />
+        </member>
+        <member name="M:ServicesDashboard.Migrations.AddServiceKeyToStoredDiscoveredService.BuildTargetModel(Microsoft.EntityFrameworkCore.ModelBuilder)">
+            <inheritdoc />
+        </member>
+        <member name="T:ServicesDashboard.Migrations.AddApplicationSettings">
+            <inheritdoc />
+        </member>
+        <member name="M:ServicesDashboard.Migrations.AddApplicationSettings.Up(Microsoft.EntityFrameworkCore.Migrations.MigrationBuilder)">
+            <inheritdoc />
+        </member>
+        <member name="M:ServicesDashboard.Migrations.AddApplicationSettings.Down(Microsoft.EntityFrameworkCore.Migrations.MigrationBuilder)">
+            <inheritdoc />
+        </member>
+        <member name="M:ServicesDashboard.Migrations.AddApplicationSettings.BuildTargetModel(Microsoft.EntityFrameworkCore.ModelBuilder)">
+            <inheritdoc />
+        </member>
     </members>
 </doc>

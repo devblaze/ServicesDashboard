@@ -38,9 +38,11 @@
       "ServicesDashboard.Tests/1.0.0": {
         "dependencies": {
           "Microsoft.AspNetCore.Mvc.Testing": "9.0.7",
+          "Microsoft.EntityFrameworkCore": "9.0.7",
           "Microsoft.EntityFrameworkCore.InMemory": "9.0.7",
           "Microsoft.NET.Test.Sdk": "17.12.0",
           "Moq": "4.20.72",
+          "Npgsql.EntityFrameworkCore.PostgreSQL": "9.0.4",
           "ServicesDashboard": "1.0.0",
           "Shouldly": "4.3.0",
           "coverlet.collector": "6.0.2",

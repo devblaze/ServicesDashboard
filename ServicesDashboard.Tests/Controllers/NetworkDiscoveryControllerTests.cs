@@ -3,7 +3,8 @@ using Microsoft.Extensions.Logging;
 using Moq;
 using ServicesDashboard.Controllers;
 using ServicesDashboard.Models;
-using ServicesDashboard.Models.Requests; // Add this using statement
+using ServicesDashboard.Models.Requests;
+using ServicesDashboard.Models.Results;
 using ServicesDashboard.Services;
 using ServicesDashboard.Services.NetworkDiscovery;
 using Xunit;
@@ -13,133 +14,126 @@ namespace ServicesDashboard.Tests.Controllers;
 public class NetworkDiscoveryControllerTests
 {
     private readonly Mock<INetworkDiscoveryService> _mockNetworkDiscoveryService;
+    private readonly Mock<IBackgroundNetworkScanService> _mockBackgroundScanService;
     private readonly Mock<IUserServices> _mockServiceManager;
     private readonly Mock<ILogger<NetworkDiscoveryController>> _mockLogger;
+    private readonly Mock<IServiceProvider> _mockServiceProvider;
     private readonly NetworkDiscoveryController _controller;
 
     public NetworkDiscoveryControllerTests()
     {
         _mockNetworkDiscoveryService = new Mock<INetworkDiscoveryService>();
+        _mockBackgroundScanService = new Mock<IBackgroundNetworkScanService>();
         _mockServiceManager = new Mock<IUserServices>();
         _mockLogger = new Mock<ILogger<NetworkDiscoveryController>>();
+        _mockServiceProvider = new Mock<IServiceProvider>();
         _controller = new NetworkDiscoveryController(
             _mockNetworkDiscoveryService.Object,
+            _mockBackgroundScanService.Object,
             _mockServiceManager.Object,
-            _mockLogger.Object);
+            _mockLogger.Object,
+            _mockServiceProvider.Object);
     }
 
     [Fact]
-    public async Task ScanNetwork_WithValidRequest_ReturnsOkResult()
+    public async Task StartScan_WithValidRequest_ReturnsOkResult()
     {
         // Arrange
-        var request = new NetworkScanRequest { NetworkRange = "192.168.1.0/24" };
-        var expectedServices = new List<DiscoveredService>
-        {
-            new DiscoveredService
-            {
-                HostAddress = "192.168.1.1",
-                HostName = "router",
-                Port = 80,
-                IsReachable = true,
-                ServiceType = "HTTP"
-            }
+        var request = new StartScanRequest 
+        { 
+            Target = "192.168.1.0/24",
+            ScanType = "Network",
+            Ports = new[] { 80, 443, 22 },
+            FullScan = false
         };
+        var expectedScanId = Guid.NewGuid();
 
-        _mockNetworkDiscoveryService
-            .Setup(x => x.ScanNetworkAsync(It.IsAny<string>(), It.IsAny<int[]>(), It.IsAny<CancellationToken>()))
-            .ReturnsAsync(expectedServices);
+        _mockBackgroundScanService
+            .Setup(x => x.StartScanAsync(request.Target, request.ScanType, request.Ports, request.FullScan))
+            .ReturnsAsync(expectedScanId);
 
         // Act
-        var result = await _controller.ScanNetwork(request); // Remove CancellationToken.None
+        var result = await _controller.StartScan(request);
 
         // Assert
         var okResult = Assert.IsType<OkObjectResult>(result.Result);
-        var services = Assert.IsAssignableFrom<IEnumerable<DiscoveredService>>(okResult.Value);
-        Assert.Single(services);
+        Assert.NotNull(okResult.Value);
+        // Verify the response structure
+        var responseJson = System.Text.Json.JsonSerializer.Serialize(okResult.Value);
+        Assert.Contains("scanId", responseJson);
+        Assert.Contains("message", responseJson);
     }
 
     [Fact]
-    public async Task ScanNetwork_WithException_ReturnsServerError()
+    public async Task StartScan_WithException_ReturnsServerError()
     {
         // Arrange
-        var request = new NetworkScanRequest { NetworkRange = "invalid" };
-        _mockNetworkDiscoveryService
-            .Setup(x => x.ScanNetworkAsync(It.IsAny<string>(), It.IsAny<int[]>(), It.IsAny<CancellationToken>()))
-            .ThrowsAsync(new Exception("Network scan failed"));
+        var request = new StartScanRequest { Target = "invalid" };
+        _mockBackgroundScanService
+            .Setup(x => x.StartScanAsync(It.IsAny<string>(), It.IsAny<string>(), It.IsAny<int[]>(), It.IsAny<bool>()))
+            .ThrowsAsync(new Exception("Scan failed"));
 
         // Act
-        var result = await _controller.ScanNetwork(request); // Remove CancellationToken.None
+        var result = await _controller.StartScan(request);
 
         // Assert
         var statusResult = Assert.IsType<ObjectResult>(result.Result);
         Assert.Equal(500, statusResult.StatusCode);
-        Assert.Equal("Error during network scan", statusResult.Value);
+        Assert.Equal("Error starting scan", statusResult.Value);
     }
 
     [Fact]
-    public async Task ScanHost_WithValidRequest_ReturnsOkResult()
+    public async Task GetScanStatus_WithValidScanId_ReturnsOkResult()
     {
         // Arrange
-        var request = new HostScanRequest { HostAddress = "192.168.1.1" };
-        var expectedServices = new List<DiscoveredService>
+        var scanId = Guid.NewGuid();
+        var scanSession = new NetworkScanSession
         {
-            new DiscoveredService
-            {
-                HostAddress = "192.168.1.1",
-                Port = 22,
-                IsReachable = true,
-                ServiceType = "SSH"
-            }
+            Id = scanId,
+            Target = "192.168.1.0/24",
+            ScanType = "Network",
+            Status = "Completed",
+            StartedAt = DateTime.UtcNow.AddMinutes(-5),
+            CompletedAt = DateTime.UtcNow,
+            DiscoveredServices = new List<StoredDiscoveredService>()
         };
 
-        _mockNetworkDiscoveryService
-            .Setup(x => x.ScanHostAsync(It.IsAny<string>(), It.IsAny<int[]>(), It.IsAny<CancellationToken>()))
-            .ReturnsAsync(expectedServices);
+        _mockBackgroundScanService
+            .Setup(x => x.GetScanStatusAsync(scanId))
+            .ReturnsAsync(scanSession);
 
         // Act
-        var result = await _controller.ScanHost(request); // Remove CancellationToken.None
+        var result = await _controller.GetScanStatus(scanId);
 
         // Assert
         var okResult = Assert.IsType<OkObjectResult>(result.Result);
-        var services = Assert.IsAssignableFrom<IEnumerable<DiscoveredService>>(okResult.Value);
-        Assert.Single(services);
+        Assert.NotNull(okResult.Value);
     }
 
     [Fact]
-    public async Task AddDiscoveredServiceToServices_WithValidRequest_ReturnsOkResult()
+    public async Task GetScanStatus_WithInvalidScanId_ReturnsNotFound()
     {
         // Arrange
-        var request = new AddDiscoveredServiceRequest
-        {
-            Name = "Test Service",
-            HostAddress = "192.168.1.1",
-            Port = 80,
-            ServiceType = "HTTP"
-        };
-
-        var expectedService = new HostedService
-        {
-            Id = Guid.NewGuid(),
-            Name = request.Name,
-            Url = "http://192.168.1.1:80"
-        };
-
-        _mockServiceManager
-            .Setup(x => x.AddServiceAsync(It.IsAny<HostedService>()))
-            .ReturnsAsync(expectedService);
+        var scanId = Guid.NewGuid();
+        _mockBackgroundScanService
+            .Setup(x => x.GetScanStatusAsync(scanId))
+            .ReturnsAsync((NetworkScanSession?)null);
 
         // Act
-        var result = await _controller.AddDiscoveredServiceToServices(request);
+        var result = await _controller.GetScanStatus(scanId);
 
         // Assert
-        var okResult = Assert.IsType<OkObjectResult>(result.Result);
-        var service = Assert.IsType<HostedService>(okResult.Value);
-        Assert.Equal(request.Name, service.Name);
+        var notFoundResult = Assert.IsType<NotFoundObjectResult>(result.Result);
+        Assert.Equal("Scan not found", notFoundResult.Value);
     }
 
     [Fact]
     public void GetCommonPorts_ReturnsExpectedPorts()
     {
+        // Arrange
+        var expectedPorts = new[] { 80, 443, 22, 21, 25, 53, 110, 143, 993, 995 };
+        _mockNetworkDiscoveryService.Setup(x => x.GetCommonPorts()).Returns(expectedPorts);
+
         // Act
         var result = _controller.GetCommonPorts();
 
@@ -151,34 +145,85 @@ public class NetworkDiscoveryControllerTests
         Assert.Contains(22, ports);
     }
 
-    [Theory]
-    [InlineData("192.168.1.1", 80, "http", "http://192.168.1.1:80")]
-    [InlineData("192.168.1.1", 443, "https", "https://192.168.1.1:443")]
-    [InlineData("192.168.1.1", 8080, "http alt", "http://192.168.1.1:8080")]
-    [InlineData("192.168.1.1", 3306, "mysql", "http://192.168.1.1:3306")]
-    public async Task AddDiscoveredServiceToServices_GeneratesCorrectUrl(
-        string hostAddress, int port, string serviceType, string expectedUrl)
+    [Fact]
+    public void GetExtendedPorts_ReturnsExpectedPorts()
     {
         // Arrange
-        var request = new AddDiscoveredServiceRequest
-        {
-            Name = "Test Service",
-            HostAddress = hostAddress,
-            Port = port,
-            ServiceType = serviceType
-        };
-
-        HostedService? capturedService = null;
-        _mockServiceManager
-            .Setup(x => x.AddServiceAsync(It.IsAny<HostedService>()))
-            .Callback<HostedService>(service => capturedService = service)
-            .ReturnsAsync(new HostedService { Id = Guid.NewGuid() });
+        var expectedPorts = new[] { 8080, 8443, 3306, 5432, 6379, 27017, 9200, 5601 };
+        _mockNetworkDiscoveryService.Setup(x => x.GetExtendedPorts()).Returns(expectedPorts);
 
         // Act
-        await _controller.AddDiscoveredServiceToServices(request);
+        var result = _controller.GetExtendedPorts();
 
         // Assert
-        Assert.NotNull(capturedService);
-        Assert.Equal(expectedUrl, capturedService.Url);
+        var okResult = Assert.IsType<OkObjectResult>(result.Result);
+        var ports = Assert.IsType<int[]>(okResult.Value);
+        Assert.Contains(8080, ports);
+        Assert.Contains(3306, ports);
+    }
+
+    [Fact]
+    public async Task GetScanResults_WithValidScanId_ReturnsResults()
+    {
+        // Arrange
+        var scanId = Guid.NewGuid();
+        var expectedResults = new List<StoredDiscoveredService>
+        {
+            new StoredDiscoveredService
+            {
+                Id = 1,
+                ScanId = scanId,
+                HostAddress = "192.168.1.1",
+                Port = 80,
+                IsReachable = true,
+                ServiceType = "HTTP",
+                DiscoveredAt = DateTime.UtcNow
+            }
+        };
+
+        _mockBackgroundScanService
+            .Setup(x => x.GetScanResultsAsync(scanId))
+            .ReturnsAsync(expectedResults);
+
+        // Act
+        var result = await _controller.GetScanResults(scanId);
+
+        // Assert
+        var okResult = Assert.IsType<OkObjectResult>(result.Result);
+        var results = Assert.IsAssignableFrom<IEnumerable<StoredDiscoveredService>>(okResult.Value);
+        Assert.Single(results);
+    }
+
+    [Fact]
+    public async Task GetRecentScans_ReturnsRecentScansList()
+    {
+        // Arrange
+        var expectedScans = new List<NetworkScanSession>
+        {
+            new NetworkScanSession 
+            { 
+                Id = Guid.NewGuid(), 
+                Target = "192.168.1.0/24", 
+                StartedAt = DateTime.UtcNow.AddHours(-1) 
+            },
+            new NetworkScanSession 
+            { 
+                Id = Guid.NewGuid(), 
+                Target = "10.0.0.0/24", 
+                StartedAt = DateTime.UtcNow.AddHours(-2) 
+            }
+        };
+
+        _mockBackgroundScanService
+            .Setup(x => x.GetRecentScansAsync(10))
+            .ReturnsAsync(expectedScans);
+
+        // Act
+        var result = await _controller.GetRecentScans();
+
+        // Assert
+        var okResult = Assert.IsType<OkObjectResult>(result.Result);
+        var scans = Assert.IsAssignableFrom<IEnumerable<NetworkScanSession>>(okResult.Value);
+        Assert.Equal(2, scans.Count());
     }
 }
