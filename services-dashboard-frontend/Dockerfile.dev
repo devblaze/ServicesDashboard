@@ -6,8 +6,11 @@ WORKDIR /app
 COPY package*.json ./
 COPY yarn.lock* ./
 
-# Install dependencies
-RUN npm install
+# Clean npm cache and install dependencies
+RUN npm cache clean --force && \
+    rm -rf node_modules package-lock.json && \
+    npm install && \
+    npm rebuild
 
 # Expose port
 EXPOSE 5173

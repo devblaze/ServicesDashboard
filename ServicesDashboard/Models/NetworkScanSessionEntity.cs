@@ -56,4 +56,8 @@ public class StoredDiscoveredService
     public string? ServiceCategory { get; set; }
     public string? SuggestedIcon { get; set; }
     public double? AiConfidence { get; set; }
+
+    // Service-specific flags (computed properties)
+    public bool IsSshService => Port == 22 || ServiceType?.Contains("SSH", StringComparison.OrdinalIgnoreCase) == true;
+    public bool CanAddAsServer => IsSshService && IsReachable;
 }

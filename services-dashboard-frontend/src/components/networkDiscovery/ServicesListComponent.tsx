@@ -1,6 +1,7 @@
-import React from 'react';
-import { Plus, ExternalLink, Clock, Wifi, WifiOff, Sparkles, Check, Loader2 } from 'lucide-react';
+import React, { useState } from 'react';
+import { Plus, ExternalLink, Clock, Wifi, WifiOff, Sparkles, Check, Loader2, Server } from 'lucide-react';
 import { getServiceIcon } from './serviceUtilities';
+import { AddServerFromDiscoveryModal } from './AddServerFromDiscoveryModal';
 import type { DiscoveredService, StoredDiscoveredService } from '../../types/networkDiscovery';
 
 // Extended interface to handle optional AI properties
@@ -45,6 +46,9 @@ export const ServicesList: React.FC<ServicesListProps> = ({
   isServiceAdded,
   isAddingService = false
 }) => {
+  const [selectedSshService, setSelectedSshService] = useState<DiscoveredService | StoredDiscoveredService | null>(null);
+  const [showAddServerModal, setShowAddServerModal] = useState(false);
+
   const formatResponseTime = (responseTime: string | number) => {
     if (typeof responseTime === 'string') {
       return responseTime;
@@ -75,6 +79,17 @@ export const ServicesList: React.FC<ServicesListProps> = ({
 
   const hasLastSeenAt = (service: StoredDiscoveredService): service is StoredDiscoveredService & { lastSeenAt: Date } => {
     return 'lastSeenAt' in service && service.lastSeenAt != null;
+  };
+
+  const isSshService = (service: DiscoveredService | StoredDiscoveredService): boolean => {
+    return service.port === 22 ||
+           service.serviceType?.toLowerCase().includes('ssh') ||
+           service.canAddAsServer === true;
+  };
+
+  const handleAddAsServer = (service: DiscoveredService | StoredDiscoveredService) => {
+    setSelectedSshService(service);
+    setShowAddServerModal(true);
   };
 
   if (services.length === 0) {
@@ -268,8 +283,24 @@ export const ServicesList: React.FC<ServicesListProps> = ({
                   </a>
                 )}
 
+                {/* Add as Server Button for SSH Services */}
+                {isSshService(service) && service.isReachable && (
+                  <button
+                    onClick={() => handleAddAsServer(service)}
+                    className={`flex items-center px-3 py-2 rounded-lg font-medium transition-all duration-200 ${
+                      darkMode
+                        ? 'bg-purple-600 text-white hover:bg-purple-700'
+                        : 'bg-purple-500 text-white hover:bg-purple-600'
+                    } hover:scale-105 active:scale-95`}
+                    title="Add this SSH service as a managed server"
+                  >
+                    <Server className="w-4 h-4 mr-2" />
+                    Add as Server
+                  </button>
+                )}
+
                 {/* Add to Services Button */}
-                {!isAdded && (
+                {!isAdded && !isSshService(service) && (
                   <button
                     onClick={() => onAddToServices(service)}
                     disabled={isAddingService}
@@ -304,6 +335,22 @@ export const ServicesList: React.FC<ServicesListProps> = ({
           </div>
         );
       })}
+
+      {/* Add Server Modal */}
+      {showAddServerModal && selectedSshService && (
+        <AddServerFromDiscoveryModal
+          darkMode={darkMode}
+          service={selectedSshService}
+          onClose={() => {
+            setShowAddServerModal(false);
+            setSelectedSshService(null);
+          }}
+          onSuccess={() => {
+            setShowAddServerModal(false);
+            setSelectedSshService(null);
+          }}
+        />
+      )}
     </div>
   );
 };

@@ -47,10 +47,10 @@ public class SettingsGroup
 // Strongly typed settings models
 public class AISettings
 {
-    public string Provider { get; set; } = "ollama"; // ollama, openai, anthropic
+    public string Provider { get; set; } = "ollama"; // ollama, openai, anthropic, deepseek, groq
     public string BaseUrl { get; set; } = "http://localhost:11434";
     public string Model { get; set; } = "llama3.2:3b-instruct-q8_0";
-    public string? ApiKey { get; set; } // For OpenAI/Anthropic
+    public string? ApiKey { get; set; } // For OpenAI/Anthropic/DeepSeek/Groq
     public bool EnableServiceRecognition { get; set; } = true;
     public bool EnableScreenshots { get; set; } = true;
     public int TimeoutSeconds { get; set; } = 30;

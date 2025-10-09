@@ -2,6 +2,7 @@ import { useState, lazy, Suspense } from 'react';
 import { QueryProvider } from './providers/QueryProvider';
 import { MonitoringProvider } from './providers/MonitoringProvider';
 import { LoadingSpinner } from './components/ui/LoadingSpinner';
+import { ScanNotifications } from './components/ScanNotifications';
 
 // Lazy load page components for better code splitting
 const ServicesList = lazy(() => import('./components/pages/ServicesList.tsx').then(module => ({ default: module.ServicesList })));
@@ -165,6 +166,9 @@ function App() {
             {renderContent()}
           </div>
         </div>
+
+        {/* Scan Notifications Component */}
+        <ScanNotifications onNavigateToDiscovery={() => setActiveTab('network')} />
       </MonitoringProvider>
     </QueryProvider>
   );

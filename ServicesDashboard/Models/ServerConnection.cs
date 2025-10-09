@@ -26,6 +26,7 @@ public class ServerConnectionDto
     public string? Password { get; set; }
     public string? PrivateKeyPath { get; set; }
     public string DockerEndpoint { get; set; } = "unix:///var/run/docker.sock";
+    public int? SshCredentialId { get; set; } // Added for SSH credential support
 }
 
 public class LogIssue

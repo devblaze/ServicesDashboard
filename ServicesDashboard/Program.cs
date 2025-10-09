@@ -11,6 +11,7 @@ using ServicesDashboard.Services.ArtificialIntelligence;
 using ServicesDashboard.Services.Docker;
 using ServicesDashboard.Services.Servers;
 using ServicesDashboard.Services.Settings;
+using ServicesDashboard.Hubs;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -75,6 +76,9 @@ builder.Services.AddScoped<ISettingsService, DatabaseSettingsService>();
 builder.Services.AddScoped<IDockerServicesService, DockerServicesService>();
 builder.Services.AddHttpClient();
 
+// Add SignalR for real-time notifications
+builder.Services.AddSignalR();
+
 builder.Services.Configure<ForwardedHeadersOptions>(options =>
 {
     options.ForwardedHeaders = Microsoft.AspNetCore.HttpOverrides.ForwardedHeaders.XForwardedFor |
@@ -84,14 +88,15 @@ builder.Services.Configure<ForwardedHeadersOptions>(options =>
     options.KnownProxies.Clear();
 });
 
-// Temporary more permissive CORS for debugging
+// CORS configuration for SignalR and API
 builder.Services.AddCors(options =>
 {
     options.AddDefaultPolicy(policy =>
     {
-        policy.AllowAnyOrigin()
+        policy.WithOrigins("http://localhost:5173", "http://localhost:5050", "http://frontend:5173")
               .AllowAnyMethod()
-              .AllowAnyHeader();
+              .AllowAnyHeader()
+              .AllowCredentials(); // Required for SignalR
     });
 });
 
@@ -130,6 +135,7 @@ app.UseCors();
 app.MapGet("/health", () => new { Status = "Healthy", Timestamp = DateTime.UtcNow, Environment = app.Environment.EnvironmentName });
 app.UseAuthorization();
 app.MapControllers();
+app.MapHub<DiscoveryNotificationHub>("/hubs/discovery");
 
 Console.WriteLine("🚀 Application starting...");
 Console.WriteLine($"🌍 Environment: {app.Environment.EnvironmentName}");

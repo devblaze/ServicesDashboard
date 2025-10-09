@@ -7,13 +7,17 @@ export interface DiscoveredService {
   serviceType: string;
   banner?: string;
   discoveredAt: string;
-  
+
   // AI Recognition fields
   recognizedName?: string;
   suggestedDescription?: string;
   serviceCategory?: string;
   suggestedIcon?: string;
   aiConfidence?: number;
+
+  // Service-specific flags
+  isSshService?: boolean;
+  canAddAsServer?: boolean;
 }
 
 export interface StoredDiscoveredService extends DiscoveredService {

@@ -1,15 +1,16 @@
 import React, { useState } from 'react';
-import { Settings, Bot, Bell, Palette } from 'lucide-react';
+import { Settings, Bot, Bell, Palette, Key } from 'lucide-react';
 import { AISettingsSection } from '../applicationSettings/AISettingsManagementSection';
 import { NotificationSettingsSection } from '../applicationSettings/NotificationSettingsSection';
 import { GeneralSettingsSection } from '../applicationSettings/GeneralSettingsSection';
 import { ApiConnectionStatus } from '../applicationSettings/ApiConnectionStatus.tsx';
+import { CredentialsManager } from '../CredentialsManager';
 
 interface SettingsPageProps {
   darkMode?: boolean;
 }
 
-type SettingSection = 'ai' | 'notifications' | 'general';
+type SettingSection = 'ai' | 'notifications' | 'general' | 'credentials';
 
 export const ApplicationSettings: React.FC<SettingsPageProps> = ({ darkMode = true }) => {
   const [activeSection, setActiveSection] = useState<SettingSection>('ai');
@@ -21,6 +22,13 @@ export const ApplicationSettings: React.FC<SettingsPageProps> = ({ darkMode = tr
       icon: Bot,
       description: 'Configure AI providers and models',
       component: AISettingsSection
+    },
+    {
+      key: 'credentials' as const,
+      label: 'SSH Credentials',
+      icon: Key,
+      description: 'Manage SSH credentials',
+      component: CredentialsManager
     },
     {
       key: 'notifications' as const,
