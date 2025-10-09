@@ -1,17 +1,20 @@
 import React, { useState, useCallback } from 'react';
-import { useMutation, useQueryClient } from '@tanstack/react-query';
-import { 
-  X, 
-  Server, 
-  Eye, 
-  EyeOff, 
-  Loader2, 
+import { useMutation, useQueryClient, useQuery } from '@tanstack/react-query';
+import {
+  X,
+  Server,
+  Eye,
+  EyeOff,
+  Loader2,
   AlertCircle,
   CheckCircle2,
-  Wifi
+  Wifi,
+  Key
 } from 'lucide-react';
 import { serverManagementApi } from '../../services/serverManagementApi';
+import { sshCredentialsApi } from '../../services/sshCredentialsApi';
 import type { CreateServerDto, ServerType } from '../../types/ServerManagement';
+import type { SshCredential } from '../../services/sshCredentialsApi';
 
 interface AddServerModalProps {
   isOpen: boolean;
@@ -27,6 +30,8 @@ interface FormData {
   password: string; // Separate from encryptedPassword for form handling
   type: ServerType;
   tags: string; // Change to string instead of string | null
+  useCredential: boolean;
+  credentialId: number | null;
 }
 
 interface FormErrors {
@@ -48,6 +53,8 @@ const DEFAULT_FORM_DATA: FormData = {
   password: '',
   type: 'Server',
   tags: '',
+  useCredential: false,
+  credentialId: null,
 };
 
 export const AddServerModal: React.FC<AddServerModalProps> = ({ 
@@ -65,6 +72,27 @@ export const AddServerModal: React.FC<AddServerModalProps> = ({
   } | null>(null);
 
   const queryClient = useQueryClient();
+
+  // Fetch SSH credentials
+  const { data: credentials = [], isLoading: credentialsLoading } = useQuery({
+    queryKey: ['sshCredentials'],
+    queryFn: () => sshCredentialsApi.getCredentials(),
+    enabled: isOpen // Only fetch when modal is open
+  });
+
+  // Set default credential when credentials are loaded
+  React.useEffect(() => {
+    if (credentials.length > 0 && !formData.credentialId) {
+      const defaultCred = credentials.find(c => c.isDefault);
+      if (defaultCred) {
+        setFormData(prev => ({
+          ...prev,
+          credentialId: defaultCred.id,
+          useCredential: true
+        }));
+      }
+    }
+  }, [credentials, formData.credentialId]);
 
   // Add server mutation
   const addServerMutation = useMutation({
@@ -151,30 +179,44 @@ export const AddServerModal: React.FC<AddServerModalProps> = ({
       newErrors.sshPort = 'Port must be between 1 and 65535';
     }
 
-    // Username validation
-    if (!formData.username.trim()) {
-      newErrors.username = 'Username is required';
-    }
+    // Credential validation - only validate username/password if not using saved credentials
+    if (!formData.useCredential) {
+      // Username validation
+      if (!formData.username.trim()) {
+        newErrors.username = 'Username is required';
+      }
 
-    // Password validation
-    if (!formData.password.trim()) {
-      newErrors.password = 'Password is required';
+      // Password validation
+      if (!formData.password.trim()) {
+        newErrors.password = 'Password is required';
+      }
+    } else {
+      // Validate credential selection
+      if (!formData.credentialId) {
+        newErrors.credentialId = 'Please select a credential';
+      }
     }
 
     setErrors(newErrors);
     return Object.keys(newErrors).length === 0;
   }, [formData]);
 
-  const handleInputChange = useCallback((field: keyof FormData, value: string) => {
-    setFormData(prev => ({ ...prev, [field]: value }));
-    
+  const handleInputChange = useCallback((field: keyof FormData | 'useCredential' | 'credentialId', value: string) => {
+    if (field === 'useCredential') {
+      setFormData(prev => ({ ...prev, useCredential: value === 'true' }));
+    } else if (field === 'credentialId') {
+      setFormData(prev => ({ ...prev, credentialId: value ? parseInt(value) : null }));
+    } else {
+      setFormData(prev => ({ ...prev, [field]: value }));
+    }
+
     // Clear specific field error when user starts typing
     if (errors[field]) {
       setErrors(prev => ({ ...prev, [field]: '' }));
     }
-    
+
     // Clear connection test result when connection-related fields change
-    if (['hostAddress', 'sshPort', 'username', 'password'].includes(field)) {
+    if (['hostAddress', 'sshPort', 'username', 'password', 'useCredential', 'credentialId'].includes(field)) {
       setConnectionTestResult(null);
     }
   }, [errors]);
@@ -185,36 +227,66 @@ export const AddServerModal: React.FC<AddServerModalProps> = ({
     setIsTestingConnection(true);
     setConnectionTestResult(null);
 
+    // Get credentials if using saved ones
+    let username = formData.username.trim();
+    let password = formData.password;
+
+    if (formData.useCredential && formData.credentialId) {
+      const selectedCred = credentials.find(c => c.id === formData.credentialId);
+      if (selectedCred) {
+        // We'll need to pass the credential ID to the backend
+        // For now, we'll use a placeholder since we need backend support
+        username = selectedCred.username;
+        // Password is not exposed from the API for security
+      }
+    }
+
     const serverData: CreateServerDto = {
       name: formData.name.trim(),
       hostAddress: formData.hostAddress.trim(),
       sshPort: parseInt(formData.sshPort),
-      username: formData.username.trim(),
-      password: formData.password, // Will be encrypted by backend
+      username: username,
+      password: password, // Will be encrypted by backend
       type: formData.type,
       tags: formData.tags.trim() || null,
+      // TODO: Add credentialId support to CreateServerDto
     };
 
     testConnectionMutation.mutate(serverData);
-  }, [formData, validateForm, testConnectionMutation]);
+  }, [formData, validateForm, testConnectionMutation, credentials]);
 
   const handleSubmit = useCallback(async (e: React.FormEvent) => {
     e.preventDefault();
-    
+
     if (!validateForm()) return;
+
+    // Get credentials if using saved ones
+    let username = formData.username.trim();
+    let password = formData.password;
+
+    if (formData.useCredential && formData.credentialId) {
+      const selectedCred = credentials.find(c => c.id === formData.credentialId);
+      if (selectedCred) {
+        username = selectedCred.username;
+        // For submission, we'll pass the credential ID to the backend
+        // The backend will handle retrieving the password securely
+      }
+    }
 
     const serverData: CreateServerDto = {
       name: formData.name.trim(),
       hostAddress: formData.hostAddress.trim(),
       sshPort: parseInt(formData.sshPort),
-      username: formData.username.trim(),
-      password: formData.password, // Will be encrypted by backend
+      username: username,
+      password: password, // Will be encrypted by backend
       type: formData.type,
       tags: formData.tags.trim() || null,
-    };
+      // TODO: Add credentialId to CreateServerDto type
+      ...(formData.useCredential && formData.credentialId ? { credentialId: formData.credentialId } : {})
+    } as CreateServerDto;
 
     addServerMutation.mutate(serverData);
-  }, [formData, validateForm, addServerMutation]);
+  }, [formData, validateForm, addServerMutation, credentials]);
 
   const handleClose = useCallback(() => {
     if (addServerMutation.isPending) return; // Prevent closing during submission
@@ -381,73 +453,162 @@ export const AddServerModal: React.FC<AddServerModalProps> = ({
             </div>
           </div>
 
-          {/* Username */}
-          <div>
-            <label className={`block text-sm font-medium mb-2 ${
-              darkMode ? 'text-gray-200' : 'text-gray-700'
-            }`}>
-              Username *
-            </label>
-            <input
-              type="text"
-              value={formData.username}
-              onChange={(e) => handleInputChange('username', e.target.value)}
-              placeholder="root"
-              disabled={addServerMutation.isPending}
-              className={`w-full px-3 py-2 rounded-lg border transition-colors ${
-                darkMode
-                  ? 'bg-gray-700/50 border-gray-600/50 text-white placeholder-gray-400 focus:border-blue-500/50 focus:ring-2 focus:ring-blue-500/20'
-                  : 'bg-white/50 border-gray-300/50 text-gray-900 placeholder-gray-500 focus:border-blue-500/50 focus:ring-2 focus:ring-blue-500/20'
-              } focus:outline-none disabled:opacity-50 disabled:cursor-not-allowed ${
-                errors.username ? 'border-red-500/50 focus:border-red-500/50 focus:ring-red-500/20' : ''
-              }`}
-            />
-            {errors.username && (
-              <p className="mt-1 text-sm text-red-400">{errors.username}</p>
-            )}
-          </div>
-
-          {/* Password */}
-          <div>
-            <label className={`block text-sm font-medium mb-2 ${
-              darkMode ? 'text-gray-200' : 'text-gray-700'
-            }`}>
-              Password *
-            </label>
-            <div className="relative">
-              <input
-                type={showPassword ? 'text' : 'password'}
-                value={formData.password}
-                onChange={(e) => handleInputChange('password', e.target.value)}
-                placeholder="Enter SSH password"
-                disabled={addServerMutation.isPending}
-                className={`w-full px-3 py-2 pr-10 rounded-lg border transition-colors ${
-                  darkMode
-                    ? 'bg-gray-700/50 border-gray-600/50 text-white placeholder-gray-400 focus:border-blue-500/50 focus:ring-2 focus:ring-blue-500/20'
-                    : 'bg-white/50 border-gray-300/50 text-gray-900 placeholder-gray-500 focus:border-blue-500/50 focus:ring-2 focus:ring-blue-500/20'
-                } focus:outline-none disabled:opacity-50 disabled:cursor-not-allowed ${
-                  errors.password ? 'border-red-500/50 focus:border-red-500/50 focus:ring-red-500/20' : ''
-                }`}
-              />
-              <button
-                type="button"
-                onClick={() => setShowPassword(!showPassword)}
-                disabled={addServerMutation.isPending}
-                className={`absolute right-2 top-1/2 -translate-y-1/2 p-1 rounded transition-colors ${
-                  darkMode
-                    ? 'text-gray-400 hover:text-white'
-                    : 'text-gray-600 hover:text-gray-900'
-                } disabled:opacity-50 disabled:cursor-not-allowed`}
-              >
-                {showPassword ? (
-                  <EyeOff className="w-4 h-4" />
-                ) : (
-                  <Eye className="w-4 h-4" />
-                )}
-              </button>
+          {/* SSH Authentication */}
+          <div className="space-y-4">
+            <div className="flex items-center justify-between">
+              <label className={`block text-sm font-medium ${
+                darkMode ? 'text-gray-200' : 'text-gray-700'
+              }`}>
+                SSH Authentication *
+              </label>
+              <div className="flex items-center space-x-4">
+                <label className="flex items-center space-x-2">
+                  <input
+                    type="radio"
+                    checked={formData.useCredential}
+                    onChange={() => handleInputChange('useCredential', 'true')}
+                    disabled={addServerMutation.isPending || credentials.length === 0}
+                    className="form-radio"
+                  />
+                  <span className={`text-sm ${darkMode ? 'text-gray-300' : 'text-gray-600'}`}>
+                    Saved Credentials
+                  </span>
+                </label>
+                <label className="flex items-center space-x-2">
+                  <input
+                    type="radio"
+                    checked={!formData.useCredential}
+                    onChange={() => handleInputChange('useCredential', 'false')}
+                    disabled={addServerMutation.isPending}
+                    className="form-radio"
+                  />
+                  <span className={`text-sm ${darkMode ? 'text-gray-300' : 'text-gray-600'}`}>
+                    Custom
+                  </span>
+                </label>
+              </div>
             </div>
-            {errors.password && (
-              <p className="mt-1 text-sm text-red-400">{errors.password}</p>
+
+            {formData.useCredential ? (
+              // Saved Credentials Selection
+              <div>
+                {credentialsLoading ? (
+                  <div className="flex items-center justify-center py-4">
+                    <Loader2 className="w-5 h-5 animate-spin" />
+                  </div>
+                ) : credentials.length === 0 ? (
+                  <div className={`p-4 rounded-lg border ${
+                    darkMode
+                      ? 'bg-gray-700/30 border-gray-600/50 text-gray-300'
+                      : 'bg-gray-100/30 border-gray-300/50 text-gray-700'
+                  }`}>
+                    <div className="flex items-center space-x-2">
+                      <Key className="w-4 h-4" />
+                      <p className="text-sm">No saved credentials available.</p>
+                    </div>
+                    <p className="text-sm mt-2">
+                      Go to Settings → SSH Credentials to add credentials.
+                    </p>
+                  </div>
+                ) : (
+                  <div>
+                    <select
+                      value={formData.credentialId || ''}
+                      onChange={(e) => handleInputChange('credentialId', e.target.value)}
+                      disabled={addServerMutation.isPending}
+                      className={`w-full px-3 py-2 rounded-lg border transition-colors ${
+                        darkMode
+                          ? 'bg-gray-700/50 border-gray-600/50 text-white focus:border-blue-500/50 focus:ring-2 focus:ring-blue-500/20'
+                          : 'bg-white/50 border-gray-300/50 text-gray-900 focus:border-blue-500/50 focus:ring-2 focus:ring-blue-500/20'
+                      } focus:outline-none disabled:opacity-50 disabled:cursor-not-allowed ${
+                        errors.credentialId ? 'border-red-500/50 focus:border-red-500/50 focus:ring-red-500/20' : ''
+                      }`}
+                    >
+                      <option value="">Select a credential...</option>
+                      {credentials.map((cred) => (
+                        <option key={cred.id} value={cred.id}>
+                          {cred.name} ({cred.username})
+                          {cred.isDefault && ' - Default'}
+                        </option>
+                      ))}
+                    </select>
+                    {errors.credentialId && (
+                      <p className="mt-1 text-sm text-red-400">{errors.credentialId}</p>
+                    )}
+                  </div>
+                )}
+              </div>
+            ) : (
+              // Custom Credentials
+              <div className="space-y-4">
+                <div>
+                  <label className={`block text-sm font-medium mb-2 ${
+                    darkMode ? 'text-gray-200' : 'text-gray-700'
+                  }`}>
+                    Username *
+                  </label>
+                  <input
+                    type="text"
+                    value={formData.username}
+                    onChange={(e) => handleInputChange('username', e.target.value)}
+                    placeholder="root"
+                    disabled={addServerMutation.isPending}
+                    className={`w-full px-3 py-2 rounded-lg border transition-colors ${
+                      darkMode
+                        ? 'bg-gray-700/50 border-gray-600/50 text-white placeholder-gray-400 focus:border-blue-500/50 focus:ring-2 focus:ring-blue-500/20'
+                        : 'bg-white/50 border-gray-300/50 text-gray-900 placeholder-gray-500 focus:border-blue-500/50 focus:ring-2 focus:ring-blue-500/20'
+                    } focus:outline-none disabled:opacity-50 disabled:cursor-not-allowed ${
+                      errors.username ? 'border-red-500/50 focus:border-red-500/50 focus:ring-red-500/20' : ''
+                    }`}
+                  />
+                  {errors.username && (
+                    <p className="mt-1 text-sm text-red-400">{errors.username}</p>
+                  )}
+                </div>
+
+                <div>
+                  <label className={`block text-sm font-medium mb-2 ${
+                    darkMode ? 'text-gray-200' : 'text-gray-700'
+                  }`}>
+                    Password *
+                  </label>
+                  <div className="relative">
+                    <input
+                      type={showPassword ? 'text' : 'password'}
+                      value={formData.password}
+                      onChange={(e) => handleInputChange('password', e.target.value)}
+                      placeholder="Enter SSH password"
+                      disabled={addServerMutation.isPending}
+                      className={`w-full px-3 py-2 pr-10 rounded-lg border transition-colors ${
+                        darkMode
+                          ? 'bg-gray-700/50 border-gray-600/50 text-white placeholder-gray-400 focus:border-blue-500/50 focus:ring-2 focus:ring-blue-500/20'
+                          : 'bg-white/50 border-gray-300/50 text-gray-900 placeholder-gray-500 focus:border-blue-500/50 focus:ring-2 focus:ring-blue-500/20'
+                      } focus:outline-none disabled:opacity-50 disabled:cursor-not-allowed ${
+                        errors.password ? 'border-red-500/50 focus:border-red-500/50 focus:ring-red-500/20' : ''
+                      }`}
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setShowPassword(!showPassword)}
+                      disabled={addServerMutation.isPending}
+                      className={`absolute right-2 top-1/2 -translate-y-1/2 p-1 rounded transition-colors ${
+                        darkMode
+                          ? 'text-gray-400 hover:text-white'
+                          : 'text-gray-600 hover:text-gray-900'
+                      } disabled:opacity-50 disabled:cursor-not-allowed`}
+                    >
+                      {showPassword ? (
+                        <EyeOff className="w-4 h-4" />
+                      ) : (
+                        <Eye className="w-4 h-4" />
+                      )}
+                    </button>
+                  </div>
+                  {errors.password && (
+                    <p className="mt-1 text-sm text-red-400">{errors.password}</p>
+                  )}
+                </div>
+              </div>
             )}
           </div>
 

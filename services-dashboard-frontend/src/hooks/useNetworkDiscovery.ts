@@ -1,6 +1,7 @@
 import { useState, useEffect, useMemo } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { networkDiscoveryApi } from '../services/networkDiscoveryApi';
+import { signalRService } from '../services/signalr.service';
 import type { 
   ScanMode,
   DiscoveredService, 
@@ -176,13 +177,25 @@ export const useNetworkDiscovery = () => {
     checkForActiveScan();
   }, [currentScanId, scanProgress]);
 
+  // Cleanup SignalR subscription on unmount or when scan changes
+  useEffect(() => {
+    return () => {
+      if (currentScanId) {
+        signalRService.unsubscribeFromScan(currentScanId);
+      }
+    };
+  }, [currentScanId]);
+
   // Start background scan mutation
   const startBackgroundScanMutation = useMutation({
     mutationFn: (request: StartScanRequest) => networkDiscoveryApi.startScan(request),
-    onSuccess: (data) => {
+    onSuccess: async (data) => {
       setCurrentScanId(data.scanId);
       setCurrentTarget(scanType === 'network' ? networkRange : hostAddress);
       resetFilters();
+
+      // Subscribe to SignalR notifications for this scan
+      await signalRService.subscribeToScan(data.scanId);
     },
     onError: (error: Error) => {
       console.error('Failed to start background scan:', error);

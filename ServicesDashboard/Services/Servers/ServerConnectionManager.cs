@@ -1,5 +1,7 @@
 using System.Text.Json;
+using Microsoft.EntityFrameworkCore;
 using Renci.SshNet;
+using ServicesDashboard.Data;
 using ServicesDashboard.Models;
 
 namespace ServicesDashboard.Services.Servers;
@@ -20,15 +22,17 @@ public class ServerConnectionManager : IServerConnectionManager
     private readonly ILogger<ServerConnectionManager> _logger;
     private readonly string _connectionsFilePath;
     private readonly SemaphoreSlim _semaphore = new(1, 1);
-    
-    public ServerConnectionManager(ILogger<ServerConnectionManager> logger, IWebHostEnvironment environment)
+    private readonly IServiceProvider _serviceProvider;
+
+    public ServerConnectionManager(ILogger<ServerConnectionManager> logger, IWebHostEnvironment environment, IServiceProvider serviceProvider)
     {
         _logger = logger;
+        _serviceProvider = serviceProvider;
         _connectionsFilePath = Path.Combine(environment.ContentRootPath, "Data", "server-connections.json");
-        
+
         // Ensure directory exists
         Directory.CreateDirectory(Path.GetDirectoryName(_connectionsFilePath)!);
-        
+
         // Create empty file if it doesn't exist
         if (!File.Exists(_connectionsFilePath))
         {
@@ -69,26 +73,44 @@ public class ServerConnectionManager : IServerConnectionManager
         {
             var json = await File.ReadAllTextAsync(_connectionsFilePath);
             var connections = JsonSerializer.Deserialize<List<Models.ServerConnection>>(json) ?? new List<Models.ServerConnection>();
-            
+
+            // Check if we should use SSH credentials
+            var username = connectionDto.Username;
+            var password = connectionDto.Password ?? string.Empty;
+
+            if (connectionDto.SshCredentialId.HasValue)
+            {
+                using var scope = _serviceProvider.CreateScope();
+                var dbContext = scope.ServiceProvider.GetRequiredService<ServicesDashboardContext>();
+                var credential = await dbContext.SshCredentials.FindAsync(connectionDto.SshCredentialId.Value);
+
+                if (credential != null)
+                {
+                    username = credential.Username;
+                    password = credential.Password;
+                    connectionDto.Port = credential.DefaultPort ?? connectionDto.Port;
+                }
+            }
+
             var newConnection = new Models.ServerConnection
             {
                 Id = Guid.NewGuid().ToString(),
                 Name = connectionDto.Name,
                 Host = connectionDto.Host,
                 Port = connectionDto.Port,
-                Username = connectionDto.Username,
+                Username = username,
                 AuthMethod = connectionDto.AuthMethod,
-                Password = connectionDto.Password ?? string.Empty,
+                Password = password,
                 PrivateKeyPath = connectionDto.PrivateKeyPath ?? string.Empty,
                 DockerEndpoint = connectionDto.DockerEndpoint,
                 LastConnected = DateTimeOffset.UtcNow
             };
-            
+
             connections.Add(newConnection);
-            
-            await File.WriteAllTextAsync(_connectionsFilePath, 
+
+            await File.WriteAllTextAsync(_connectionsFilePath,
                 JsonSerializer.Serialize(connections, new JsonSerializerOptions { WriteIndented = true }));
-            
+
             return newConnection;
         }
         catch (Exception ex)
@@ -195,19 +217,38 @@ public class ServerConnectionManager : IServerConnectionManager
         return await TestSshConnectionAsync(connection);
     }
 
-    public Task<bool> TestConnectionAsync(ServerConnectionDto connectionDto)
+    public async Task<bool> TestConnectionAsync(ServerConnectionDto connectionDto)
     {
+        // Check if we should use SSH credentials
+        var username = connectionDto.Username;
+        var password = connectionDto.Password ?? string.Empty;
+        var port = connectionDto.Port;
+
+        if (connectionDto.SshCredentialId.HasValue)
+        {
+            using var scope = _serviceProvider.CreateScope();
+            var dbContext = scope.ServiceProvider.GetRequiredService<ServicesDashboardContext>();
+            var credential = await dbContext.SshCredentials.FindAsync(connectionDto.SshCredentialId.Value);
+
+            if (credential != null)
+            {
+                username = credential.Username;
+                password = credential.Password;
+                port = credential.DefaultPort ?? connectionDto.Port;
+            }
+        }
+
         var connection = new Models.ServerConnection
         {
             Host = connectionDto.Host,
-            Port = connectionDto.Port,
-            Username = connectionDto.Username,
+            Port = port,
+            Username = username,
             AuthMethod = connectionDto.AuthMethod,
-            Password = connectionDto.Password ?? string.Empty,
+            Password = password,
             PrivateKeyPath = connectionDto.PrivateKeyPath ?? string.Empty
         };
-        
-        return TestSshConnectionAsync(connection);
+
+        return await TestSshConnectionAsync(connection);
     }
 
     private async Task<bool> TestSshConnectionAsync(Models.ServerConnection connection)

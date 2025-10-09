@@ -1,5 +1,7 @@
+using Microsoft.AspNetCore.SignalR;
 using Microsoft.EntityFrameworkCore;
 using ServicesDashboard.Data;
+using ServicesDashboard.Hubs;
 using ServicesDashboard.Models;
 using ServicesDashboard.Models.Results;
 
@@ -19,15 +21,18 @@ public class BackgroundNetworkScan : BackgroundService, IBackgroundNetworkScanSe
 {
     private readonly IServiceProvider _serviceProvider;
     private readonly ILogger<BackgroundNetworkScan> _logger;
+    private readonly IHubContext<DiscoveryNotificationHub, IDiscoveryNotificationClient> _hubContext;
     private readonly Queue<ScanRequest> _scanQueue = new();
     private readonly SemaphoreSlim _queueSemaphore = new(1, 1);
 
     public BackgroundNetworkScan(
         IServiceProvider serviceProvider,
-        ILogger<BackgroundNetworkScan> logger)
+        ILogger<BackgroundNetworkScan> logger,
+        IHubContext<DiscoveryNotificationHub, IDiscoveryNotificationClient> hubContext)
     {
         _serviceProvider = serviceProvider;
         _logger = logger;
+        _hubContext = hubContext;
     }
 
     public async Task<Guid> StartScanAsync(string target, string scanType, int[]? ports = null, bool fullScan = false)
@@ -69,6 +74,10 @@ public class BackgroundNetworkScan : BackgroundService, IBackgroundNetworkScanSe
         }
 
         _logger.LogInformation("Queued scan {ScanId} for target {Target}", scanSession.Id, target);
+
+        // Send notification that scan has started
+        await _hubContext.Clients.All.ReceiveScanStarted(scanSession.Id, target, scanType);
+
         return scanSession.Id;
     }
 
@@ -239,6 +248,9 @@ public class BackgroundNetworkScan : BackgroundService, IBackgroundNetworkScanSe
                 // Update scan status to running
                 await UpdateScanStatus(context, request.ScanId, "running");
 
+                // Send notification that scan is now running
+                await _hubContext.Clients.All.ReceiveScanProgress(request.ScanId, 0, "Scan started, discovering services...");
+
                 // Perform the actual scan
                 IEnumerable<DiscoveredServiceResult> results;
                 var isNetwork = request.Target.Contains('/') || request.Target.Contains('-');
@@ -280,6 +292,7 @@ public class BackgroundNetworkScan : BackgroundService, IBackgroundNetworkScanSe
                 var currentServiceKeys = new List<string>();
                 var savedCount = 0;
 
+                var totalResults = results.Count();
                 foreach (var result in results)
                 {
                     if (cancellationToken.IsCancellationRequested)
@@ -291,10 +304,24 @@ public class BackgroundNetworkScan : BackgroundService, IBackgroundNetworkScanSe
                     await SaveDiscoveredService(context, request.ScanId, result, currentServiceKeys);
                     savedCount++;
 
-                    if (savedCount % 10 == 0) // Log every 10 saved services
+                    // Send notification for each discovered service
+                    await _hubContext.Clients.All.ReceiveServiceDiscovered(
+                        request.ScanId,
+                        result.HostAddress ?? "Unknown",
+                        result.Port,
+                        result.RecognizedName ?? "Unknown Service");
+
+                    // Send progress update periodically
+                    if (savedCount % 10 == 0 || savedCount == totalResults)
                     {
+                        var progress = (int)((savedCount * 100) / Math.Max(totalResults, 1));
+                        await _hubContext.Clients.All.ReceiveScanProgress(
+                            request.ScanId,
+                            progress,
+                            $"Discovered {savedCount}/{totalResults} services");
+
                         _logger.LogInformation("Saved {SavedCount}/{TotalCount} services for scan {ScanId}",
-                            savedCount, results.Count(), request.ScanId);
+                            savedCount, totalResults, request.ScanId);
                     }
                 }
 
@@ -307,19 +334,25 @@ public class BackgroundNetworkScan : BackgroundService, IBackgroundNetworkScanSe
                 // Update scan completion with dedicated method
                 await UpdateScanStatus(context, request.ScanId, "completed", DateTime.UtcNow);
 
+                // Send completion notification
+                var distinctHosts = results.Select(r => r.HostAddress).Distinct().Count();
+                await _hubContext.Clients.All.ReceiveScanCompleted(request.ScanId, distinctHosts, totalResults);
+
                 _logger.LogInformation(
                     "Completed scan {ScanId}. Status set to 'completed'. Found {ResultCount} services in {Duration}",
-                    request.ScanId, results.Count(), scanDuration);
+                    request.ScanId, totalResults, scanDuration);
             }
             catch (OperationCanceledException)
             {
                 _logger.LogWarning("Scan {ScanId} was cancelled", request.ScanId);
                 await UpdateScanStatus(context, request.ScanId, "cancelled", DateTime.UtcNow, "Scan was cancelled");
+                await _hubContext.Clients.All.ReceiveScanError(request.ScanId, "Scan was cancelled");
             }
             catch (Exception ex)
             {
                 _logger.LogError(ex, "Error processing scan {ScanId}: {ErrorMessage}", request.ScanId, ex.Message);
                 await UpdateScanStatus(context, request.ScanId, "failed", DateTime.UtcNow, ex.Message);
+                await _hubContext.Clients.All.ReceiveScanError(request.ScanId, $"Scan failed: {ex.Message}");
             }
         }
         finally

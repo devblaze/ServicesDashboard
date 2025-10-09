@@ -20,6 +20,7 @@ public class ServicesDashboardContext : DbContext
     public DbSet<StoredDiscoveredService> StoredDiscoveredServices { get; set; }
     public DbSet<ApplicationSetting> ApplicationSettings { get; set; }
     public DbSet<DockerServiceArrangement> DockerServiceArrangements { get; set; }
+    public DbSet<SshCredential> SshCredentials { get; set; }
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -113,6 +114,18 @@ public class ServicesDashboardContext : DbContext
             entity.Property(e => e.Model).IsRequired().HasMaxLength(100);
             entity.Property(e => e.CreatedAt).HasDefaultValueSql("CURRENT_TIMESTAMP");
             entity.Property(e => e.UpdatedAt).HasDefaultValueSql("CURRENT_TIMESTAMP");
+        });
+
+        // Configure SshCredential
+        modelBuilder.Entity<SshCredential>(entity =>
+        {
+            entity.HasKey(e => e.Id);
+            entity.Property(e => e.Name).IsRequired().HasMaxLength(100);
+            entity.Property(e => e.Username).IsRequired().HasMaxLength(100);
+            entity.Property(e => e.Password).IsRequired();
+            entity.Property(e => e.Description).HasMaxLength(500);
+            entity.Property(e => e.CreatedAt).HasDefaultValueSql("CURRENT_TIMESTAMP");
+            entity.HasIndex(e => e.Name).IsUnique();
         });
 
         // Configure NetworkScanSession

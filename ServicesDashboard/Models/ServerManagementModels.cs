@@ -21,11 +21,16 @@ public class ManagedServer
     
     [MaxLength(100)]
     public string? Username { get; set; }
-    
+
     [JsonIgnore] // Don't serialize password in API responses
     public string? EncryptedPassword { get; set; }
-    
+
     public string? SshKeyPath { get; set; }
+
+    // Optional reference to a saved SSH credential
+    public int? SshCredentialId { get; set; }
+    [ForeignKey("SshCredentialId")]
+    public virtual SshCredential? SshCredential { get; set; }
     
     [Required]
     public ServerType Type { get; set; }
