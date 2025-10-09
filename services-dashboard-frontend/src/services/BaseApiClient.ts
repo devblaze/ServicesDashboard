@@ -33,14 +33,19 @@ class BaseApiClient {
 
   private getApiBaseUrl(): string {
     // Dynamic URL detection for OrbStack/Docker environments
-    
+
     // 1. Check for external API URL (for OrbStack browser requests)
     if (import.meta.env.VITE_EXTERNAL_API_BASE_URL) {
       const url = import.meta.env.VITE_EXTERNAL_API_BASE_URL;
       return url.endsWith('/api') ? url : `${url}/api`;
     }
-    
-    // 2. Check for regular API base URL
+
+    // 2. Check for VITE_API_URL (typically /api for proxy configuration)
+    if (import.meta.env.VITE_API_URL) {
+      return import.meta.env.VITE_API_URL;
+    }
+
+    // 3. Check for regular API base URL
     if (import.meta.env.VITE_API_BASE_URL) {
       const url = import.meta.env.VITE_API_BASE_URL;
       return url.endsWith('/api') ? url : `${url}/api`;
@@ -76,24 +81,24 @@ class BaseApiClient {
     if (import.meta.env.VITE_API_PORT) {
       return parseInt(import.meta.env.VITE_API_PORT);
     }
-    
+
     // If frontend is running on HTTPS, assume backend is too
     if (typeof window !== 'undefined') {
       const isHttps = window.location.protocol === 'https:';
-      return isHttps ? 5001 : 5000; // Common convention: HTTPS backend on port 5001
+      return isHttps ? 5051 : 5050; // Docker backend runs on port 5050
     }
-    
-    return 5000;
+
+    return 5050;
   }
 
   private getDefaultApiUrl(): string {
     if (typeof window !== 'undefined') {
       const isHttps = window.location.protocol === 'https:';
-      const port = isHttps ? 5001 : 5000;
+      const port = isHttps ? 5051 : 5050;
       const protocol = isHttps ? 'https' : 'http';
       return `${protocol}://localhost:${port}/api`;
     }
-    return 'http://localhost:5000/api';
+    return 'http://localhost:5050/api';
   }
 
   private setupInterceptors(): void {
