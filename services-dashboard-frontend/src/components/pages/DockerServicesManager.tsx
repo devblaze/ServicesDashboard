@@ -100,20 +100,40 @@ export function DockerServices({ darkMode }: DockerServicesProps) {
   });
 
   const filteredServices = useMemo(() => {
-    return arrangedServices.filter(service => {
-      const matchesSearch = service.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                           service.image.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                           service.serverName.toLowerCase().includes(searchTerm.toLowerCase());
-      
-      const matchesStatus = statusFilter === 'all' || service.status.toLowerCase() === statusFilter.toLowerCase();
-      const matchesServer = serverFilter === 'all' || service.serverId.toString() === serverFilter;
-      
-      return matchesSearch && matchesStatus && matchesServer;
-    });
+    return arrangedServices
+      .filter(service => {
+        // Filter out exited containers by default (unless explicitly filtered for)
+        if (statusFilter === 'all' && service.status.toLowerCase() === 'exited') {
+          return false;
+        }
+
+        const matchesSearch = service.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+                             service.image.toLowerCase().includes(searchTerm.toLowerCase()) ||
+                             service.serverName.toLowerCase().includes(searchTerm.toLowerCase());
+
+        const matchesStatus = statusFilter === 'all' || service.status.toLowerCase() === statusFilter.toLowerCase();
+        const matchesServer = serverFilter === 'all' || service.serverId.toString() === serverFilter;
+
+        return matchesSearch && matchesStatus && matchesServer;
+      })
+      .sort((a, b) => {
+        // Sort by running status first (running containers on top)
+        if (a.isRunning !== b.isRunning) {
+          return a.isRunning ? -1 : 1;
+        }
+        // Then by order
+        return a.order - b.order;
+      });
   }, [arrangedServices, searchTerm, statusFilter, serverFilter]);
 
   const uniqueServers = useMemo(() => {
-    return Array.from(new Set(services.map(s => ({ id: s.serverId, name: s.serverName }))))
+    const serverMap = new Map<number, string>();
+    services.forEach(s => {
+      if (!serverMap.has(s.serverId)) {
+        serverMap.set(s.serverId, s.serverName);
+      }
+    });
+    return Array.from(serverMap, ([id, name]) => ({ id, name }))
       .sort((a, b) => a.name.localeCompare(b.name));
   }, [services]);
 
@@ -415,10 +435,15 @@ export function DockerServices({ darkMode }: DockerServicesProps) {
               : 'bg-white border-gray-300 text-gray-900'
           }`}
         >
-          <option value="all">All Status</option>
-          {uniqueStatuses.map(status => (
-            <option key={status} value={status}>{status}</option>
-          ))}
+          <option value="all">Active Containers</option>
+          <option value="running">Running</option>
+          <option value="exited">Stopped</option>
+          {uniqueStatuses
+            .filter(status => status.toLowerCase() !== 'running' && status.toLowerCase() !== 'exited')
+            .map(status => (
+              <option key={status} value={status}>{status}</option>
+            ))
+          }
         </select>
 
         <select
