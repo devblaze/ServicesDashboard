@@ -64,5 +64,29 @@
         <member name="M:ServicesDashboard.Migrations.AddApplicationSettings.BuildTargetModel(Microsoft.EntityFrameworkCore.ModelBuilder)">
             <inheritdoc />
         </member>
+        <member name="T:ServicesDashboard.Migrations.UpdateModelChanges">
+            <inheritdoc />
+        </member>
+        <member name="M:ServicesDashboard.Migrations.UpdateModelChanges.Up(Microsoft.EntityFrameworkCore.Migrations.MigrationBuilder)">
+            <inheritdoc />
+        </member>
+        <member name="M:ServicesDashboard.Migrations.UpdateModelChanges.Down(Microsoft.EntityFrameworkCore.Migrations.MigrationBuilder)">
+            <inheritdoc />
+        </member>
+        <member name="M:ServicesDashboard.Migrations.UpdateModelChanges.BuildTargetModel(Microsoft.EntityFrameworkCore.ModelBuilder)">
+            <inheritdoc />
+        </member>
+        <member name="T:ServicesDashboard.Migrations.AddSshCredentialsManagement">
+            <inheritdoc />
+        </member>
+        <member name="M:ServicesDashboard.Migrations.AddSshCredentialsManagement.Up(Microsoft.EntityFrameworkCore.Migrations.MigrationBuilder)">
+            <inheritdoc />
+        </member>
+        <member name="M:ServicesDashboard.Migrations.AddSshCredentialsManagement.Down(Microsoft.EntityFrameworkCore.Migrations.MigrationBuilder)">
+            <inheritdoc />
+        </member>
+        <member name="M:ServicesDashboard.Migrations.AddSshCredentialsManagement.BuildTargetModel(Microsoft.EntityFrameworkCore.ModelBuilder)">
+            <inheritdoc />
+        </member>
     </members>
 </doc>

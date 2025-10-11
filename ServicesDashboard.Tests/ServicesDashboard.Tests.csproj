@@ -1,4 +1,4 @@
-﻿<Project Sdk="Microsoft.NET.Sdk">
+﻿<Project Sdk="Microsoft.NET.Sdk.Web">
 
     <PropertyGroup>
         <TargetFramework>net9.0</TargetFramework>
@@ -6,6 +6,7 @@
         <Nullable>enable</Nullable>
         <IsPackable>false</IsPackable>
         <PreserveCompilationContext>true</PreserveCompilationContext>
+        <IsTestProject>true</IsTestProject>
     </PropertyGroup>
 
     <ItemGroup>
@@ -28,5 +29,11 @@
     <ItemGroup>
       <ProjectReference Include="..\ServicesDashboard\ServicesDashboard.csproj" />
     </ItemGroup>
+
+    <!-- Copy deps.json and runtimeconfig.json as testhost files for integration tests -->
+    <Target Name="CopyDepsJsonForIntegrationTests" AfterTargets="Build">
+        <Copy SourceFiles="$(OutputPath)$(AssemblyName).deps.json" DestinationFiles="$(OutputPath)testhost.deps.json" Condition="Exists('$(OutputPath)$(AssemblyName).deps.json')" />
+        <Copy SourceFiles="$(OutputPath)$(AssemblyName).runtimeconfig.json" DestinationFiles="$(OutputPath)testhost.runtimeconfig.json" Condition="Exists('$(OutputPath)$(AssemblyName).runtimeconfig.json')" />
+    </Target>
 
 </Project>
