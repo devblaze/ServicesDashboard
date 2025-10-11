@@ -8,4 +8,7 @@ public class ServerSummaryDto
     public string Status { get; set; } = string.Empty;
     public string Type { get; set; } = string.Empty;
     public DateTime? LastCheckTime { get; set; }
+    public int? ParentServerId { get; set; }
+    public string? ParentServerName { get; set; }
+    public int ChildServerCount { get; set; }
 }

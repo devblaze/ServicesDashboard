@@ -30,6 +30,7 @@ interface FormData {
   password: string; // Separate from encryptedPassword for form handling
   type: ServerType;
   tags: string; // Change to string instead of string | null
+  parentServerId: number | null;
   useCredential: boolean;
   credentialId: number | null;
 }
@@ -53,6 +54,7 @@ const DEFAULT_FORM_DATA: FormData = {
   password: '',
   type: 'Server',
   tags: '',
+  parentServerId: null,
   useCredential: false,
   credentialId: null,
 };
@@ -77,6 +79,13 @@ export const AddServerModal: React.FC<AddServerModalProps> = ({
   const { data: credentials = [], isLoading: credentialsLoading } = useQuery({
     queryKey: ['sshCredentials'],
     queryFn: () => sshCredentialsApi.getCredentials(),
+    enabled: isOpen // Only fetch when modal is open
+  });
+
+  // Fetch existing servers for parent selection
+  const { data: existingServers = [] } = useQuery({
+    queryKey: ['managed-servers'],
+    queryFn: () => serverManagementApi.getServers(),
     enabled: isOpen // Only fetch when modal is open
   });
 
@@ -201,11 +210,11 @@ export const AddServerModal: React.FC<AddServerModalProps> = ({
     return Object.keys(newErrors).length === 0;
   }, [formData]);
 
-  const handleInputChange = useCallback((field: keyof FormData | 'useCredential' | 'credentialId', value: string) => {
+  const handleInputChange = useCallback((field: keyof FormData | 'useCredential' | 'credentialId' | 'parentServerId', value: string) => {
     if (field === 'useCredential') {
       setFormData(prev => ({ ...prev, useCredential: value === 'true' }));
-    } else if (field === 'credentialId') {
-      setFormData(prev => ({ ...prev, credentialId: value ? parseInt(value) : null }));
+    } else if (field === 'credentialId' || field === 'parentServerId') {
+      setFormData(prev => ({ ...prev, [field]: value ? parseInt(value) : null }));
     } else {
       setFormData(prev => ({ ...prev, [field]: value }));
     }
@@ -281,6 +290,7 @@ export const AddServerModal: React.FC<AddServerModalProps> = ({
       password: password, // Will be encrypted by backend
       type: formData.type,
       tags: formData.tags.trim() || null,
+      parentServerId: formData.parentServerId,
       // TODO: Add credentialId to CreateServerDto type
       ...(formData.useCredential && formData.credentialId ? { credentialId: formData.credentialId } : {})
     } as CreateServerDto;
@@ -633,6 +643,35 @@ export const AddServerModal: React.FC<AddServerModalProps> = ({
             />
             <p className={`mt-1 text-xs ${darkMode ? 'text-gray-400' : 'text-gray-500'}`}>
               Separate multiple tags with commas
+            </p>
+          </div>
+
+          {/* Parent Server */}
+          <div>
+            <label className={`block text-sm font-medium mb-2 ${
+              darkMode ? 'text-gray-200' : 'text-gray-700'
+            }`}>
+              Parent Server <span className="text-sm font-normal text-gray-500">(optional)</span>
+            </label>
+            <select
+              value={formData.parentServerId || ''}
+              onChange={(e) => handleInputChange('parentServerId', e.target.value)}
+              disabled={addServerMutation.isPending}
+              className={`w-full px-3 py-2 rounded-lg border transition-colors ${
+                darkMode
+                  ? 'bg-gray-700/50 border-gray-600/50 text-white focus:border-blue-500/50 focus:ring-2 focus:ring-blue-500/20'
+                  : 'bg-white/50 border-gray-300/50 text-gray-900 focus:border-blue-500/50 focus:ring-2 focus:ring-blue-500/20'
+              } focus:outline-none disabled:opacity-50 disabled:cursor-not-allowed`}
+            >
+              <option value="">None (Standalone Server)</option>
+              {existingServers.map((server) => (
+                <option key={server.id} value={server.id}>
+                  {server.name} ({server.hostAddress})
+                </option>
+              ))}
+            </select>
+            <p className={`mt-1 text-xs ${darkMode ? 'text-gray-400' : 'text-gray-500'}`}>
+              Select a parent if this is a VM or container hosted on another server
             </p>
           </div>
 

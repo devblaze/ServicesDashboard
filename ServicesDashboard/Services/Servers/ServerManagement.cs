@@ -30,6 +30,9 @@ public interface IServerManagementService
     Task<string> GetServerLogsAsync(ManagedServer server, int? lines = 100);
     Task<LogAnalysisResult> AnalyzeLogsWithAiAsync(int serverId, string logs);
     Task<CommandResult> ExecuteCommandAsync(int serverId, string command);
+    Task<bool> CleanupTerminalSessionAsync(int serverId);
+    Task<TmuxAvailabilityResult> CheckTmuxAvailabilityAsync(int serverId);
+    Task<bool> InstallTmuxAsync(int serverId);
     Task<SystemDiscoveryResult> PerformSystemDiscoveryAsync(ManagedServer server);
     Task<DockerServiceDiscoveryResult> DiscoverDockerServicesAsync(int serverId);
     Task<bool> StartDockerContainerAsync(int serverId, string containerId);
@@ -770,12 +773,41 @@ If some information cannot be determined, use null or reasonable defaults. Focus
             if (!client.IsConnected)
                 throw new Exception("Could not establish SSH connection");
 
-            using var cmd = client.CreateCommand(command);
-            var output = cmd.Execute();
+            // Generate unique session name based on server ID
+            var sessionName = $"servicesdashboard_{serverId}";
+
+            // Check if tmux session exists, create if not
+            var checkSessionCmd = client.CreateCommand($"tmux has-session -t {sessionName} 2>/dev/null; echo $?");
+            var checkResult = checkSessionCmd.Execute().Trim();
+
+            if (checkResult != "0")
+            {
+                // Session doesn't exist, create it
+                var createCmd = client.CreateCommand($"tmux new-session -d -s {sessionName}");
+                createCmd.Execute();
+                _logger.LogInformation("Created new tmux session {SessionName} for server {ServerId}", sessionName, serverId);
+            }
+
+            // Execute command in the tmux session
+            // Clear pane first to get only current command output
+            var clearCmd = client.CreateCommand($"tmux send-keys -t {sessionName} 'clear' C-m");
+            clearCmd.Execute();
+            Thread.Sleep(100); // Small delay for clear to complete
+
+            // Send the actual command
+            var sendCmd = client.CreateCommand($"tmux send-keys -t {sessionName} '{command.Replace("'", "'\\''")}' C-m");
+            sendCmd.Execute();
+
+            // Wait a bit for command to execute
+            Thread.Sleep(500);
+
+            // Capture the pane output
+            var captureCmd = client.CreateCommand($"tmux capture-pane -t {sessionName} -p");
+            var output = captureCmd.Execute();
 
             result.Output = output ?? "";
-            result.Error = cmd.Error ?? "";
-            result.ExitCode = cmd.ExitStatus;
+            result.Error = "";
+            result.ExitCode = 0;
 
             client.Disconnect();
             return result;
@@ -788,7 +820,164 @@ If some information cannot be determined, use null or reasonable defaults. Focus
             return result;
         }
     }
-    
+
+    public async Task<bool> CleanupTerminalSessionAsync(int serverId)
+    {
+        try
+        {
+            var server = await _context.ManagedServers.FindAsync(serverId);
+            if (server == null)
+                return false;
+
+            using var client = CreateSshClient(server);
+            client.Connect();
+
+            if (!client.IsConnected)
+                return false;
+
+            var sessionName = $"servicesdashboard_{serverId}";
+
+            // Kill the tmux session
+            var killCmd = client.CreateCommand($"tmux kill-session -t {sessionName} 2>/dev/null");
+            killCmd.Execute();
+
+            client.Disconnect();
+            _logger.LogInformation("Cleaned up tmux session {SessionName} for server {ServerId}", sessionName, serverId);
+            return true;
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Failed to cleanup terminal session for server {ServerId}", serverId);
+            return false;
+        }
+    }
+
+    public async Task<TmuxAvailabilityResult> CheckTmuxAvailabilityAsync(int serverId)
+    {
+        try
+        {
+            var server = await _context.ManagedServers.FindAsync(serverId);
+            if (server == null)
+                throw new ArgumentException("Server not found");
+
+            using var client = CreateSshClient(server);
+            client.Connect();
+
+            if (!client.IsConnected)
+                throw new Exception("Could not establish SSH connection");
+
+            // Check if tmux is available
+            var checkCmd = client.CreateCommand("command -v tmux >/dev/null 2>&1; echo $?");
+            var checkResult = checkCmd.Execute().Trim();
+
+            if (checkResult == "0")
+            {
+                // Get tmux version
+                var versionCmd = client.CreateCommand("tmux -V");
+                var version = versionCmd.Execute().Trim();
+
+                client.Disconnect();
+                return new TmuxAvailabilityResult
+                {
+                    IsAvailable = true,
+                    Version = version,
+                    Message = "tmux is installed and ready to use"
+                };
+            }
+
+            client.Disconnect();
+            return new TmuxAvailabilityResult
+            {
+                IsAvailable = false,
+                Message = "tmux is not installed on this server"
+            };
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Failed to check tmux availability for server {ServerId}", serverId);
+            return new TmuxAvailabilityResult
+            {
+                IsAvailable = false,
+                Message = $"Error checking tmux: {ex.Message}"
+            };
+        }
+    }
+
+    public async Task<bool> InstallTmuxAsync(int serverId)
+    {
+        try
+        {
+            var server = await _context.ManagedServers.FindAsync(serverId);
+            if (server == null)
+                return false;
+
+            using var client = CreateSshClient(server);
+            client.Connect();
+
+            if (!client.IsConnected)
+                return false;
+
+            // Detect OS and install tmux accordingly
+            var osCheckCmd = client.CreateCommand("cat /etc/os-release 2>/dev/null | grep -E '^ID=' | cut -d'=' -f2 | tr -d '\"'");
+            var osId = osCheckCmd.Execute().Trim().ToLower();
+
+            string installCommand;
+            if (osId.Contains("ubuntu") || osId.Contains("debian"))
+            {
+                installCommand = "sudo apt-get update && sudo apt-get install -y tmux";
+            }
+            else if (osId.Contains("centos") || osId.Contains("rhel") || osId.Contains("fedora"))
+            {
+                installCommand = "sudo yum install -y tmux || sudo dnf install -y tmux";
+            }
+            else if (osId.Contains("arch"))
+            {
+                installCommand = "sudo pacman -Sy --noconfirm tmux";
+            }
+            else if (osId.Contains("alpine"))
+            {
+                installCommand = "sudo apk add --no-cache tmux";
+            }
+            else
+            {
+                _logger.LogWarning("Unknown OS type for server {ServerId}: {OsId}", serverId, osId);
+                // Try apt-get as default
+                installCommand = "sudo apt-get update && sudo apt-get install -y tmux";
+            }
+
+            _logger.LogInformation("Installing tmux on server {ServerId} with command: {Command}", serverId, installCommand);
+
+            var installCmd = client.CreateCommand(installCommand);
+            installCmd.CommandTimeout = TimeSpan.FromMinutes(5); // Installation might take time
+            var output = installCmd.Execute();
+
+            _logger.LogInformation("tmux installation output for server {ServerId}: {Output}", serverId, output);
+
+            // Verify installation
+            var verifyCmd = client.CreateCommand("command -v tmux >/dev/null 2>&1; echo $?");
+            var verifyResult = verifyCmd.Execute().Trim();
+
+            client.Disconnect();
+
+            var success = verifyResult == "0";
+            if (success)
+            {
+                _logger.LogInformation("Successfully installed tmux on server {ServerId}", serverId);
+            }
+            else
+            {
+                _logger.LogWarning("tmux installation may have failed on server {ServerId}", serverId);
+            }
+
+            return success;
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Failed to install tmux on server {ServerId}", serverId);
+            return false;
+        }
+    }
+
     public async Task<DockerServiceDiscoveryResult> DiscoverDockerServicesAsync(int serverId)
     {
         var server = await GetServerAsync(serverId);

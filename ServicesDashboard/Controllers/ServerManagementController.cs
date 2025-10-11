@@ -371,6 +371,63 @@ public class ServerManagementController : ControllerBase
         }
     }
 
+    [HttpDelete("{id}/terminal-session")]
+    public async Task<ActionResult> CleanupTerminalSession(int id)
+    {
+        try
+        {
+            var server = await _serverManagementService.GetServerAsync(id);
+            if (server == null)
+                return NotFound();
+
+            var success = await _serverManagementService.CleanupTerminalSessionAsync(id);
+            return success ? Ok() : StatusCode(500, "Failed to cleanup session");
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error cleaning up terminal session for server {ServerId}", id);
+            return StatusCode(500, "Internal server error");
+        }
+    }
+
+    [HttpGet("{id}/check-tmux")]
+    public async Task<ActionResult<TmuxAvailabilityResult>> CheckTmuxAvailability(int id)
+    {
+        try
+        {
+            var server = await _serverManagementService.GetServerAsync(id);
+            if (server == null)
+                return NotFound();
+
+            var result = await _serverManagementService.CheckTmuxAvailabilityAsync(id);
+            return Ok(result);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error checking tmux availability for server {ServerId}", id);
+            return StatusCode(500, "Internal server error");
+        }
+    }
+
+    [HttpPost("{id}/install-tmux")]
+    public async Task<ActionResult> InstallTmux(int id)
+    {
+        try
+        {
+            var server = await _serverManagementService.GetServerAsync(id);
+            if (server == null)
+                return NotFound();
+
+            var success = await _serverManagementService.InstallTmuxAsync(id);
+            return success ? Ok(new { message = "tmux installed successfully" }) : StatusCode(500, "Failed to install tmux");
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error installing tmux on server {ServerId}", id);
+            return StatusCode(500, "Internal server error");
+        }
+    }
+
     [HttpGet("{id}/ssh-session")]
     public async Task<ActionResult> CreateSshSession(int id)
     {

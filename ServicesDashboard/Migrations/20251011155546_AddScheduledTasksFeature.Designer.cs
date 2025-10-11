@@ -2,6 +2,7 @@
 using System;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 using ServicesDashboard.Data;
@@ -11,9 +12,11 @@ using ServicesDashboard.Data;
 namespace ServicesDashboard.Migrations
 {
     [DbContext(typeof(ServicesDashboardContext))]
-    partial class ServicesDashboardContextModelSnapshot : ModelSnapshot
+    [Migration("20251011155546_AddScheduledTasksFeature")]
+    partial class AddScheduledTasksFeature
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
@@ -200,9 +203,6 @@ namespace ServicesDashboard.Migrations
                     b.Property<string>("OperatingSystem")
                         .HasColumnType("text");
 
-                    b.Property<int?>("ParentServerId")
-                        .HasColumnType("integer");
-
                     b.Property<int?>("SshCredentialId")
                         .HasColumnType("integer");
 
@@ -239,8 +239,6 @@ namespace ServicesDashboard.Migrations
 
                     b.HasIndex("HostAddress")
                         .IsUnique();
-
-                    b.HasIndex("ParentServerId");
 
                     b.HasIndex("SshCredentialId");
 
@@ -768,16 +766,9 @@ namespace ServicesDashboard.Migrations
 
             modelBuilder.Entity("ServicesDashboard.Models.ManagedServer", b =>
                 {
-                    b.HasOne("ServicesDashboard.Models.ManagedServer", "ParentServer")
-                        .WithMany("ChildServers")
-                        .HasForeignKey("ParentServerId")
-                        .OnDelete(DeleteBehavior.SetNull);
-
                     b.HasOne("ServicesDashboard.Models.SshCredential", "SshCredential")
                         .WithMany("ServersUsingCredential")
                         .HasForeignKey("SshCredentialId");
-
-                    b.Navigation("ParentServer");
 
                     b.Navigation("SshCredential");
                 });
@@ -867,8 +858,6 @@ namespace ServicesDashboard.Migrations
             modelBuilder.Entity("ServicesDashboard.Models.ManagedServer", b =>
                 {
                     b.Navigation("Alerts");
-
-                    b.Navigation("ChildServers");
 
                     b.Navigation("HealthChecks");
 

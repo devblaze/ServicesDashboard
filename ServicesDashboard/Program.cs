@@ -11,6 +11,7 @@ using ServicesDashboard.Services.ArtificialIntelligence;
 using ServicesDashboard.Services.Docker;
 using ServicesDashboard.Services.Servers;
 using ServicesDashboard.Services.Settings;
+using ServicesDashboard.Services.Tasks;
 using ServicesDashboard.Hubs;
 
 var builder = WebApplication.CreateBuilder(args);
@@ -74,6 +75,8 @@ builder.Services.AddSingleton<IBackgroundNetworkScanService>(provider => provide
 builder.Services.AddHostedService<BackgroundNetworkScan>(provider => provider.GetService<BackgroundNetworkScan>()!);
 builder.Services.AddScoped<ISettingsService, DatabaseSettingsService>();
 builder.Services.AddScoped<IDockerServicesService, DockerServicesService>();
+builder.Services.AddScoped<IScheduledTaskService, ScheduledTaskService>();
+builder.Services.AddHostedService<ScheduledTaskExecutorWorker>();
 builder.Services.AddHttpClient();
 
 // Add SignalR for real-time notifications

@@ -49,11 +49,21 @@ public class ManagedServer
     public DateTime UpdatedAt { get; set; } = DateTime.UtcNow;
     
     public string? Tags { get; set; }
-    
+
+    // Parent-Child relationship for server hierarchies (e.g., VM host and VMs)
+    public int? ParentServerId { get; set; }
+
+    [ForeignKey("ParentServerId")]
+    [JsonIgnore] // Prevent circular reference in serialization
+    public virtual ManagedServer? ParentServer { get; set; }
+
     // Navigation properties
     public virtual ICollection<ServerHealthCheck> HealthChecks { get; set; } = new List<ServerHealthCheck>();
     public virtual ICollection<UpdateReport> UpdateReports { get; set; } = new List<UpdateReport>();
     public virtual ICollection<ServerAlert> Alerts { get; set; } = new List<ServerAlert>();
+
+    [JsonIgnore] // Prevent circular reference
+    public virtual ICollection<ManagedServer> ChildServers { get; set; } = new List<ManagedServer>();
 }
 
 public class ServerHealthCheck

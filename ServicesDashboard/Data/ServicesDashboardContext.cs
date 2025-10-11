@@ -21,6 +21,9 @@ public class ServicesDashboardContext : DbContext
     public DbSet<ApplicationSetting> ApplicationSettings { get; set; }
     public DbSet<DockerServiceArrangement> DockerServiceArrangements { get; set; }
     public DbSet<SshCredential> SshCredentials { get; set; }
+    public DbSet<ScheduledTask> ScheduledTasks { get; set; }
+    public DbSet<ScheduledTaskServer> ScheduledTaskServers { get; set; }
+    public DbSet<TaskExecution> TaskExecutions { get; set; }
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -38,6 +41,12 @@ public class ServicesDashboardContext : DbContext
             entity.Property(e => e.CreatedAt).HasDefaultValueSql("CURRENT_TIMESTAMP");
             entity.Property(e => e.UpdatedAt).HasDefaultValueSql("CURRENT_TIMESTAMP");
             entity.HasIndex(s => s.HostAddress).IsUnique();
+
+            // Configure parent-child relationship
+            entity.HasOne(e => e.ParentServer)
+                  .WithMany(e => e.ChildServers)
+                  .HasForeignKey(e => e.ParentServerId)
+                  .OnDelete(DeleteBehavior.SetNull); // When parent is deleted, set child's ParentServerId to null
         });
 
         // Configure DockerServiceArrangement
@@ -170,5 +179,54 @@ public class ServicesDashboardContext : DbContext
         modelBuilder.Entity<ApplicationSetting>()
             .Property(s => s.UpdatedAt)
             .HasDefaultValueSql("CURRENT_TIMESTAMP");
+
+        // Configure ScheduledTask
+        modelBuilder.Entity<ScheduledTask>(entity =>
+        {
+            entity.HasKey(e => e.Id);
+            entity.Property(e => e.Name).IsRequired().HasMaxLength(200);
+            entity.Property(e => e.Description).HasMaxLength(1000);
+            entity.Property(e => e.Command).IsRequired();
+            entity.Property(e => e.CronExpression).IsRequired().HasMaxLength(100);
+            entity.Property(e => e.TimeZone).HasMaxLength(100);
+            entity.Property(e => e.CreatedAt).HasDefaultValueSql("CURRENT_TIMESTAMP");
+            entity.Property(e => e.UpdatedAt).HasDefaultValueSql("CURRENT_TIMESTAMP");
+            entity.HasIndex(e => e.IsEnabled);
+            entity.HasIndex(e => e.NextExecutionTime);
+        });
+
+        // Configure ScheduledTaskServer
+        modelBuilder.Entity<ScheduledTaskServer>(entity =>
+        {
+            entity.HasKey(e => e.Id);
+            entity.HasOne(e => e.ScheduledTask)
+                  .WithMany(e => e.TaskServers)
+                  .HasForeignKey(e => e.ScheduledTaskId)
+                  .OnDelete(DeleteBehavior.Cascade);
+            entity.HasOne(e => e.Server)
+                  .WithMany()
+                  .HasForeignKey(e => e.ServerId)
+                  .OnDelete(DeleteBehavior.Cascade);
+            entity.HasIndex(e => new { e.ScheduledTaskId, e.ServerId }).IsUnique();
+        });
+
+        // Configure TaskExecution
+        modelBuilder.Entity<TaskExecution>(entity =>
+        {
+            entity.HasKey(e => e.Id);
+            entity.HasOne(e => e.ScheduledTask)
+                  .WithMany(e => e.Executions)
+                  .HasForeignKey(e => e.ScheduledTaskId)
+                  .OnDelete(DeleteBehavior.Cascade);
+            entity.HasOne(e => e.Server)
+                  .WithMany()
+                  .HasForeignKey(e => e.ServerId)
+                  .OnDelete(DeleteBehavior.Restrict);
+            entity.Property(e => e.Status).HasConversion<string>();
+            entity.Property(e => e.StartedAt).HasDefaultValueSql("CURRENT_TIMESTAMP");
+            entity.HasIndex(e => e.StartedAt);
+            entity.HasIndex(e => new { e.ScheduledTaskId, e.StartedAt });
+            entity.HasIndex(e => new { e.ServerId, e.StartedAt });
+        });
     }
 }
