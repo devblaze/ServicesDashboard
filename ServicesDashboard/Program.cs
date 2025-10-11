@@ -248,3 +248,6 @@ public class SwaggerOperationFilter : Swashbuckle.AspNetCore.SwaggerGen.IOperati
         Console.WriteLine($"Processing operation: {context.MethodInfo.DeclaringType?.Name}.{context.MethodInfo.Name}");
     }
 }
+
+// Make Program class accessible for integration tests
+public partial class Program { }
