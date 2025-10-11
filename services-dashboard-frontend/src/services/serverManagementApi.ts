@@ -416,6 +416,18 @@ class ServerManagementApiClient extends BaseApiClient {
     return this.request<CommandResult>('post', `/servermanagement/${id}/execute-command`, { command });
   }
 
+  async cleanupTerminalSession(id: number): Promise<void> {
+    return this.request<void>('delete', `/servermanagement/${id}/terminal-session`);
+  }
+
+  async checkTmuxAvailability(id: number): Promise<{ isAvailable: boolean; version?: string; message?: string }> {
+    return this.request<{ isAvailable: boolean; version?: string; message?: string }>('get', `/servermanagement/${id}/check-tmux`);
+  }
+
+  async installTmux(id: number): Promise<{ message: string }> {
+    return this.request<{ message: string }>('post', `/servermanagement/${id}/install-tmux`);
+  }
+
   async getSshSession(id: number): Promise<{ serverId: number; host: string; port: number; username: string }> {
     return this.request<{ serverId: number; host: string; port: number; username: string }>('get', `/servermanagement/${id}/ssh-session`);
   }

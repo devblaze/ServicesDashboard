@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useMemo } from 'react';
 import { useQuery, useQueryClient, useMutation } from '@tanstack/react-query';
 import {
   Server,
@@ -12,7 +12,9 @@ import {
   Shield,
   Loader2,
   CheckSquare,
-  Square
+  Square,
+  Network,
+  List
 } from 'lucide-react';
 import { serverManagementApi } from '../../services/serverManagementApi.ts';
 import type { ManagedServer, ServerAlert } from '../../types/ServerManagement.ts';
@@ -29,6 +31,7 @@ export const ServerManagement: React.FC<ServerManagementProps> = ({ darkMode = t
   const [selectedServerForDetails, setSelectedServerForDetails] = useState<ManagedServer | null>(null);
   const [selectedServerIds, setSelectedServerIds] = useState<Set<number>>(new Set());
   const [isSelectionMode, setIsSelectionMode] = useState(false);
+  const [isHierarchicalView, setIsHierarchicalView] = useState(false);
 
   const queryClient = useQueryClient();
 
@@ -170,6 +173,43 @@ export const ServerManagement: React.FC<ServerManagementProps> = ({ darkMode = t
     }
   };
 
+  // Organize servers hierarchically
+  const organizedServers = useMemo(() => {
+    if (!isHierarchicalView) {
+      return servers;
+    }
+
+    // Separate parent servers (those without a parent) and child servers
+    const parentServers = servers.filter(s => !s.parentServerId);
+    const childServers = servers.filter(s => s.parentServerId);
+
+    // Create a map of parent ID to children
+    const childrenMap = new Map<number, ManagedServer[]>();
+    childServers.forEach(child => {
+      if (child.parentServerId) {
+        const existing = childrenMap.get(child.parentServerId) || [];
+        childrenMap.set(child.parentServerId, [...existing, child]);
+      }
+    });
+
+    // Build the hierarchical list
+    const result: Array<ManagedServer & { isChild?: boolean; isLastChild?: boolean }> = [];
+
+    parentServers.forEach(parent => {
+      result.push(parent);
+      const children = childrenMap.get(parent.id) || [];
+      children.forEach((child, index) => {
+        result.push({
+          ...child,
+          isChild: true,
+          isLastChild: index === children.length - 1
+        });
+      });
+    });
+
+    return result;
+  }, [servers, isHierarchicalView]);
+
   // Show error state if there are API issues
   if (isError && serversError) {
     return (
@@ -278,33 +318,57 @@ export const ServerManagement: React.FC<ServerManagementProps> = ({ darkMode = t
 
           <div className="flex items-center space-x-3">
             {servers.length > 0 && (
-              <button
-                onClick={() => {
-                  setIsSelectionMode(!isSelectionMode);
-                  setSelectedServerIds(new Set());
-                }}
-                className={`flex items-center px-4 py-2 rounded-xl font-medium transition-all duration-300 ${
-                  isSelectionMode
-                    ? darkMode
-                      ? 'bg-gray-600 text-white'
-                      : 'bg-gray-500 text-white'
-                    : darkMode
+              <>
+                <button
+                  onClick={() => setIsHierarchicalView(!isHierarchicalView)}
+                  className={`flex items-center px-4 py-2 rounded-xl font-medium transition-all duration-300 ${
+                    darkMode
                       ? 'bg-gray-700/50 hover:bg-gray-600/50 text-gray-300 hover:text-white'
                       : 'bg-gray-100/50 hover:bg-gray-200/50 text-gray-700 hover:text-gray-900'
-                }`}
-              >
-                {isSelectionMode ? (
-                  <>
-                    <XCircle className="w-4 h-4 mr-2" />
-                    Cancel Selection
-                  </>
-                ) : (
-                  <>
-                    <CheckSquare className="w-4 h-4 mr-2" />
-                    Select Servers
-                  </>
-                )}
-              </button>
+                  }`}
+                  title={isHierarchicalView ? 'Switch to flat view' : 'Switch to hierarchical view'}
+                >
+                  {isHierarchicalView ? (
+                    <>
+                      <List className="w-4 h-4 mr-2" />
+                      Flat View
+                    </>
+                  ) : (
+                    <>
+                      <Network className="w-4 h-4 mr-2" />
+                      Hierarchy
+                    </>
+                  )}
+                </button>
+
+                <button
+                  onClick={() => {
+                    setIsSelectionMode(!isSelectionMode);
+                    setSelectedServerIds(new Set());
+                  }}
+                  className={`flex items-center px-4 py-2 rounded-xl font-medium transition-all duration-300 ${
+                    isSelectionMode
+                      ? darkMode
+                        ? 'bg-gray-600 text-white'
+                        : 'bg-gray-500 text-white'
+                      : darkMode
+                        ? 'bg-gray-700/50 hover:bg-gray-600/50 text-gray-300 hover:text-white'
+                        : 'bg-gray-100/50 hover:bg-gray-200/50 text-gray-700 hover:text-gray-900'
+                  }`}
+                >
+                  {isSelectionMode ? (
+                    <>
+                      <XCircle className="w-4 h-4 mr-2" />
+                      Cancel Selection
+                    </>
+                  ) : (
+                    <>
+                      <CheckSquare className="w-4 h-4 mr-2" />
+                      Select Servers
+                    </>
+                  )}
+                </button>
+              </>
             )}
 
             <button
@@ -460,25 +524,55 @@ export const ServerManagement: React.FC<ServerManagementProps> = ({ darkMode = t
       </div>
 
       {/* Servers Grid */}
-      <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
-        {servers.map((server: ManagedServer) => (
-          <ServerCard
+      <div className={isHierarchicalView ? 'space-y-4' : 'grid gap-6 md:grid-cols-2 lg:grid-cols-3'}>
+        {organizedServers.map((server: ManagedServer & { isChild?: boolean; isLastChild?: boolean }) => (
+          <div
             key={server.id}
-            server={server}
-            darkMode={darkMode}
-            onSelect={(server) => {
-              if (isSelectionMode) {
-                toggleServerSelection(server.id);
-              } else {
-                setSelectedServerForDetails(server);
-              }
-            }}
-            getStatusIcon={getStatusIcon}
-            getServerTypeIcon={getServerTypeIcon}
-            isSelectionMode={isSelectionMode}
-            isSelected={selectedServerIds.has(server.id)}
-            onToggleSelection={() => toggleServerSelection(server.id)}
-          />
+            className={isHierarchicalView && server.isChild ? 'ml-8 relative' : ''}
+          >
+            {/* Hierarchical visual indicators */}
+            {isHierarchicalView && server.isChild && (
+              <div className={`absolute left-0 top-0 bottom-0 w-8 flex items-center justify-center ${
+                darkMode ? 'text-gray-600' : 'text-gray-400'
+              }`}>
+                <div className="relative w-full h-full">
+                  {/* Vertical line */}
+                  {!server.isLastChild && (
+                    <div className={`absolute left-3 top-0 bottom-0 w-px ${
+                      darkMode ? 'bg-gray-700' : 'bg-gray-300'
+                    }`} />
+                  )}
+                  {/* Horizontal line */}
+                  <div className={`absolute left-3 top-1/2 w-5 h-px ${
+                    darkMode ? 'bg-gray-700' : 'bg-gray-300'
+                  }`} />
+                  {/* Corner */}
+                  {server.isLastChild && (
+                    <div className={`absolute left-3 top-0 w-px h-1/2 ${
+                      darkMode ? 'bg-gray-700' : 'bg-gray-300'
+                    }`} />
+                  )}
+                </div>
+              </div>
+            )}
+
+            <ServerCard
+              server={server}
+              darkMode={darkMode}
+              onSelect={(server) => {
+                if (isSelectionMode) {
+                  toggleServerSelection(server.id);
+                } else {
+                  setSelectedServerForDetails(server);
+                }
+              }}
+              getStatusIcon={getStatusIcon}
+              getServerTypeIcon={getServerTypeIcon}
+              isSelectionMode={isSelectionMode}
+              isSelected={selectedServerIds.has(server.id)}
+              onToggleSelection={() => toggleServerSelection(server.id)}
+            />
+          </div>
         ))}
       </div>
 

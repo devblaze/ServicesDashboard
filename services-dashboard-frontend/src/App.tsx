@@ -9,20 +9,22 @@ const ServicesList = lazy(() => import('./components/pages/ServicesList.tsx').th
 const ServerManagement = lazy(() => import('./components/pages/ServerManagement.tsx').then(module => ({ default: module.ServerManagement })));
 const DockerServices = lazy(() => import('./components/pages/DockerServicesManager.tsx').then(module => ({ default: module.DockerServices })));
 const NetworkDiscovery = lazy(() => import('./components/pages/NetworkDiscovery.tsx').then(module => ({ default: module.NetworkDiscovery })));
+const ScheduledTasksPage = lazy(() => import('./components/pages/ScheduledTasksPage.tsx').then(module => ({ default: module.ScheduledTasksPage })));
 const ApplicationSettings = lazy(() => import('./components/pages/ApplicationSettings.tsx').then(module => ({ default: module.ApplicationSettings })));
-import { 
-  Monitor, 
-  Server, 
+import {
+  Monitor,
+  Server,
   Container,
-  Network, 
+  Network,
   Settings,
   Moon,
   Sun,
-  Activity
+  Activity,
+  Clock
 } from 'lucide-react';
 import './App.css';
 
-type TabType = 'services' | 'servers' | 'docker' | 'network' | 'connection' | 'settings';
+type TabType = 'services' | 'servers' | 'docker' | 'network' | 'tasks' | 'connection' | 'settings';
 
 function App() {
   const [activeTab, setActiveTab] = useState<TabType>('services');
@@ -33,6 +35,7 @@ function App() {
     { id: 'servers' as const, name: 'Servers', icon: Server },
     { id: 'docker' as const, name: 'Docker Services', icon: Container },
     { id: 'network' as const, name: 'Discovery', icon: Network },
+    { id: 'tasks' as const, name: 'Scheduled Tasks', icon: Clock },
     { id: 'settings' as const, name: 'Settings', icon: Settings },
   ];
 
@@ -55,6 +58,8 @@ function App() {
               return <DockerServices darkMode={darkMode} />;
             case 'network':
               return <NetworkDiscovery darkMode={darkMode} />;
+            case 'tasks':
+              return <ScheduledTasksPage darkMode={darkMode} />;
             case 'settings':
               return <ApplicationSettings darkMode={darkMode} />;
             default:

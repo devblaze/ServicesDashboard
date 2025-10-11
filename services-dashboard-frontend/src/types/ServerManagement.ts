@@ -14,6 +14,9 @@ export interface ManagedServer {
   createdAt: string;
   updatedAt: string;
   tags?: string;
+  parentServerId?: number | null;
+  parentServerName?: string | null;
+  childServerCount?: number;
   healthChecks?: ServerHealthCheck[];
   updateReports?: UpdateReport[];
   alerts?: ServerAlert[];
@@ -27,6 +30,7 @@ export interface CreateServerDto {
   password: string;
   type: ServerType;
   tags?: string | null;
+  parentServerId?: number | null;
 }
 
 export interface ServerHealthCheck {

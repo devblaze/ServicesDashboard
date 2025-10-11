@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { Edit3, Save, Loader2, Trash2 } from 'lucide-react';
-import { useMutation, useQueryClient } from '@tanstack/react-query';
+import { useMutation, useQueryClient, useQuery } from '@tanstack/react-query';
 import type { ManagedServer, ServerType } from '../../../types/ServerManagement';
 import { serverManagementApi } from '../../../services/serverManagementApi';
 
@@ -18,7 +18,15 @@ interface EditForm {
   username: string;
   type: ServerType;
   tags: string;
+  parentServerId: number | null;
 }
+
+const SERVER_TYPES: { value: ServerType; label: string; icon: string }[] = [
+  { value: 'Server', label: 'Server', icon: '🖥️' },
+  { value: 'RaspberryPi', label: 'Raspberry Pi', icon: '🥧' },
+  { value: 'VirtualMachine', label: 'Virtual Machine', icon: '💻' },
+  { value: 'Container', label: 'Container', icon: '📦' },
+];
 
 export const SettingsTab: React.FC<SettingsTabProps> = ({
   server,
@@ -33,10 +41,18 @@ export const SettingsTab: React.FC<SettingsTabProps> = ({
     sshPort: server.sshPort || 22,
     username: server.username || 'root',
     type: server.type,
-    tags: server.tags || ''
+    tags: server.tags || '',
+    parentServerId: server.parentServerId || null
   });
 
   const queryClient = useQueryClient();
+
+  // Fetch existing servers for parent selection
+  const { data: existingServers = [] } = useQuery({
+    queryKey: ['managed-servers'],
+    queryFn: () => serverManagementApi.getServers(),
+    enabled: isEditing // Only fetch when editing
+  });
 
   const updateServerMutation = useMutation({
     mutationFn: (updates: Partial<ManagedServer>) => 
@@ -64,6 +80,7 @@ export const SettingsTab: React.FC<SettingsTabProps> = ({
       username: editForm.username,
       type: editForm.type,
       tags: editForm.tags || undefined,
+      parentServerId: editForm.parentServerId,
     };
     updateServerMutation.mutate(updates);
   };
@@ -174,6 +191,72 @@ export const SettingsTab: React.FC<SettingsTabProps> = ({
           value={editForm.username}
           onChange={(value) => setEditForm({...editForm, username: value})}
         />
+
+        {/* Server Type */}
+        <div>
+          <label className={`block text-sm font-medium mb-2 ${
+            darkMode ? 'text-gray-200' : 'text-gray-700'
+          }`}>
+            Server Type
+          </label>
+          {isEditing ? (
+            <select
+              value={editForm.type}
+              onChange={(e) => setEditForm({...editForm, type: e.target.value as ServerType})}
+              className={`w-full px-3 py-2 rounded-lg border ${
+                darkMode
+                  ? 'bg-gray-700/50 border-gray-600/50 text-white'
+                  : 'bg-white border-gray-300 text-gray-900'
+              } focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500/50`}
+            >
+              {SERVER_TYPES.map((type) => (
+                <option key={type.value} value={type.value}>
+                  {type.icon} {type.label}
+                </option>
+              ))}
+            </select>
+          ) : (
+            <p className={`px-3 py-2 ${darkMode ? 'text-gray-200' : 'text-gray-800'}`}>
+              {SERVER_TYPES.find(t => t.value === editForm.type)?.icon} {SERVER_TYPES.find(t => t.value === editForm.type)?.label}
+            </p>
+          )}
+        </div>
+
+        {/* Parent Server */}
+        <div>
+          <label className={`block text-sm font-medium mb-2 ${
+            darkMode ? 'text-gray-200' : 'text-gray-700'
+          }`}>
+            Parent Server <span className="text-sm font-normal text-gray-500">(optional)</span>
+          </label>
+          {isEditing ? (
+            <select
+              value={editForm.parentServerId || ''}
+              onChange={(e) => setEditForm({...editForm, parentServerId: e.target.value ? parseInt(e.target.value) : null})}
+              className={`w-full px-3 py-2 rounded-lg border ${
+                darkMode
+                  ? 'bg-gray-700/50 border-gray-600/50 text-white'
+                  : 'bg-white border-gray-300 text-gray-900'
+              } focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500/50`}
+            >
+              <option value="">None (Standalone Server)</option>
+              {existingServers
+                .filter(s => s.id !== server.id) // Don't allow selecting itself as parent
+                .map((s) => (
+                  <option key={s.id} value={s.id}>
+                    {s.name} ({s.hostAddress})
+                  </option>
+                ))}
+            </select>
+          ) : (
+            <p className={`px-3 py-2 ${darkMode ? 'text-gray-200' : 'text-gray-800'}`}>
+              {editForm.parentServerId
+                ? existingServers.find(s => s.id === editForm.parentServerId)?.name || 'Unknown'
+                : 'None (Standalone Server)'}
+            </p>
+          )}
+        </div>
+
         <FormField
           label="Tags"
           value={editForm.tags}
