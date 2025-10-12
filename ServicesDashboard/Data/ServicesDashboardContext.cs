@@ -24,6 +24,11 @@ public class ServicesDashboardContext : DbContext
     public DbSet<ScheduledTask> ScheduledTasks { get; set; }
     public DbSet<ScheduledTaskServer> ScheduledTaskServers { get; set; }
     public DbSet<TaskExecution> TaskExecutions { get; set; }
+    public DbSet<GitProviderConnection> GitProviderConnections { get; set; }
+    public DbSet<GitRepository> GitRepositories { get; set; }
+    public DbSet<Deployment> Deployments { get; set; }
+    public DbSet<DeploymentEnvironment> DeploymentEnvironments { get; set; }
+    public DbSet<PortAllocation> PortAllocations { get; set; }
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -227,6 +232,86 @@ public class ServicesDashboardContext : DbContext
             entity.HasIndex(e => e.StartedAt);
             entity.HasIndex(e => new { e.ScheduledTaskId, e.StartedAt });
             entity.HasIndex(e => new { e.ServerId, e.StartedAt });
+        });
+
+        // Configure GitProviderConnection
+        modelBuilder.Entity<GitProviderConnection>(entity =>
+        {
+            entity.HasKey(e => e.Id);
+            entity.Property(e => e.Name).IsRequired().HasMaxLength(100);
+            entity.Property(e => e.ProviderType).HasConversion<string>();
+            entity.Property(e => e.BaseUrl).IsRequired().HasMaxLength(500);
+            entity.Property(e => e.AccessToken).IsRequired().HasMaxLength(500);
+            entity.Property(e => e.CreatedAt).HasDefaultValueSql("CURRENT_TIMESTAMP");
+            entity.Property(e => e.UpdatedAt).HasDefaultValueSql("CURRENT_TIMESTAMP");
+            entity.HasIndex(e => e.Name).IsUnique();
+        });
+
+        // Configure GitRepository
+        modelBuilder.Entity<GitRepository>(entity =>
+        {
+            entity.HasKey(e => e.Id);
+            entity.HasOne(e => e.GitProviderConnection)
+                  .WithMany(e => e.Repositories)
+                  .HasForeignKey(e => e.GitProviderConnectionId)
+                  .OnDelete(DeleteBehavior.Cascade);
+            entity.Property(e => e.Name).IsRequired().HasMaxLength(200);
+            entity.Property(e => e.FullName).IsRequired().HasMaxLength(500);
+            entity.Property(e => e.CreatedAt).HasDefaultValueSql("CURRENT_TIMESTAMP");
+            entity.Property(e => e.UpdatedAt).HasDefaultValueSql("CURRENT_TIMESTAMP");
+            entity.HasIndex(e => new { e.GitProviderConnectionId, e.FullName }).IsUnique();
+        });
+
+        // Configure Deployment
+        modelBuilder.Entity<Deployment>(entity =>
+        {
+            entity.HasKey(e => e.Id);
+            entity.HasOne(e => e.GitRepository)
+                  .WithMany(e => e.Deployments)
+                  .HasForeignKey(e => e.GitRepositoryId)
+                  .OnDelete(DeleteBehavior.Cascade);
+            entity.HasOne(e => e.Server)
+                  .WithMany()
+                  .HasForeignKey(e => e.ServerId)
+                  .OnDelete(DeleteBehavior.Restrict);
+            entity.Property(e => e.Name).IsRequired().HasMaxLength(200);
+            entity.Property(e => e.Type).HasConversion<string>();
+            entity.Property(e => e.Status).HasConversion<string>();
+            entity.Property(e => e.CreatedAt).HasDefaultValueSql("CURRENT_TIMESTAMP");
+            entity.Property(e => e.UpdatedAt).HasDefaultValueSql("CURRENT_TIMESTAMP");
+            entity.HasIndex(e => new { e.GitRepositoryId, e.Name }).IsUnique();
+            entity.HasIndex(e => e.Status);
+        });
+
+        // Configure DeploymentEnvironment
+        modelBuilder.Entity<DeploymentEnvironment>(entity =>
+        {
+            entity.HasKey(e => e.Id);
+            entity.HasOne(e => e.Deployment)
+                  .WithMany(e => e.Environments)
+                  .HasForeignKey(e => e.DeploymentId)
+                  .OnDelete(DeleteBehavior.Cascade);
+            entity.Property(e => e.Name).IsRequired().HasMaxLength(100);
+            entity.Property(e => e.Type).HasConversion<string>();
+            entity.Property(e => e.CreatedAt).HasDefaultValueSql("CURRENT_TIMESTAMP");
+            entity.Property(e => e.UpdatedAt).HasDefaultValueSql("CURRENT_TIMESTAMP");
+            entity.HasIndex(e => new { e.DeploymentId, e.Name }).IsUnique();
+        });
+
+        // Configure PortAllocation
+        modelBuilder.Entity<PortAllocation>(entity =>
+        {
+            entity.HasKey(e => e.Id);
+            entity.HasOne(e => e.Server)
+                  .WithMany()
+                  .HasForeignKey(e => e.ServerId)
+                  .OnDelete(DeleteBehavior.Cascade);
+            entity.HasOne(e => e.Deployment)
+                  .WithMany(e => e.AllocatedPorts)
+                  .HasForeignKey(e => e.DeploymentId)
+                  .OnDelete(DeleteBehavior.Cascade);
+            entity.Property(e => e.AllocatedAt).HasDefaultValueSql("CURRENT_TIMESTAMP");
+            entity.HasIndex(e => new { e.ServerId, e.Port }).IsUnique();
         });
     }
 }

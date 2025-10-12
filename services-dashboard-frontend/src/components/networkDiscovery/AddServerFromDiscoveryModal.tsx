@@ -3,6 +3,7 @@ import { X, Server, Key, Loader2, AlertCircle, Check } from 'lucide-react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { sshCredentialsApi } from '../../services/sshCredentialsApi';
 import { serversApi } from '../../services/serversApi';
+import { useEscapeKey } from '../../hooks/useEscapeKey';
 import type { CreateServerRequest } from '../../services/serversApi';
 import type { DiscoveredService, StoredDiscoveredService } from '../../types/networkDiscovery';
 
@@ -137,6 +138,9 @@ export const AddServerFromDiscoveryModal: React.FC<AddServerFromDiscoveryModalPr
 
     createServerMutation.mutate(serverData);
   };
+
+  // Handle ESC key to close modal
+  useEscapeKey(onClose, !createServerMutation.isPending);
 
   return (
     <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">

@@ -1,6 +1,7 @@
 import React from 'react';
 import { X, HelpCircle } from 'lucide-react';
 import { ServerDropdown } from '../networkDiscovery/ServerDropdown.tsx';
+import { useEscapeKey } from '../../hooks/useEscapeKey';
 import type { CreateServiceDto } from '../../types/Service.ts';
 
 interface FormData extends CreateServiceDto {
@@ -69,9 +70,12 @@ export const AddServiceModal: React.FC<AddServiceModalProps> = ({
     }
   };
 
-  const isFormValid = formData.name && 
-    (formData.serviceType === 'external' || 
+  const isFormValid = formData.name &&
+    (formData.serviceType === 'external' ||
      (formData.serviceType === 'docker' && formData.dockerImage));
+
+  // Handle ESC key to close modal
+  useEscapeKey(onClose, isOpen && !isLoading);
 
   return (
     <div 

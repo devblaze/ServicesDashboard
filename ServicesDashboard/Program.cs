@@ -15,6 +15,8 @@ using ServicesDashboard.Services.Servers;
 using ServicesDashboard.Services.Settings;
 using ServicesDashboard.Services.Tasks;
 using ServicesDashboard.Hubs;
+using ServicesDashboard.Services.Deployment;
+using ServicesDashboard.Services.Git;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -72,6 +74,15 @@ builder.Services.AddScoped<IDockerServicesService, DockerServicesService>();
 builder.Services.AddScoped<IScheduledTaskService, ScheduledTaskService>();
 builder.Services.AddHostedService<ScheduledTaskExecutorWorker>();
 builder.Services.AddHttpClient();
+
+// Git Provider and Deployment Management Services
+builder.Services.AddScoped<IGitProviderService, GitProviderService>();
+builder.Services.AddScoped<IGitApiClientFactory, GitApiClientFactory>();
+builder.Services.AddScoped<IGitRepositoryService, GitRepositoryService>();
+builder.Services.AddScoped<IPortAllocationService, PortAllocationService>();
+builder.Services.AddScoped<IDeploymentService, DeploymentService>();
+builder.Services.AddScoped<IDeploymentExecutor, DeploymentExecutor>();
+builder.Services.AddScoped<IAiDeploymentAssistant, AiDeploymentAssistant>();
 
 // Add SignalR for real-time notifications
 builder.Services.AddSignalR();

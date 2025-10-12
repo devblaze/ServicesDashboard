@@ -13,6 +13,7 @@ import {
 } from 'lucide-react';
 import { serverManagementApi } from '../../services/serverManagementApi';
 import { sshCredentialsApi } from '../../services/sshCredentialsApi';
+import { useEscapeKey } from '../../hooks/useEscapeKey';
 import type { CreateServerDto, ServerType } from '../../types/ServerManagement';
 
 interface AddServerModalProps {
@@ -299,7 +300,7 @@ export const AddServerModal: React.FC<AddServerModalProps> = ({
 
   const handleClose = useCallback(() => {
     if (addServerMutation.isPending) return; // Prevent closing during submission
-    
+
     setFormData(DEFAULT_FORM_DATA);
     setErrors({});
     setShowPassword(false);
@@ -307,6 +308,9 @@ export const AddServerModal: React.FC<AddServerModalProps> = ({
     setIsTestingConnection(false);
     onClose();
   }, [addServerMutation.isPending, onClose]);
+
+  // Handle ESC key to close modal
+  useEscapeKey(handleClose, isOpen && !addServerMutation.isPending);
 
   // Don't render if not open
   if (!isOpen) return null;

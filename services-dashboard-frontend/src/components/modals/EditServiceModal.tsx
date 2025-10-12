@@ -3,6 +3,7 @@ import { X, HelpCircle, AlertTriangle, CheckCircle, Lightbulb } from 'lucide-rea
 import { ServerDropdown } from '../networkDiscovery/ServerDropdown.tsx';
 import { useQuery } from '@tanstack/react-query';
 import { apiClient } from '../../services/servicesApi.ts';
+import { useEscapeKey } from '../../hooks/useEscapeKey';
 import type { HostedService } from '../../types/Service.ts';
 import type { ServerSummary } from '../../services/servicesApi.ts';
 
@@ -188,6 +189,9 @@ export const EditServiceModal: React.FC<EditServiceModalProps> = ({
         return <Lightbulb className="w-4 h-4" />;
     }
   };
+
+  // Handle ESC key to close modal
+  useEscapeKey(onClose, isOpen && !isLoading);
 
   return (
     <div 
