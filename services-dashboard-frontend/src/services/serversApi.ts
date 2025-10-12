@@ -52,14 +52,16 @@ export interface TestConnectionResponse {
 }
 
 class ServersApi extends BaseApiClient {
+  constructor() {
+    super({ serviceName: 'Servers API' });
+  }
+
   async getServers(): Promise<ServerConnection[]> {
-    const response = await this.axiosInstance.get<ServerConnection[]>('/servers');
-    return response.data;
+    return this.request<ServerConnection[]>('get', '/servers');
   }
 
   async getServer(id: string): Promise<ServerConnection> {
-    const response = await this.axiosInstance.get<ServerConnection>(`/servers/${id}`);
-    return response.data;
+    return this.request<ServerConnection>('get', `/servers/${id}`);
   }
 
   async createServer(data: CreateServerRequest): Promise<ServerConnection> {
@@ -75,17 +77,15 @@ class ServersApi extends BaseApiClient {
       sshCredentialId: data.sshCredentialId
     };
 
-    const response = await this.axiosInstance.post<ServerConnection>('/servers', connectionDto);
-    return response.data;
+    return this.request<ServerConnection>('post', '/servers', connectionDto);
   }
 
   async updateServer(id: string, data: ServerConnectionDto): Promise<ServerConnection> {
-    const response = await this.axiosInstance.put<ServerConnection>(`/servers/${id}`, data);
-    return response.data;
+    return this.request<ServerConnection>('put', `/servers/${id}`, data);
   }
 
   async deleteServer(id: string): Promise<void> {
-    await this.axiosInstance.delete(`/servers/${id}`);
+    return this.request<void>('delete', `/servers/${id}`);
   }
 
   async testConnection(data: TestConnectionRequest): Promise<TestConnectionResponse> {
@@ -100,16 +100,15 @@ class ServersApi extends BaseApiClient {
       sshCredentialId: data.sshCredentialId
     };
 
-    const response = await this.axiosInstance.post<boolean>('/servers/test', connectionDto);
+    const success = await this.request<boolean>('post', '/servers/test', connectionDto);
     return {
-      success: response.data,
-      message: response.data ? 'Connection successful' : 'Connection failed'
+      success,
+      message: success ? 'Connection successful' : 'Connection failed'
     };
   }
 
   async testServerConnection(id: string): Promise<boolean> {
-    const response = await this.axiosInstance.post<boolean>(`/servers/${id}/test`);
-    return response.data;
+    return this.request<boolean>('post', `/servers/${id}/test`);
   }
 }
 

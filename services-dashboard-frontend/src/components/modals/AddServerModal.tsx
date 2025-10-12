@@ -14,7 +14,6 @@ import {
 import { serverManagementApi } from '../../services/serverManagementApi';
 import { sshCredentialsApi } from '../../services/sshCredentialsApi';
 import type { CreateServerDto, ServerType } from '../../types/ServerManagement';
-import type { SshCredential } from '../../services/sshCredentialsApi';
 
 interface AddServerModalProps {
   isOpen: boolean;

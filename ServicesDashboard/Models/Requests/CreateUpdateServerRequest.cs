@@ -21,6 +21,8 @@ public class CreateUpdateServerRequest
     public string? Password { get; set; } // Plain text - will be encrypted by service
     
     public string? Type { get; set; }
-    
+
     public string? Tags { get; set; }
+
+    public int? ParentServerId { get; set; }
 }

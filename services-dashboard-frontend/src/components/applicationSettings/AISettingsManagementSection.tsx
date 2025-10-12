@@ -172,7 +172,7 @@ export const AISettingsSection: React.FC<AISettingsSectionProps> = ({ darkMode =
     setSelectedProvider(provider);
     setFormData(prev => prev ? {
       ...prev,
-      provider: provider.id,
+      provider: provider.id as AISettings['provider'],
       baseUrl: provider.defaultUrl,
       model: provider.models[0] || prev.model
     } : null);

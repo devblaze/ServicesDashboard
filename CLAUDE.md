@@ -6,7 +6,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 Services Dashboard is a modern full-stack monitoring application for containerized services with AI-powered analysis and network discovery:
 
-- **Frontend**: React 19 + TypeScript + Vite + Tailwind CSS
+- **Frontend**: React 19 + TypeScript + Vite + Tailwind CSS + Yarn
 - **Backend**: .NET 9 ASP.NET Core Web API + Entity Framework Core
 - **Database**: PostgreSQL 16
 - **Containerization**: Docker & Docker Compose
@@ -34,16 +34,16 @@ docker-compose restart
 cd services-dashboard-frontend
 
 # Install dependencies
-npm install
+yarn install
 
 # Start development server with hot reload
-npm run dev
+yarn dev
 
 # Build for production
-npm run build
+yarn build
 
 # Lint code
-npm run lint
+yarn lint
 ```
 
 ### Backend Development (Local)
@@ -151,7 +151,7 @@ dotnet test --filter FullyQualifiedName~ServicesDashboard.Tests.ClassName.Method
 
 ### Making Changes
 1. For backend changes, use `dotnet watch run` or Docker Compose for live reload
-2. For frontend changes, use `npm run dev` for hot module replacement
+2. For frontend changes, use `yarn dev` for hot module replacement
 3. Database changes auto-migrate via Entity Framework on startup
 4. After changing `.env` file, restart the frontend dev server
 

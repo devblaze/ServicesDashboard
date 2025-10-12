@@ -14,7 +14,9 @@ import {
   CheckSquare,
   Square,
   Network,
-  List
+  List,
+  ChevronDown,
+  ChevronRight
 } from 'lucide-react';
 import { serverManagementApi } from '../../services/serverManagementApi.ts';
 import type { ManagedServer, ServerAlert } from '../../types/ServerManagement.ts';
@@ -32,6 +34,7 @@ export const ServerManagement: React.FC<ServerManagementProps> = ({ darkMode = t
   const [selectedServerIds, setSelectedServerIds] = useState<Set<number>>(new Set());
   const [isSelectionMode, setIsSelectionMode] = useState(false);
   const [isHierarchicalView, setIsHierarchicalView] = useState(false);
+  const [collapsedParents, setCollapsedParents] = useState<Set<number>>(new Set());
 
   const queryClient = useQueryClient();
 
@@ -174,9 +177,9 @@ export const ServerManagement: React.FC<ServerManagementProps> = ({ darkMode = t
   };
 
   // Organize servers hierarchically
-  const organizedServers = useMemo(() => {
+  const { organizedServers, childrenMap } = useMemo(() => {
     if (!isHierarchicalView) {
-      return servers;
+      return { organizedServers: servers, childrenMap: new Map() };
     }
 
     // Separate parent servers (those without a parent) and child servers
@@ -193,22 +196,37 @@ export const ServerManagement: React.FC<ServerManagementProps> = ({ darkMode = t
     });
 
     // Build the hierarchical list
-    const result: Array<ManagedServer & { isChild?: boolean; isLastChild?: boolean }> = [];
+    const result: Array<ManagedServer & { isChild?: boolean; isLastChild?: boolean; parentId?: number }> = [];
 
     parentServers.forEach(parent => {
       result.push(parent);
       const children = childrenMap.get(parent.id) || [];
-      children.forEach((child, index) => {
-        result.push({
-          ...child,
-          isChild: true,
-          isLastChild: index === children.length - 1
+
+      // Only add children if parent is not collapsed
+      if (!collapsedParents.has(parent.id)) {
+        children.forEach((child, index) => {
+          result.push({
+            ...child,
+            isChild: true,
+            isLastChild: index === children.length - 1,
+            parentId: parent.id
+          });
         });
-      });
+      }
     });
 
-    return result;
-  }, [servers, isHierarchicalView]);
+    return { organizedServers: result, childrenMap };
+  }, [servers, isHierarchicalView, collapsedParents]);
+
+  const toggleParentCollapse = (parentId: number) => {
+    const newCollapsed = new Set(collapsedParents);
+    if (newCollapsed.has(parentId)) {
+      newCollapsed.delete(parentId);
+    } else {
+      newCollapsed.add(parentId);
+    }
+    setCollapsedParents(newCollapsed);
+  };
 
   // Show error state if there are API issues
   if (isError && serversError) {
@@ -524,56 +542,105 @@ export const ServerManagement: React.FC<ServerManagementProps> = ({ darkMode = t
       </div>
 
       {/* Servers Grid */}
-      <div className={isHierarchicalView ? 'space-y-4' : 'grid gap-6 md:grid-cols-2 lg:grid-cols-3'}>
-        {organizedServers.map((server: ManagedServer & { isChild?: boolean; isLastChild?: boolean }) => (
-          <div
-            key={server.id}
-            className={isHierarchicalView && server.isChild ? 'ml-8 relative' : ''}
-          >
-            {/* Hierarchical visual indicators */}
-            {isHierarchicalView && server.isChild && (
-              <div className={`absolute left-0 top-0 bottom-0 w-8 flex items-center justify-center ${
-                darkMode ? 'text-gray-600' : 'text-gray-400'
-              }`}>
-                <div className="relative w-full h-full">
-                  {/* Vertical line */}
-                  {!server.isLastChild && (
-                    <div className={`absolute left-3 top-0 bottom-0 w-px ${
-                      darkMode ? 'bg-gray-700' : 'bg-gray-300'
-                    }`} />
-                  )}
-                  {/* Horizontal line */}
-                  <div className={`absolute left-3 top-1/2 w-5 h-px ${
-                    darkMode ? 'bg-gray-700' : 'bg-gray-300'
-                  }`} />
-                  {/* Corner */}
-                  {server.isLastChild && (
-                    <div className={`absolute left-3 top-0 w-px h-1/2 ${
-                      darkMode ? 'bg-gray-700' : 'bg-gray-300'
-                    }`} />
-                  )}
-                </div>
-              </div>
-            )}
+      <div className={isHierarchicalView ? 'space-y-2' : 'grid gap-6 md:grid-cols-2 lg:grid-cols-3'}>
+        {organizedServers.map((server: ManagedServer & { isChild?: boolean; isLastChild?: boolean; parentId?: number }) => {
+          const children = childrenMap.get(server.id) || [];
+          const hasChildren = children.length > 0;
+          const isParent = !server.isChild && hasChildren;
+          const isCollapsed = collapsedParents.has(server.id);
 
-            <ServerCard
-              server={server}
-              darkMode={darkMode}
-              onSelect={(server) => {
-                if (isSelectionMode) {
-                  toggleServerSelection(server.id);
-                } else {
-                  setSelectedServerForDetails(server);
-                }
-              }}
-              getStatusIcon={getStatusIcon}
-              getServerTypeIcon={getServerTypeIcon}
-              isSelectionMode={isSelectionMode}
-              isSelected={selectedServerIds.has(server.id)}
-              onToggleSelection={() => toggleServerSelection(server.id)}
-            />
-          </div>
-        ))}
+          return (
+            <div key={server.id}>
+              {/* Parent Server Header with Child Count */}
+              {isHierarchicalView && isParent && (
+                <div
+                  className={`mb-2 p-3 rounded-lg border cursor-pointer transition-all ${
+                    darkMode
+                      ? 'bg-gradient-to-r from-blue-900/30 to-purple-900/30 border-blue-700/50 hover:border-blue-600/70'
+                      : 'bg-gradient-to-r from-blue-50/50 to-purple-50/50 border-blue-200/50 hover:border-blue-300/70'
+                  }`}
+                  onClick={() => toggleParentCollapse(server.id)}
+                >
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center space-x-3">
+                      {isCollapsed ? (
+                        <ChevronRight className={`w-5 h-5 ${darkMode ? 'text-blue-400' : 'text-blue-600'}`} />
+                      ) : (
+                        <ChevronDown className={`w-5 h-5 ${darkMode ? 'text-blue-400' : 'text-blue-600'}`} />
+                      )}
+                      <Server className={`w-5 h-5 ${darkMode ? 'text-blue-400' : 'text-blue-600'}`} />
+                      <div>
+                        <h3 className={`font-semibold ${darkMode ? 'text-white' : 'text-gray-900'}`}>
+                          {server.name}
+                        </h3>
+                        <p className={`text-xs ${darkMode ? 'text-gray-400' : 'text-gray-600'}`}>
+                          {server.hostAddress}
+                        </p>
+                      </div>
+                    </div>
+                    <div className="flex items-center space-x-2">
+                      <div className={`px-3 py-1 rounded-full text-xs font-medium ${
+                        darkMode ? 'bg-blue-900/50 text-blue-300' : 'bg-blue-100 text-blue-700'
+                      }`}>
+                        {children.length} {children.length === 1 ? 'VM' : 'VMs'}
+                      </div>
+                      {getStatusIcon(server.status)}
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {/* Server Card Container */}
+              <div className={isHierarchicalView && server.isChild ? 'ml-12 relative' : ''}>
+                {/* Hierarchical visual indicators for child servers */}
+                {isHierarchicalView && server.isChild && (
+                  <div className={`absolute -left-12 top-0 bottom-0 w-12 flex items-center ${
+                    darkMode ? 'text-gray-600' : 'text-gray-400'
+                  }`}>
+                    <div className="relative w-full h-full">
+                      {/* Vertical line */}
+                      {!server.isLastChild && (
+                        <div className={`absolute left-6 top-0 bottom-0 w-px ${
+                          darkMode ? 'bg-gray-700' : 'bg-gray-300'
+                        }`} />
+                      )}
+                      {/* Horizontal line */}
+                      <div className={`absolute left-6 top-1/2 w-6 h-px ${
+                        darkMode ? 'bg-gray-700' : 'bg-gray-300'
+                      }`} />
+                      {/* Corner for last child */}
+                      {server.isLastChild && (
+                        <div className={`absolute left-6 top-0 w-px h-1/2 ${
+                          darkMode ? 'bg-gray-700' : 'bg-gray-300'
+                        }`} />
+                      )}
+                    </div>
+                  </div>
+                )}
+
+                {/* Only show card if not a parent with children in hierarchical view, or if it's a child */}
+                {(!isHierarchicalView || !isParent || server.isChild) && (
+                  <ServerCard
+                    server={server}
+                    darkMode={darkMode}
+                    onSelect={(server) => {
+                      if (isSelectionMode) {
+                        toggleServerSelection(server.id);
+                      } else {
+                        setSelectedServerForDetails(server);
+                      }
+                    }}
+                    getStatusIcon={getStatusIcon}
+                    getServerTypeIcon={getServerTypeIcon}
+                    isSelectionMode={isSelectionMode}
+                    isSelected={selectedServerIds.has(server.id)}
+                    onToggleSelection={() => toggleServerSelection(server.id)}
+                  />
+                )}
+              </div>
+            </div>
+          );
+        })}
       </div>
 
       {/* Empty state */}
