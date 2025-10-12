@@ -95,6 +95,12 @@ namespace ServicesDashboard.Migrations
                         .HasColumnType("timestamp with time zone")
                         .HasDefaultValueSql("CURRENT_TIMESTAMP");
 
+                    b.Property<string>("CustomIconData")
+                        .HasColumnType("text");
+
+                    b.Property<string>("CustomIconUrl")
+                        .HasColumnType("text");
+
                     b.Property<int>("Order")
                         .HasColumnType("integer");
 

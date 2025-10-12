@@ -9,6 +9,7 @@ public interface IDockerServicesService
 {
     Task<List<DockerServiceWithServer>> ApplyArrangementsAsync(List<DockerServiceWithServer> services);
     Task UpdateArrangementsAsync(List<DockerServiceArrangementDto> arrangements);
+    Task<bool> UpdateServiceIconAsync(int serverId, string containerId, string? iconUrl, string? iconData);
 }
 
 public class DockerServicesService : IDockerServicesService
@@ -27,12 +28,21 @@ public class DockerServicesService : IDockerServicesService
         try
         {
             var arrangements = await _context.DockerServiceArrangements
-                .ToDictionaryAsync(a => $"{a.ServerId}:{a.ContainerId}", a => a.Order);
+                .ToDictionaryAsync(a => $"{a.ServerId}:{a.ContainerId}", a => a);
 
-            var arrangedServices = services.Select(service => 
+            var arrangedServices = services.Select(service =>
             {
                 var key = $"{service.ServerId}:{service.ContainerId}";
-                service.Order = arrangements.TryGetValue(key, out var order) ? order : int.MaxValue;
+                if (arrangements.TryGetValue(key, out var arrangement))
+                {
+                    service.Order = arrangement.Order;
+                    service.CustomIconUrl = arrangement.CustomIconUrl;
+                    service.CustomIconData = arrangement.CustomIconData;
+                }
+                else
+                {
+                    service.Order = int.MaxValue;
+                }
                 return service;
             }).ToList();
 
@@ -85,6 +95,46 @@ public class DockerServicesService : IDockerServicesService
         {
             _logger.LogError(ex, "Error updating arrangements");
             throw;
+        }
+    }
+
+    public async Task<bool> UpdateServiceIconAsync(int serverId, string containerId, string? iconUrl, string? iconData)
+    {
+        try
+        {
+            var key = $"{serverId}:{containerId}";
+            var arrangement = await _context.DockerServiceArrangements
+                .FirstOrDefaultAsync(a => a.ServerId == serverId && a.ContainerId == containerId);
+
+            if (arrangement == null)
+            {
+                // Create new arrangement if it doesn't exist
+                var containerName = containerId.Length > 12 ? containerId.Substring(0, 12) : containerId;
+                arrangement = new DockerServiceArrangement
+                {
+                    ServerId = serverId,
+                    ContainerId = containerId,
+                    ContainerName = containerName,
+                    Order = int.MaxValue,
+                    CustomIconUrl = iconUrl,
+                    CustomIconData = iconData
+                };
+                _context.DockerServiceArrangements.Add(arrangement);
+            }
+            else
+            {
+                arrangement.CustomIconUrl = iconUrl;
+                arrangement.CustomIconData = iconData;
+                arrangement.UpdatedAt = DateTime.UtcNow;
+            }
+
+            await _context.SaveChangesAsync();
+            return true;
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error updating service icon for {ContainerId}", containerId);
+            return false;
         }
     }
 }

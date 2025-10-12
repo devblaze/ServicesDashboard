@@ -1,3 +1,5 @@
+using FastEndpoints;
+using FastEndpoints.Swagger;
 using ServicesDashboard.Services;
 using ServicesDashboard.Services.LogCollection;
 using ServicesDashboard.Services.NetworkDiscovery;
@@ -16,13 +18,11 @@ using ServicesDashboard.Hubs;
 
 var builder = WebApplication.CreateBuilder(args);
 
-// Add services to the container.
-builder.Services.AddControllers()
-    .AddJsonOptions(options =>
-    {
-        options.JsonSerializerOptions.ReferenceHandler = ReferenceHandler.IgnoreCycles;
-        options.JsonSerializerOptions.WriteIndented = true;
-    });
+// Add FastEndpoints
+builder.Services.AddFastEndpoints();
+
+// Controllers have been replaced with FastEndpoints
+// JSON options are now configured via ConfigureHttpJsonOptions below
 
 builder.Services.AddEndpointsApiExplorer();
 
@@ -43,21 +43,15 @@ builder.Services.AddSingleton<IOllamaApiClient>(provider =>
 // Add logging to see Swagger generation errors
 builder.Services.AddLogging(builder => builder.AddConsole().SetMinimumLevel(LogLevel.Debug));
 
-// Configure Swagger/OpenAPI
-builder.Services.AddSwaggerGen(c =>
+// Configure Swagger/OpenAPI via FastEndpoints
+builder.Services.SwaggerDocument(o =>
 {
-    c.SwaggerDoc("v1", new OpenApiInfo
+    o.DocumentSettings = s =>
     {
-        Title = "Services Dashboard API",
-        Version = "v1",
-        Description = "API for managing and monitoring containerized services"
-    });
-
-    // Use full type names to avoid conflicts
-    c.CustomSchemaIds(type => type.FullName?.Replace("+", "."));
-        
-    // Add more verbose error handling
-    c.OperationFilter<SwaggerOperationFilter>();
+        s.Title = "Services Dashboard API";
+        s.Version = "v1";
+        s.Description = "API for managing and monitoring containerized services";
+    };
 });
 
 // Register our services
@@ -119,14 +113,6 @@ app.UseForwardedHeaders();
 await ApplyMigrationsAsync(app.Services);
 
 // Configure the HTTP request pipeline.
-// Enable Swagger in all environments for development
-app.UseSwagger();
-app.UseSwaggerUI(c =>
-{
-    c.SwaggerEndpoint("/swagger/v1/swagger.json", "Services Dashboard API v1");
-    c.RoutePrefix = "swagger";
-});
-
 // Keep the developer exception page only for development
 if (app.Environment.IsDevelopment())
 {
@@ -135,9 +121,15 @@ if (app.Environment.IsDevelopment())
 
 // Rest of your configuration...
 app.UseCors();
-app.MapGet("/health", () => new { Status = "Healthy", Timestamp = DateTime.UtcNow, Environment = app.Environment.EnvironmentName });
 app.UseAuthorization();
-app.MapControllers();
+
+// Use FastEndpoints
+app.UseFastEndpoints();
+
+// Enable Swagger via FastEndpoints
+app.UseSwaggerGen();
+
+// Map SignalR hub
 app.MapHub<DiscoveryNotificationHub>("/hubs/discovery");
 
 Console.WriteLine("🚀 Application starting...");
@@ -240,15 +232,6 @@ static async Task SeedInitialDataAsync(ServicesDashboardContext context, ILogger
     {
         logger.LogError(ex, "❌ Error seeding initial data: {ErrorMessage}", ex.Message);
         // Don't throw - seeding is optional
-    }
-}
-
-// Operation filter to help debug Swagger issues
-public class SwaggerOperationFilter : Swashbuckle.AspNetCore.SwaggerGen.IOperationFilter
-{
-    public void Apply(Microsoft.OpenApi.Models.OpenApiOperation operation, Swashbuckle.AspNetCore.SwaggerGen.OperationFilterContext context)
-    {
-        Console.WriteLine($"Processing operation: {context.MethodInfo.DeclaringType?.Name}.{context.MethodInfo.Name}");
     }
 }
 

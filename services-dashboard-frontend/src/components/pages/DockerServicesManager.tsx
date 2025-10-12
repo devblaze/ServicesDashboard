@@ -1,8 +1,8 @@
 import { useState, useEffect, useMemo } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { 
-  Container, 
-  Search, 
+import {
+  Container,
+  Search,
   ArrowUpDown,
   Play,
   Square,
@@ -10,7 +10,10 @@ import {
   Server,
   Clock,
   Tag,
-  Grip
+  Grip,
+  Layers,
+  Upload,
+  X
 } from 'lucide-react';
 import { dockerServicesApi } from '../../services/DockerServicesApi.ts';
 import { DragDropContext, Droppable, Draggable } from '@hello-pangea/dnd';
@@ -33,6 +36,8 @@ interface DockerService {
   serverName: string;
   serverHostAddress: string;
   order: number;
+  customIconUrl?: string;
+  customIconData?: string;
   statusColor: string;
   isRunning: boolean;
   displayImage: string;
@@ -49,6 +54,10 @@ export function DockerServices({ darkMode }: DockerServicesProps) {
   const [serverFilter, setServerFilter] = useState<string>('all');
   const [isArranging, setIsArranging] = useState(false);
   const [arrangedServices, setArrangedServices] = useState<DockerService[]>([]);
+  const [groupByServer, setGroupByServer] = useState(true);
+  const [uploadModalOpen, setUploadModalOpen] = useState(false);
+  const [selectedService, setSelectedService] = useState<DockerService | null>(null);
+  const [iconUrl, setIconUrl] = useState('');
 
   const queryClient = useQueryClient();
 
@@ -99,19 +108,28 @@ export function DockerServices({ darkMode }: DockerServicesProps) {
     },
   });
 
+  const updateIconMutation = useMutation({
+    mutationFn: ({ serverId, containerId, iconUrl, iconData }: { serverId: number; containerId: string; iconUrl?: string; iconData?: string }) =>
+      dockerServicesApi.updateServiceIcon(serverId, containerId, iconUrl, iconData),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['docker-services'] });
+      setUploadModalOpen(false);
+      setSelectedService(null);
+      setIconUrl('');
+    },
+  });
+
   const filteredServices = useMemo(() => {
     return arrangedServices
       .filter(service => {
-        // Filter out exited containers by default (unless explicitly filtered for)
-        if (statusFilter === 'all' && service.status.toLowerCase() === 'exited') {
-          return false;
-        }
-
         const matchesSearch = service.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
                              service.image.toLowerCase().includes(searchTerm.toLowerCase()) ||
                              service.serverName.toLowerCase().includes(searchTerm.toLowerCase());
 
-        const matchesStatus = statusFilter === 'all' || service.status.toLowerCase() === statusFilter.toLowerCase();
+        // Fix status filter to check isRunning property instead of exact status match
+        const matchesStatus = statusFilter === 'all' ||
+                             (statusFilter === 'running' && service.isRunning) ||
+                             (statusFilter === 'stopped' && !service.isRunning);
         const matchesServer = serverFilter === 'all' || service.serverId.toString() === serverFilter;
 
         return matchesSearch && matchesStatus && matchesServer;
@@ -137,10 +155,33 @@ export function DockerServices({ darkMode }: DockerServicesProps) {
       .sort((a, b) => a.name.localeCompare(b.name));
   }, [services]);
 
-  const uniqueStatuses = useMemo(() => {
-    return Array.from(new Set(services.map(s => s.status)))
-      .sort();
-  }, [services]);
+  // Group services by server
+  const groupedServices = useMemo(() => {
+    if (!groupByServer) return null;
+
+    const groups = new Map<number, { serverName: string; serverHostAddress: string; services: DockerService[] }>();
+
+    filteredServices.forEach(service => {
+      if (!groups.has(service.serverId)) {
+        groups.set(service.serverId, {
+          serverName: service.serverName,
+          serverHostAddress: service.serverHostAddress,
+          services: []
+        });
+      }
+      groups.get(service.serverId)!.services.push(service);
+    });
+
+    // Sort groups by server name
+    return Array.from(groups.entries())
+      .sort((a, b) => a[1].serverName.localeCompare(b[1].serverName))
+      .map(([serverId, data]) => ({
+        serverId,
+        ...data,
+        runningCount: data.services.filter(s => s.isRunning).length,
+        stoppedCount: data.services.filter(s => !s.isRunning).length
+      }));
+  }, [filteredServices, groupByServer]);
 
   const handleDragEnd = (result: DropResult) => {
     if (!result.destination) return;
@@ -169,6 +210,89 @@ export function DockerServices({ darkMode }: DockerServicesProps) {
     refetch();
   };
 
+  const handleFileUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (!file) return;
+
+    const reader = new FileReader();
+    reader.onloadend = () => {
+      const base64String = reader.result as string;
+      if (selectedService) {
+        updateIconMutation.mutate({
+          serverId: selectedService.serverId,
+          containerId: selectedService.containerId,
+          iconData: base64String
+        });
+      }
+    };
+    reader.readAsDataURL(file);
+  };
+
+  const handleIconUrlSubmit = () => {
+    if (selectedService && iconUrl.trim()) {
+      updateIconMutation.mutate({
+        serverId: selectedService.serverId,
+        containerId: selectedService.containerId,
+        iconUrl: iconUrl.trim()
+      });
+    }
+  };
+
+  const openUploadModal = (service: DockerService) => {
+    setSelectedService(service);
+    setUploadModalOpen(true);
+  };
+
+  const getContainerIcon = (imageName: string): string => {
+    // Extract the repository name from the image
+    const parts = imageName.split('/');
+    let repo = '';
+
+    if (parts.length === 1) {
+      // Official image like "nginx:latest"
+      repo = parts[0].split(':')[0];
+    } else if (parts.length === 2 && !parts[0].includes('.')) {
+      // Format like "library/redis" or "user/repo"
+      repo = parts[1].split(':')[0];
+    } else {
+      // Custom registry or complex format - use last part
+      repo = parts[parts.length - 1].split(':')[0];
+    }
+
+    // Use simple-icons CDN for popular services
+    // Map common container names to their logo equivalents
+    const iconMap: { [key: string]: string } = {
+      'nginx': 'nginx',
+      'redis': 'redis',
+      'postgres': 'postgresql',
+      'postgresql': 'postgresql',
+      'mysql': 'mysql',
+      'mongo': 'mongodb',
+      'mongodb': 'mongodb',
+      'elasticsearch': 'elasticsearch',
+      'rabbitmq': 'rabbitmq',
+      'node': 'nodedotjs',
+      'python': 'python',
+      'grafana': 'grafana',
+      'prometheus': 'prometheus',
+      'traefik': 'traefik',
+      'portainer': 'portainer',
+      'sonarqube': 'sonarqube',
+      'jenkins': 'jenkins',
+      'gitlab': 'gitlab',
+      'nextcloud': 'nextcloud',
+      'wordpress': 'wordpress',
+      'mariadb': 'mariadb',
+      'influxdb': 'influxdb',
+      'minio': 'minio',
+    };
+
+    const iconName = iconMap[repo.toLowerCase()] || repo.toLowerCase();
+
+    // Use simple-icons CDN with a fallback
+    return `https://cdn.simpleicons.org/${iconName}`;
+  };
+
   const getStatusIcon = (status: string) => {
     switch (status.toLowerCase()) {
       case 'running':
@@ -184,13 +308,17 @@ export function DockerServices({ darkMode }: DockerServicesProps) {
     }
   };
 
-  const renderServiceCard = (service: DockerService) => (
+  const renderServiceCard = (service: DockerService, hideServerInfo = false) => (
     <div
       key={service.containerId}
-      className={`p-6 rounded-xl shadow-sm border transition-all duration-200 ${
-        darkMode
-          ? 'bg-gray-800/50 border-gray-700/50 hover:bg-gray-800/70'
-          : 'bg-white border-gray-200 hover:shadow-md'
+      className={`p-6 rounded-xl shadow-sm border-2 transition-all duration-200 ${
+        service.isRunning
+          ? darkMode
+            ? 'bg-gray-800/50 border-green-500/30 hover:bg-gray-800/70 hover:border-green-500/50'
+            : 'bg-white border-green-200 hover:shadow-md hover:border-green-300'
+          : darkMode
+            ? 'bg-gray-800/30 border-gray-700/30 hover:bg-gray-800/50'
+            : 'bg-gray-50 border-gray-200 hover:shadow-md'
       }`}
     >
       <div className="flex items-start justify-between">
@@ -199,19 +327,59 @@ export function DockerServices({ darkMode }: DockerServicesProps) {
             {isArranging && (
               <Grip className={`w-4 h-4 cursor-grab ${darkMode ? 'text-gray-400' : 'text-gray-500'}`} />
             )}
-            <Container className={`w-5 h-5 ${
-              service.isRunning 
+
+            {/* Container Icon */}
+            {service.customIconData ? (
+              <img
+                src={service.customIconData}
+                alt={service.name}
+                className="w-10 h-10 rounded object-cover"
+                onError={(e) => {
+                  e.currentTarget.style.display = 'none';
+                  e.currentTarget.nextElementSibling?.classList.remove('hidden');
+                }}
+              />
+            ) : service.customIconUrl ? (
+              <img
+                src={service.customIconUrl}
+                alt={service.name}
+                className="w-10 h-10 rounded object-cover"
+                onError={(e) => {
+                  e.currentTarget.style.display = 'none';
+                  e.currentTarget.nextElementSibling?.classList.remove('hidden');
+                }}
+              />
+            ) : (
+              <img
+                src={getContainerIcon(service.image)}
+                alt={service.displayImage}
+                className="w-10 h-10 rounded object-cover"
+                onError={(e) => {
+                  e.currentTarget.style.display = 'none';
+                  e.currentTarget.nextElementSibling?.classList.remove('hidden');
+                }}
+              />
+            )}
+            <Container className={`w-8 h-8 hidden ${
+              service.isRunning
                 ? darkMode ? 'text-green-400' : 'text-green-600'
                 : darkMode ? 'text-gray-400' : 'text-gray-500'
             }`} />
+
             <div>
               <h3 className={`font-semibold ${darkMode ? 'text-white' : 'text-gray-900'}`}>
                 {service.name}
               </h3>
               <div className="flex items-center space-x-2 mt-1">
                 {getStatusIcon(service.status)}
-                <span className={`text-sm capitalize ${
-                  darkMode ? 'text-gray-300' : 'text-gray-600'
+                <span className={`text-sm font-medium capitalize px-2 py-0.5 rounded ${
+                  service.isRunning
+                    ? darkMode
+                      ? 'text-green-400 bg-green-900/30'
+                      : 'text-green-700 bg-green-100'
+                    : darkMode
+                      ? 'text-red-400 bg-red-900/30'
+                      : 'text-red-700 bg-red-100'
                 }`}>
                   {service.status}
                 </span>
@@ -229,13 +397,15 @@ export function DockerServices({ darkMode }: DockerServicesProps) {
                 </span>
               </span>
             </div>
-            
-            <div className="flex items-center space-x-2">
-              <Server className={`w-4 h-4 ${darkMode ? 'text-gray-400' : 'text-gray-500'}`} />
-              <span className={`text-sm ${darkMode ? 'text-gray-300' : 'text-gray-600'}`}>
-                {service.serverName} ({service.serverHostAddress})
-              </span>
-            </div>
+
+            {!hideServerInfo && (
+              <div className="flex items-center space-x-2">
+                <Server className={`w-4 h-4 ${darkMode ? 'text-gray-400' : 'text-gray-500'}`} />
+                <span className={`text-sm ${darkMode ? 'text-gray-300' : 'text-gray-600'}`}>
+                  {service.serverName} ({service.serverHostAddress})
+                </span>
+              </div>
+            )}
 
             {service.ports.length > 0 && (
               <div className="flex items-center space-x-2">
@@ -274,57 +444,70 @@ export function DockerServices({ darkMode }: DockerServicesProps) {
         </div>
 
         {!isArranging && (
-          <div className="flex space-x-2">
-            {service.isRunning ? (
-              <>
+          <div className="flex flex-col space-y-2">
+            <div className="flex space-x-2">
+              {service.isRunning ? (
+                <>
+                  <button
+                    onClick={() => stopContainerMutation.mutate({
+                      serverId: service.serverId,
+                      containerId: service.containerId
+                    })}
+                    disabled={stopContainerMutation.isPending}
+                    className={`p-2 rounded-lg transition-colors ${
+                      darkMode
+                        ? 'bg-red-900/30 hover:bg-red-900/50 text-red-400'
+                        : 'bg-red-100 hover:bg-red-200 text-red-600'
+                    }`}
+                    title="Stop Container"
+                  >
+                    <Square className="w-4 h-4" />
+                  </button>
+                  <button
+                    onClick={() => restartContainerMutation.mutate({
+                      serverId: service.serverId,
+                      containerId: service.containerId
+                    })}
+                    disabled={restartContainerMutation.isPending}
+                    className={`p-2 rounded-lg transition-colors ${
+                      darkMode
+                        ? 'bg-blue-900/30 hover:bg-blue-900/50 text-blue-400'
+                        : 'bg-blue-100 hover:bg-blue-200 text-blue-600'
+                    }`}
+                    title="Restart Container"
+                  >
+                    <RotateCcw className="w-4 h-4" />
+                  </button>
+                </>
+              ) : (
                 <button
-                  onClick={() => stopContainerMutation.mutate({
+                  onClick={() => startContainerMutation.mutate({
                     serverId: service.serverId,
                     containerId: service.containerId
                   })}
-                  disabled={stopContainerMutation.isPending}
+                  disabled={startContainerMutation.isPending}
                   className={`p-2 rounded-lg transition-colors ${
                     darkMode
-                      ? 'bg-red-900/30 hover:bg-red-900/50 text-red-400'
-                      : 'bg-red-100 hover:bg-red-200 text-red-600'
+                      ? 'bg-green-900/30 hover:bg-green-900/50 text-green-400'
+                      : 'bg-green-100 hover:bg-green-200 text-green-600'
                   }`}
-                  title="Stop Container"
+                  title="Start Container"
                 >
-                  <Square className="w-4 h-4" />
+                  <Play className="w-4 h-4" />
                 </button>
-                <button
-                  onClick={() => restartContainerMutation.mutate({
-                    serverId: service.serverId,
-                    containerId: service.containerId
-                  })}
-                  disabled={restartContainerMutation.isPending}
-                  className={`p-2 rounded-lg transition-colors ${
-                    darkMode
-                      ? 'bg-blue-900/30 hover:bg-blue-900/50 text-blue-400'
-                      : 'bg-blue-100 hover:bg-blue-200 text-blue-600'
-                  }`}
-                  title="Restart Container"
-                >
-                  <RotateCcw className="w-4 h-4" />
-                </button>
-              </>
-            ) : (
-              <button
-                onClick={() => startContainerMutation.mutate({
-                  serverId: service.serverId,
-                  containerId: service.containerId
-                })}
-                disabled={startContainerMutation.isPending}
-                className={`p-2 rounded-lg transition-colors ${
-                  darkMode
-                    ? 'bg-green-900/30 hover:bg-green-900/50 text-green-400'
-                    : 'bg-green-100 hover:bg-green-200 text-green-600'
-                }`}
-                title="Start Container"
-              >
-                <Play className="w-4 h-4" />
-              </button>
-            )}
+              )}
+            </div>
+            <button
+              onClick={() => openUploadModal(service)}
+              className={`p-2 rounded-lg transition-colors ${
+                darkMode
+                  ? 'bg-purple-900/30 hover:bg-purple-900/50 text-purple-400'
+                  : 'bg-purple-100 hover:bg-purple-200 text-purple-600'
+              }`}
+              title="Upload Custom Icon"
+            >
+              <Upload className="w-4 h-4" />
+            </button>
           </div>
         )}
       </div>
@@ -435,15 +618,9 @@ export function DockerServices({ darkMode }: DockerServicesProps) {
               : 'bg-white border-gray-300 text-gray-900'
           }`}
         >
-          <option value="all">Active Containers</option>
-          <option value="running">Running</option>
-          <option value="exited">Stopped</option>
-          {uniqueStatuses
-            .filter(status => status.toLowerCase() !== 'running' && status.toLowerCase() !== 'exited')
-            .map(status => (
-              <option key={status} value={status}>{status}</option>
-            ))
-          }
+          <option value="all">All Containers</option>
+          <option value="running">Running Only</option>
+          <option value="stopped">Stopped Only</option>
         </select>
 
         <select
@@ -460,6 +637,23 @@ export function DockerServices({ darkMode }: DockerServicesProps) {
             <option key={server.id} value={server.id}>{server.name}</option>
           ))}
         </select>
+
+        <button
+          onClick={() => setGroupByServer(!groupByServer)}
+          className={`px-4 py-2 rounded-lg border flex items-center space-x-2 transition-colors ${
+            groupByServer
+              ? darkMode
+                ? 'bg-blue-900/30 border-blue-600/50 text-blue-400'
+                : 'bg-blue-50 border-blue-300 text-blue-700'
+              : darkMode
+                ? 'bg-gray-800/50 border-gray-600 text-gray-300'
+                : 'bg-white border-gray-300 text-gray-700'
+          }`}
+          title={groupByServer ? 'Grouped by server' : 'Not grouped'}
+        >
+          <Layers className="w-4 h-4" />
+          <span>Group by Server</span>
+        </button>
       </div>
 
       {/* Error Display */}
@@ -552,6 +746,49 @@ export function DockerServices({ darkMode }: DockerServicesProps) {
             )}
           </Droppable>
         </DragDropContext>
+      ) : groupByServer && groupedServices ? (
+        <div className="space-y-8">
+          {groupedServices.map((group) => (
+            <div key={group.serverId} className="space-y-4">
+              <div className={`flex items-center justify-between p-4 rounded-lg ${
+                darkMode
+                  ? 'bg-gray-800/30 border border-gray-700/50'
+                  : 'bg-gray-50 border border-gray-200'
+              }`}>
+                <div className="flex items-center space-x-3">
+                  <Server className={`w-5 h-5 ${darkMode ? 'text-blue-400' : 'text-blue-600'}`} />
+                  <div>
+                    <h2 className={`text-lg font-semibold ${darkMode ? 'text-white' : 'text-gray-900'}`}>
+                      {group.serverName}
+                    </h2>
+                    <p className={`text-sm ${darkMode ? 'text-gray-400' : 'text-gray-600'}`}>
+                      {group.serverHostAddress}
+                    </p>
+                  </div>
+                </div>
+                <div className="flex items-center space-x-4">
+                  <div className="flex items-center space-x-2">
+                    <div className="w-2 h-2 bg-green-400 rounded-full"></div>
+                    <span className={`text-sm ${darkMode ? 'text-gray-300' : 'text-gray-700'}`}>
+                      {group.runningCount} running
+                    </span>
+                  </div>
+                  {group.stoppedCount > 0 && (
+                    <div className="flex items-center space-x-2">
+                      <div className="w-2 h-2 bg-red-400 rounded-full"></div>
+                      <span className={`text-sm ${darkMode ? 'text-gray-300' : 'text-gray-700'}`}>
+                        {group.stoppedCount} stopped
+                      </span>
+                    </div>
+                  )}
+                </div>
+              </div>
+              <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
+                {group.services.map((service) => renderServiceCard(service, true))}
+              </div>
+            </div>
+          ))}
+        </div>
       ) : (
         <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
           {filteredServices.map((service) => renderServiceCard(service))}
@@ -567,6 +804,111 @@ export function DockerServices({ darkMode }: DockerServicesProps) {
               {services.filter(s => s.isRunning).length} running
             </span>
           )}
+        </div>
+      )}
+
+      {/* Icon Upload Modal */}
+      {uploadModalOpen && selectedService && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
+          <div className={`rounded-lg shadow-xl max-w-md w-full mx-4 ${
+            darkMode ? 'bg-gray-800' : 'bg-white'
+          }`}>
+            <div className={`flex items-center justify-between p-6 border-b ${
+              darkMode ? 'border-gray-700' : 'border-gray-200'
+            }`}>
+              <h3 className={`text-lg font-semibold ${darkMode ? 'text-white' : 'text-gray-900'}`}>
+                Upload Icon for {selectedService.name}
+              </h3>
+              <button
+                onClick={() => {
+                  setUploadModalOpen(false);
+                  setSelectedService(null);
+                  setIconUrl('');
+                }}
+                className={`p-1 rounded-lg transition-colors ${
+                  darkMode
+                    ? 'hover:bg-gray-700 text-gray-400'
+                    : 'hover:bg-gray-100 text-gray-500'
+                }`}
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <div className="p-6 space-y-6">
+              {/* File Upload */}
+              <div>
+                <label className={`block text-sm font-medium mb-2 ${
+                  darkMode ? 'text-gray-300' : 'text-gray-700'
+                }`}>
+                  Upload Custom Icon
+                </label>
+                <input
+                  type="file"
+                  accept="image/*"
+                  onChange={handleFileUpload}
+                  className={`w-full px-3 py-2 rounded-lg border ${
+                    darkMode
+                      ? 'bg-gray-700 border-gray-600 text-white'
+                      : 'bg-white border-gray-300 text-gray-900'
+                  }`}
+                />
+                <p className={`text-xs mt-1 ${darkMode ? 'text-gray-400' : 'text-gray-500'}`}>
+                  Upload a custom icon image (PNG, JPG, etc.)
+                </p>
+              </div>
+
+              {/* URL Input */}
+              <div>
+                <label className={`block text-sm font-medium mb-2 ${
+                  darkMode ? 'text-gray-300' : 'text-gray-700'
+                }`}>
+                  Or Enter Icon URL
+                </label>
+                <div className="flex space-x-2">
+                  <input
+                    type="url"
+                    value={iconUrl}
+                    onChange={(e) => setIconUrl(e.target.value)}
+                    placeholder="https://example.com/icon.png"
+                    className={`flex-1 px-3 py-2 rounded-lg border ${
+                      darkMode
+                        ? 'bg-gray-700 border-gray-600 text-white placeholder-gray-400'
+                        : 'bg-white border-gray-300 text-gray-900 placeholder-gray-500'
+                    }`}
+                  />
+                  <button
+                    onClick={handleIconUrlSubmit}
+                    disabled={!iconUrl.trim() || updateIconMutation.isPending}
+                    className={`px-4 py-2 rounded-lg transition-colors ${
+                      !iconUrl.trim() || updateIconMutation.isPending
+                        ? darkMode
+                          ? 'bg-gray-700 text-gray-500 cursor-not-allowed'
+                          : 'bg-gray-100 text-gray-400 cursor-not-allowed'
+                        : 'bg-blue-600 hover:bg-blue-700 text-white'
+                    }`}
+                  >
+                    Set
+                  </button>
+                </div>
+                <p className={`text-xs mt-1 ${darkMode ? 'text-gray-400' : 'text-gray-500'}`}>
+                  Provide a direct URL to an icon image
+                </p>
+              </div>
+
+              {/* Loading State */}
+              {updateIconMutation.isPending && (
+                <div className="flex items-center justify-center py-4">
+                  <div className={`animate-spin rounded-full h-6 w-6 border-b-2 ${
+                    darkMode ? 'border-blue-400' : 'border-blue-600'
+                  }`} />
+                  <span className={`ml-2 text-sm ${darkMode ? 'text-gray-300' : 'text-gray-700'}`}>
+                    Uploading...
+                  </span>
+                </div>
+              )}
+            </div>
+          </div>
         </div>
       )}
     </div>

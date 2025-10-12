@@ -1082,9 +1082,10 @@ If some information cannot be determined, use null or reasonable defaults. Focus
                 return services;
             }
 
-            // Get running containers with detailed info
+            // Get all containers (running and stopped) with detailed info
+            // Note: We exclude Labels from the format string because they can contain commas and break parsing
             var dockerPsCommand =
-                "docker ps --format \"table {{.ID}}|{{.Names}}|{{.Image}}|{{.Status}}|{{.Ports}}|{{.CreatedAt}}|{{.Labels}}\" --no-trunc";
+                "docker ps -a --format \"table {{.ID}}|{{.Names}}|{{.Image}}|{{.Status}}|{{.Ports}}|{{.CreatedAt}}\" --no-trunc";
             var dockerPsOutput = await ExecuteCommandAsync(client, dockerPsCommand);
 
             if (string.IsNullOrEmpty(dockerPsOutput))
@@ -1109,7 +1110,6 @@ If some information cannot be determined, use null or reasonable defaults. Focus
                     var status = parts[3].Trim();
                     var ports = parts[4].Trim();
                     var createdAt = parts[5].Trim();
-                    var labels = parts.Length > 6 ? parts[6].Trim() : "";
 
                     var dockerService = new DockerService
                     {
@@ -1119,11 +1119,14 @@ If some information cannot be determined, use null or reasonable defaults. Focus
                         Status = status,
                         CreatedAt = ParseDockerDate(createdAt),
                         Ports = ParseDockerPorts(ports),
-                        Labels = ParseDockerLabels(labels)
+                        Labels = new Dictionary<string, string>() // Will be populated by GetContainerLabelsAsync if needed
                     };
 
-                    // Get environment variables for the container
-                    dockerService.Environment = await GetContainerEnvironmentAsync(client, containerId);
+                    // Get environment variables for the container (optional, only if needed)
+                    // dockerService.Environment = await GetContainerEnvironmentAsync(client, containerId);
+
+                    // Get labels for the container (using docker inspect to avoid parsing issues)
+                    dockerService.Labels = await GetContainerLabelsAsync(client, containerId);
 
                     // Try to determine if it's a web service and extract description
                     await EnhanceDockerServiceInfoAsync(client, dockerService, hostAddress);
@@ -1138,6 +1141,38 @@ If some information cannot be determined, use null or reasonable defaults. Focus
         }
 
         return services;
+    }
+
+    private async Task<Dictionary<string, string>> GetContainerLabelsAsync(SshClient client, string containerId)
+    {
+        var labels = new Dictionary<string, string>();
+
+        try
+        {
+            // Use docker inspect to get labels in JSON format - this is safe from parsing issues
+            var inspectCommand = $"docker inspect {containerId} --format '{{{{json .Config.Labels}}}}'";
+            var labelsJson = await ExecuteCommandAsync(client, inspectCommand);
+
+            if (!string.IsNullOrEmpty(labelsJson))
+            {
+                // Parse JSON to dictionary
+                var labelsDict = JsonSerializer.Deserialize<Dictionary<string, string>>(labelsJson, new JsonSerializerOptions
+                {
+                    PropertyNameCaseInsensitive = true
+                });
+
+                if (labelsDict != null)
+                {
+                    return labelsDict;
+                }
+            }
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "Failed to get labels for container {ContainerId}", containerId);
+        }
+
+        return labels;
     }
 
     private async Task<Dictionary<string, string>> GetContainerEnvironmentAsync(SshClient client, string containerId)
