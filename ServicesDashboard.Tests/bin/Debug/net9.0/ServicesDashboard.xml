@@ -88,5 +88,29 @@
         <member name="M:ServicesDashboard.Migrations.AddSshCredentialsManagement.BuildTargetModel(Microsoft.EntityFrameworkCore.ModelBuilder)">
             <inheritdoc />
         </member>
+        <member name="T:ServicesDashboard.Migrations.AddScheduledTasksFeature">
+            <inheritdoc />
+        </member>
+        <member name="M:ServicesDashboard.Migrations.AddScheduledTasksFeature.Up(Microsoft.EntityFrameworkCore.Migrations.MigrationBuilder)">
+            <inheritdoc />
+        </member>
+        <member name="M:ServicesDashboard.Migrations.AddScheduledTasksFeature.Down(Microsoft.EntityFrameworkCore.Migrations.MigrationBuilder)">
+            <inheritdoc />
+        </member>
+        <member name="M:ServicesDashboard.Migrations.AddScheduledTasksFeature.BuildTargetModel(Microsoft.EntityFrameworkCore.ModelBuilder)">
+            <inheritdoc />
+        </member>
+        <member name="T:ServicesDashboard.Migrations.AddServerParentChildRelationship">
+            <inheritdoc />
+        </member>
+        <member name="M:ServicesDashboard.Migrations.AddServerParentChildRelationship.Up(Microsoft.EntityFrameworkCore.Migrations.MigrationBuilder)">
+            <inheritdoc />
+        </member>
+        <member name="M:ServicesDashboard.Migrations.AddServerParentChildRelationship.Down(Microsoft.EntityFrameworkCore.Migrations.MigrationBuilder)">
+            <inheritdoc />
+        </member>
+        <member name="M:ServicesDashboard.Migrations.AddServerParentChildRelationship.BuildTargetModel(Microsoft.EntityFrameworkCore.ModelBuilder)">
+            <inheritdoc />
+        </member>
     </members>
 </doc>

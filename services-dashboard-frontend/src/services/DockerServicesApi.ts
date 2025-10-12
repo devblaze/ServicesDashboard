@@ -17,6 +17,8 @@ export interface DockerService {
   serverName: string;
   serverHostAddress: string;
   order: number;
+  customIconUrl?: string;
+  customIconData?: string;
   statusColor: string;
   isRunning: boolean;
   displayImage: string;
@@ -76,6 +78,15 @@ class DockerServicesApi extends BaseApiClient {
   async restartContainer(serverId: number, containerId: string): Promise<void> {
     return await this.request<void>('post', `/dockerservices/${serverId}/containers/${containerId}/restart`);
   }
+
+  async updateServiceIcon(serverId: number, containerId: string, iconUrl?: string, iconData?: string): Promise<void> {
+    return await this.request<void>('put', '/dockerservices/icon', {
+      serverId,
+      containerId,
+      iconUrl,
+      iconData
+    });
+  }
 }
 
 // Create the instance
@@ -106,5 +117,9 @@ export const dockerServicesApi = {
   
   restartContainer: (serverId: number, containerId: string): Promise<void> => {
     return dockerServicesApiInstance.restartContainer(serverId, containerId);
+  },
+
+  updateServiceIcon: (serverId: number, containerId: string, iconUrl?: string, iconData?: string): Promise<void> => {
+    return dockerServicesApiInstance.updateServiceIcon(serverId, containerId, iconUrl, iconData);
   }
 };
