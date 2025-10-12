@@ -89,4 +89,3 @@ class SshCredentialsApi extends BaseApiClient {
 }
 
 export const sshCredentialsApi = new SshCredentialsApi();
-export type { CreateSshCredentialRequest, UpdateSshCredentialRequest, TestCredentialRequest, TestCredentialResponse };

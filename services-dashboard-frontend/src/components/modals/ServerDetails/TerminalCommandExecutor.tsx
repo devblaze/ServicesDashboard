@@ -38,21 +38,17 @@ export const TerminalTab: React.FC<TerminalTabProps> = ({ serverId, darkMode }) 
     };
   }, [serverId]);
 
-  // Auto-scroll to bottom when command history updates
-  useEffect(() => {
-    if (terminalRef.current) {
-      terminalRef.current.scrollTop = terminalRef.current.scrollHeight;
-    }
-  }, [commandHistory]);
-
   const executeCommandMutation = useMutation({
     mutationFn: (cmd: string) => serverManagementApi.executeCommand(serverId, cmd),
     onSuccess: (result: CommandResult) => {
       setCommandHistory(prev => [...prev, result]);
       setCommand('');
-      if (terminalRef.current) {
-        terminalRef.current.scrollTop = terminalRef.current.scrollHeight;
-      }
+      // Scroll to bottom after a short delay to ensure content is rendered
+      setTimeout(() => {
+        if (terminalRef.current) {
+          terminalRef.current.scrollTop = terminalRef.current.scrollHeight;
+        }
+      }, 100);
     },
   });
 

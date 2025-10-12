@@ -1,7 +1,7 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import {
-  Key, Plus, Edit2, Trash2, Check, X,
-  Eye, EyeOff, Shield, User, Server, AlertCircle
+  Key, Plus, Trash2,
+  Eye, EyeOff, User, Server, AlertCircle
 } from 'lucide-react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { sshCredentialsApi } from '../services/sshCredentialsApi';
@@ -20,7 +20,6 @@ export const CredentialsManager: React.FC<CredentialsManagerProps> = ({
 }) => {
   const queryClient = useQueryClient();
   const [showAddForm, setShowAddForm] = useState(false);
-  const [editingId, setEditingId] = useState<number | null>(null);
   const [showPassword, setShowPassword] = useState<{ [key: number]: boolean }>({});
   const [formData, setFormData] = useState<CreateSshCredentialRequest>({
     name: '',
@@ -47,28 +46,12 @@ export const CredentialsManager: React.FC<CredentialsManagerProps> = ({
     }
   });
 
-  // Update mutation
-  const updateMutation = useMutation({
-    mutationFn: ({ id, data }: { id: number; data: any }) =>
-      sshCredentialsApi.updateCredential(id, data),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['sshCredentials'] });
-      setEditingId(null);
-    }
-  });
-
   // Delete mutation
   const deleteMutation = useMutation({
     mutationFn: (id: number) => sshCredentialsApi.deleteCredential(id),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['sshCredentials'] });
     }
-  });
-
-  // Test credential mutation
-  const testMutation = useMutation({
-    mutationFn: ({ id, host, port }: { id: number; host: string; port?: number }) =>
-      sshCredentialsApi.testCredential(id, { hostAddress: host, port })
   });
 
   const resetForm = () => {
@@ -396,7 +379,7 @@ export const CredentialsManager: React.FC<CredentialsManagerProps> = ({
                           ? 'hover:bg-gray-800 text-gray-400 hover:text-red-400'
                           : 'hover:bg-gray-200 text-gray-600 hover:text-red-600'
                       }`}
-                      disabled={credential.usageCount && credential.usageCount > 0}
+                      disabled={!!(credential.usageCount && credential.usageCount > 0)}
                       title={credential.usageCount && credential.usageCount > 0
                         ? 'Cannot delete: credential is in use'
                         : 'Delete credential'}

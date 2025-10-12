@@ -1,8 +1,7 @@
 import React, { useState, useEffect } from 'react';
-import { X, Server, Key, User, Lock, Loader2, AlertCircle, Check } from 'lucide-react';
+import { X, Server, Key, Loader2, AlertCircle, Check } from 'lucide-react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { sshCredentialsApi } from '../../services/sshCredentialsApi';
-import type { SshCredential } from '../../services/sshCredentialsApi';
 import { serversApi } from '../../services/serversApi';
 import type { CreateServerRequest } from '../../services/serversApi';
 import type { DiscoveredService, StoredDiscoveredService } from '../../types/networkDiscovery';

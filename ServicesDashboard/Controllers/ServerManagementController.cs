@@ -68,7 +68,8 @@ public class ServerManagementController : ControllerBase
                 Username = request.Username,
                 EncryptedPassword = request.Password, // Will be encrypted in service
                 Type = Enum.Parse<ServerType>(request.Type ?? "Server"),
-                Tags = request.Tags
+                Tags = request.Tags,
+                ParentServerId = request.ParentServerId
             };
 
             var addedServer = await _serverManagementService.AddServerAsync(server);
@@ -155,7 +156,8 @@ public class ServerManagementController : ControllerBase
             EncryptedPassword = UpdateField(request.Password, existingServer.EncryptedPassword),
             Type = UpdateEnum<ServerType>(request.Type, existingServer.Type),
             Tags = UpdateTags(request.Tags, existingServer.Tags),
-        
+            ParentServerId = request.ParentServerId, // Accept null to remove parent
+
             // Preserve existing values
             Status = existingServer.Status,
             OperatingSystem = existingServer.OperatingSystem,

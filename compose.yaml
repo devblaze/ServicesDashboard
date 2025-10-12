@@ -48,7 +48,7 @@
       # Leave empty to use Vite proxy configuration
       - VITE_API_BASE_URL=
       - VITE_API_URL=/api
-    command: ["npm", "run", "dev", "--", "--host", "0.0.0.0"]
+    command: ["yarn", "dev", "--", "--host", "0.0.0.0"]
 
 volumes:
   postgres_data:
