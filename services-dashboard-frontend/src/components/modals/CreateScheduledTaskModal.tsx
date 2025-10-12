@@ -3,6 +3,7 @@ import { useQuery } from '@tanstack/react-query';
 import { X, Calendar, Server, Terminal, Clock, Globe, AlertCircle, Check } from 'lucide-react';
 import { serverManagementApi } from '../../services/serverManagementApi';
 import { scheduledTasksApi } from '../../services/scheduledTasksApi';
+import { useEscapeKey } from '../../hooks/useEscapeKey';
 import type { ManagedServer } from '../../types/ServerManagement';
 import type { CreateScheduledTaskRequest } from '../../types/ScheduledTask';
 import { CRON_PRESETS, TIMEZONES } from '../../types/ScheduledTask';
@@ -128,6 +129,9 @@ export const CreateScheduledTaskModal: React.FC<CreateScheduledTaskModalProps> =
       serverIds: prev.serverIds.length === servers.length ? [] : servers.map(s => s.id)
     }));
   };
+
+  // Handle ESC key to close modal
+  useEscapeKey(onClose, isOpen && !isSubmitting);
 
   if (!isOpen) return null;
 

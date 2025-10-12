@@ -1,16 +1,17 @@
 import React, { useState } from 'react';
-import { Settings, Bot, Bell, Palette, Key } from 'lucide-react';
+import { Settings, Bot, Bell, Palette, Key, GitBranch } from 'lucide-react';
 import { AISettingsSection } from '../applicationSettings/AISettingsManagementSection';
 import { NotificationSettingsSection } from '../applicationSettings/NotificationSettingsSection';
 import { GeneralSettingsSection } from '../applicationSettings/GeneralSettingsSection';
 import { ApiConnectionStatus } from '../applicationSettings/ApiConnectionStatus.tsx';
 import { CredentialsManager } from '../CredentialsManager';
+import { GitProvidersManagement } from './GitProvidersManagement';
 
 interface SettingsPageProps {
   darkMode?: boolean;
 }
 
-type SettingSection = 'ai' | 'notifications' | 'general' | 'credentials';
+type SettingSection = 'ai' | 'notifications' | 'general' | 'credentials' | 'git-providers';
 
 export const ApplicationSettings: React.FC<SettingsPageProps> = ({ darkMode = true }) => {
   const [activeSection, setActiveSection] = useState<SettingSection>('ai');
@@ -29,6 +30,13 @@ export const ApplicationSettings: React.FC<SettingsPageProps> = ({ darkMode = tr
       icon: Key,
       description: 'Manage SSH credentials',
       component: CredentialsManager
+    },
+    {
+      key: 'git-providers' as const,
+      label: 'Git Providers',
+      icon: GitBranch,
+      description: 'Connect to GitHub, GitLab, Gitea',
+      component: GitProvidersManagement
     },
     {
       key: 'notifications' as const,
