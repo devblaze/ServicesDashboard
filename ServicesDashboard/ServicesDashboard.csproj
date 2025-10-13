@@ -27,6 +27,7 @@
         <PackageReference Include="Npgsql.EntityFrameworkCore.PostgreSQL" Version="9.0.4" />
         <PackageReference Include="OllamaSharp" Version="5.3.3" />
         <PackageReference Include="PuppeteerSharp" Version="20.2.2" />
+        <PackageReference Include="SixLabors.ImageSharp" Version="3.1.11" />
         <PackageReference Include="SSH.NET" Version="2025.0.0" />
         <PackageReference Include="Swashbuckle.AspNetCore" Version="9.0.3" />
     </ItemGroup>

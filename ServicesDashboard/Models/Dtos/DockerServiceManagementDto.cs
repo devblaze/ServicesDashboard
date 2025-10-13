@@ -60,4 +60,6 @@ public class UpdateDockerServiceIconRequest
     public string ContainerId { get; set; } = string.Empty;
     public string? IconUrl { get; set; }  // For Docker Hub or external URL
     public string? IconData { get; set; }  // For base64 uploaded image
+    public bool RemoveBackground { get; set; }  // Whether to remove background from the image
+    public bool DownloadFromUrl { get; set; }  // Whether to download and process the URL image
 }
