@@ -31,7 +31,9 @@ public class UpdateDockerServiceIconEndpoint : Endpoint<UpdateDockerServiceIconR
                 req.ServerId,
                 req.ContainerId,
                 req.IconUrl,
-                req.IconData
+                req.IconData,
+                req.RemoveBackground,
+                req.DownloadFromUrl
             );
 
             if (success)

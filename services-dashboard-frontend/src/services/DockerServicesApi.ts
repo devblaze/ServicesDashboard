@@ -79,12 +79,21 @@ class DockerServicesApi extends BaseApiClient {
     return await this.request<void>('post', `/dockerservices/${serverId}/containers/${containerId}/restart`);
   }
 
-  async updateServiceIcon(serverId: number, containerId: string, iconUrl?: string, iconData?: string): Promise<void> {
+  async updateServiceIcon(
+    serverId: number,
+    containerId: string,
+    iconUrl?: string,
+    iconData?: string,
+    removeBackground?: boolean,
+    downloadFromUrl?: boolean
+  ): Promise<void> {
     return await this.request<void>('put', '/dockerservices/icon', {
       serverId,
       containerId,
       iconUrl,
-      iconData
+      iconData,
+      removeBackground: removeBackground || false,
+      downloadFromUrl: downloadFromUrl || false
     });
   }
 }
@@ -119,7 +128,14 @@ export const dockerServicesApi = {
     return dockerServicesApiInstance.restartContainer(serverId, containerId);
   },
 
-  updateServiceIcon: (serverId: number, containerId: string, iconUrl?: string, iconData?: string): Promise<void> => {
-    return dockerServicesApiInstance.updateServiceIcon(serverId, containerId, iconUrl, iconData);
+  updateServiceIcon: (
+    serverId: number,
+    containerId: string,
+    iconUrl?: string,
+    iconData?: string,
+    removeBackground?: boolean,
+    downloadFromUrl?: boolean
+  ): Promise<void> => {
+    return dockerServicesApiInstance.updateServiceIcon(serverId, containerId, iconUrl, iconData, removeBackground, downloadFromUrl);
   }
 };

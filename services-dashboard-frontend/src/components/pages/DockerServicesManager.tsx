@@ -16,6 +16,7 @@ import {
   X
 } from 'lucide-react';
 import { dockerServicesApi } from '../../services/DockerServicesApi.ts';
+import { useEscapeKey } from '../../hooks/useEscapeKey';
 import { DragDropContext, Droppable, Draggable } from '@hello-pangea/dnd';
 import type { DropResult, DroppableProvided, DraggableProvided } from '@hello-pangea/dnd';
 
@@ -58,6 +59,10 @@ export function DockerServices({ darkMode }: DockerServicesProps) {
   const [uploadModalOpen, setUploadModalOpen] = useState(false);
   const [selectedService, setSelectedService] = useState<DockerService | null>(null);
   const [iconUrl, setIconUrl] = useState('');
+  const [removeBackground, setRemoveBackground] = useState(false);
+  const [downloadFromUrl, setDownloadFromUrl] = useState(false);
+  const [uploadError, setUploadError] = useState<string | null>(null);
+  const [uploadSuccess, setUploadSuccess] = useState(false);
 
   const queryClient = useQueryClient();
 
@@ -109,13 +114,41 @@ export function DockerServices({ darkMode }: DockerServicesProps) {
   });
 
   const updateIconMutation = useMutation({
-    mutationFn: ({ serverId, containerId, iconUrl, iconData }: { serverId: number; containerId: string; iconUrl?: string; iconData?: string }) =>
-      dockerServicesApi.updateServiceIcon(serverId, containerId, iconUrl, iconData),
+    mutationFn: ({
+      serverId,
+      containerId,
+      iconUrl,
+      iconData,
+      removeBackground,
+      downloadFromUrl
+    }: {
+      serverId: number;
+      containerId: string;
+      iconUrl?: string;
+      iconData?: string;
+      removeBackground?: boolean;
+      downloadFromUrl?: boolean;
+    }) =>
+      dockerServicesApi.updateServiceIcon(serverId, containerId, iconUrl, iconData, removeBackground, downloadFromUrl),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['docker-services'] });
-      setUploadModalOpen(false);
-      setSelectedService(null);
-      setIconUrl('');
+      setUploadError(null);
+      setUploadSuccess(true);
+
+      // Close modal after showing success message briefly
+      setTimeout(() => {
+        setUploadModalOpen(false);
+        setSelectedService(null);
+        setIconUrl('');
+        setRemoveBackground(false);
+        setDownloadFromUrl(false);
+        setUploadSuccess(false);
+      }, 1500);
+    },
+    onError: (error: any) => {
+      const errorMessage = error?.response?.data?.error || error?.message || 'Failed to update icon';
+      setUploadError(errorMessage);
+      setUploadSuccess(false);
     },
   });
 
@@ -221,7 +254,8 @@ export function DockerServices({ darkMode }: DockerServicesProps) {
         updateIconMutation.mutate({
           serverId: selectedService.serverId,
           containerId: selectedService.containerId,
-          iconData: base64String
+          iconData: base64String,
+          removeBackground: removeBackground
         });
       }
     };
@@ -233,7 +267,9 @@ export function DockerServices({ darkMode }: DockerServicesProps) {
       updateIconMutation.mutate({
         serverId: selectedService.serverId,
         containerId: selectedService.containerId,
-        iconUrl: iconUrl.trim()
+        iconUrl: iconUrl.trim(),
+        removeBackground: removeBackground,
+        downloadFromUrl: downloadFromUrl
       });
     }
   };
@@ -242,6 +278,20 @@ export function DockerServices({ darkMode }: DockerServicesProps) {
     setSelectedService(service);
     setUploadModalOpen(true);
   };
+
+  const closeUploadModal = () => {
+    if (updateIconMutation.isPending) return; // Prevent closing during upload
+    setUploadModalOpen(false);
+    setSelectedService(null);
+    setIconUrl('');
+    setRemoveBackground(false);
+    setDownloadFromUrl(false);
+    setUploadError(null);
+    setUploadSuccess(false);
+  };
+
+  // Handle ESC key to close modal
+  useEscapeKey(closeUploadModal, uploadModalOpen && !updateIconMutation.isPending);
 
   const getContainerIcon = (imageName: string): string => {
     // Extract the repository name from the image
@@ -820,16 +870,13 @@ export function DockerServices({ darkMode }: DockerServicesProps) {
                 Upload Icon for {selectedService.name}
               </h3>
               <button
-                onClick={() => {
-                  setUploadModalOpen(false);
-                  setSelectedService(null);
-                  setIconUrl('');
-                }}
+                onClick={closeUploadModal}
+                disabled={updateIconMutation.isPending}
                 className={`p-1 rounded-lg transition-colors ${
                   darkMode
                     ? 'hover:bg-gray-700 text-gray-400'
                     : 'hover:bg-gray-100 text-gray-500'
-                }`}
+                } disabled:opacity-50 disabled:cursor-not-allowed`}
               >
                 <X className="w-5 h-5" />
               </button>
@@ -858,12 +905,24 @@ export function DockerServices({ darkMode }: DockerServicesProps) {
                 </p>
               </div>
 
+              {/* Divider */}
+              <div className="relative">
+                <div className={`absolute inset-0 flex items-center ${darkMode ? 'opacity-50' : ''}`}>
+                  <div className={`w-full border-t ${darkMode ? 'border-gray-600' : 'border-gray-300'}`}></div>
+                </div>
+                <div className="relative flex justify-center text-xs uppercase">
+                  <span className={`px-2 ${darkMode ? 'bg-gray-800 text-gray-400' : 'bg-white text-gray-500'}`}>
+                    Or
+                  </span>
+                </div>
+              </div>
+
               {/* URL Input */}
               <div>
                 <label className={`block text-sm font-medium mb-2 ${
                   darkMode ? 'text-gray-300' : 'text-gray-700'
                 }`}>
-                  Or Enter Icon URL
+                  Enter Icon URL
                 </label>
                 <div className="flex space-x-2">
                   <input
@@ -896,6 +955,54 @@ export function DockerServices({ darkMode }: DockerServicesProps) {
                 </p>
               </div>
 
+              {/* Options */}
+              <div className={`space-y-3 p-4 rounded-lg border ${
+                darkMode
+                  ? 'bg-gray-700/30 border-gray-600/50'
+                  : 'bg-gray-50 border-gray-200'
+              }`}>
+                <h4 className={`text-sm font-medium ${darkMode ? 'text-gray-200' : 'text-gray-800'}`}>
+                  Processing Options
+                </h4>
+
+                {/* Remove Background Checkbox */}
+                <label className="flex items-start space-x-3 cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={removeBackground}
+                    onChange={(e) => setRemoveBackground(e.target.checked)}
+                    className="mt-0.5 rounded border-gray-400 text-blue-600 focus:ring-blue-500 focus:ring-offset-0"
+                  />
+                  <div className="flex-1">
+                    <div className={`text-sm font-medium ${darkMode ? 'text-gray-200' : 'text-gray-800'}`}>
+                      Remove background
+                    </div>
+                    <div className={`text-xs ${darkMode ? 'text-gray-400' : 'text-gray-500'}`}>
+                      Automatically removes solid background colors from the image
+                    </div>
+                  </div>
+                </label>
+
+                {/* Download from URL Checkbox */}
+                <label className="flex items-start space-x-3 cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={downloadFromUrl}
+                    onChange={(e) => setDownloadFromUrl(e.target.checked)}
+                    disabled={!iconUrl.trim()}
+                    className="mt-0.5 rounded border-gray-400 text-blue-600 focus:ring-blue-500 focus:ring-offset-0 disabled:opacity-50 disabled:cursor-not-allowed"
+                  />
+                  <div className="flex-1">
+                    <div className={`text-sm font-medium ${darkMode ? 'text-gray-200' : 'text-gray-800'} ${!iconUrl.trim() ? 'opacity-50' : ''}`}>
+                      Download and store image
+                    </div>
+                    <div className={`text-xs ${darkMode ? 'text-gray-400' : 'text-gray-500'} ${!iconUrl.trim() ? 'opacity-50' : ''}`}>
+                      Downloads the image from URL and stores it (recommended for external URLs)
+                    </div>
+                  </div>
+                </label>
+              </div>
+
               {/* Loading State */}
               {updateIconMutation.isPending && (
                 <div className="flex items-center justify-center py-4">
@@ -903,8 +1010,43 @@ export function DockerServices({ darkMode }: DockerServicesProps) {
                     darkMode ? 'border-blue-400' : 'border-blue-600'
                   }`} />
                   <span className={`ml-2 text-sm ${darkMode ? 'text-gray-300' : 'text-gray-700'}`}>
-                    Uploading...
+                    {downloadFromUrl ? 'Downloading and processing...' : 'Uploading...'}
                   </span>
+                </div>
+              )}
+
+              {/* Success Message */}
+              {uploadSuccess && (
+                <div className={`p-3 rounded-lg border ${
+                  darkMode
+                    ? 'bg-green-900/20 border-green-600/50 text-green-300'
+                    : 'bg-green-50 border-green-200 text-green-700'
+                }`}>
+                  <div className="flex items-center space-x-2">
+                    <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 20 20">
+                      <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
+                    </svg>
+                    <p className="text-sm font-medium">Icon updated successfully!</p>
+                  </div>
+                </div>
+              )}
+
+              {/* Error Message */}
+              {uploadError && (
+                <div className={`p-3 rounded-lg border ${
+                  darkMode
+                    ? 'bg-red-900/20 border-red-600/50 text-red-300'
+                    : 'bg-red-50 border-red-200 text-red-700'
+                }`}>
+                  <div className="flex items-start space-x-2">
+                    <svg className="w-5 h-5 mt-0.5" fill="currentColor" viewBox="0 0 20 20">
+                      <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clipRule="evenodd" />
+                    </svg>
+                    <div className="flex-1">
+                      <p className="text-sm font-medium">Failed to update icon</p>
+                      <p className="text-xs mt-1">{uploadError}</p>
+                    </div>
+                  </div>
                 </div>
               )}
             </div>
