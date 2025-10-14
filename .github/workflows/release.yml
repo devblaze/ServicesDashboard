@@ -19,36 +19,43 @@ jobs:
         include:
           # Raspberry Pi Zero (ARM32v6)
           - name: Pi Zero
+            artifact_name: pi-zero
             runtime: linux-arm
             asset_name: servicesdashboard-pizero-linux-arm.tar.gz
 
           # Raspberry Pi 3/4 (ARM32v7)
-          - name: Pi 3/4 32-bit
+          - name: Pi 3-4 32-bit
+            artifact_name: pi-3-4-32bit
             runtime: linux-arm
             asset_name: servicesdashboard-pi-linux-arm.tar.gz
 
           # Raspberry Pi 4/5 64-bit (ARM64)
-          - name: Pi 4/5 64-bit
+          - name: Pi 4-5 64-bit
+            artifact_name: pi-4-5-64bit
             runtime: linux-arm64
             asset_name: servicesdashboard-pi-linux-arm64.tar.gz
 
           # Standard Linux x64
           - name: Linux x64
+            artifact_name: linux-x64
             runtime: linux-x64
             asset_name: servicesdashboard-linux-x64.tar.gz
 
           # macOS x64
           - name: macOS x64
+            artifact_name: macos-x64
             runtime: osx-x64
             asset_name: servicesdashboard-macos-x64.tar.gz
 
           # macOS ARM64 (M1/M2/M3)
           - name: macOS ARM64
+            artifact_name: macos-arm64
             runtime: osx-arm64
             asset_name: servicesdashboard-macos-arm64.tar.gz
 
           # Windows x64
           - name: Windows x64
+            artifact_name: windows-x64
             runtime: win-x64
             asset_name: servicesdashboard-windows-x64.zip
 
@@ -254,7 +261,7 @@ jobs:
       - name: Upload artifact
         uses: actions/upload-artifact@v4
         with:
-          name: ${{ matrix.name }}
+          name: ${{ matrix.artifact_name }}
           path: ServicesDashboard/${{ matrix.asset_name }}
 
   release:
