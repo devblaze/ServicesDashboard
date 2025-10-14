@@ -100,7 +100,7 @@ export const ServerDetailsModal: React.FC<ServerDetailsModalProps> = ({
           />
         );
       case 'docker':
-        return <DockerServicesTab serverId={server.id} darkMode={darkMode} />;
+        return <DockerServicesTab serverId={server.id} serverHostAddress={server.hostAddress} darkMode={darkMode} />;
       case 'logs':
         return (
           <LogsTab

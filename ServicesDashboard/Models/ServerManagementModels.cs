@@ -67,6 +67,10 @@ public class ManagedServer
 
     [JsonIgnore] // Prevent circular reference
     public virtual ICollection<ManagedServer> ChildServers { get; set; } = new List<ManagedServer>();
+
+    // Computed property to identify if this is the dashboard server
+    [NotMapped]
+    public bool IsDashboardServer { get; set; }
 }
 
 public class ServerHealthCheck

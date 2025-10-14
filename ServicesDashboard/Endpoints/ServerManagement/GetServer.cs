@@ -1,6 +1,7 @@
 using FastEndpoints;
 using ServicesDashboard.Models;
 using ServicesDashboard.Services.Servers;
+using System.Net;
 
 namespace ServicesDashboard.Endpoints.ServerManagement;
 
@@ -36,8 +37,11 @@ public class GetServerEndpoint : Endpoint<GetServerRequest, ManagedServer>
             if (server == null)
             {
                 await Send.NotFoundAsync(ct);
-            return;
+                return;
             }
+
+            // Mark if this is the dashboard server
+            server.IsDashboardServer = IsLocalServer(server.HostAddress);
 
             await Send.OkAsync(server, ct);
         }
@@ -48,5 +52,54 @@ public class GetServerEndpoint : Endpoint<GetServerRequest, ManagedServer>
             await HttpContext.Response.WriteAsync(@"{""error"":""Internal server error""}", ct);
             return;
         }
+    }
+
+    private static bool IsLocalServer(string hostAddress)
+    {
+        var localIps = new HashSet<string>(StringComparer.OrdinalIgnoreCase)
+        {
+            "localhost",
+            "127.0.0.1",
+            "::1"
+        };
+
+        try
+        {
+            var hostName = Dns.GetHostName();
+            var hostEntry = Dns.GetHostEntry(hostName);
+
+            foreach (var ip in hostEntry.AddressList)
+            {
+                localIps.Add(ip.ToString());
+            }
+
+            // Check if the host address matches local IPs
+            if (localIps.Contains(hostAddress))
+            {
+                return true;
+            }
+
+            // Check if the host address matches the hostname
+            if (string.Equals(hostAddress, hostName, StringComparison.OrdinalIgnoreCase))
+            {
+                return true;
+            }
+
+            // Try to resolve the hostname to IP
+            var addresses = Dns.GetHostAddresses(hostAddress);
+            foreach (var addr in addresses)
+            {
+                if (localIps.Contains(addr.ToString()))
+                {
+                    return true;
+                }
+            }
+        }
+        catch
+        {
+            // If DNS resolution fails, it's not a local server
+        }
+
+        return false;
     }
 }

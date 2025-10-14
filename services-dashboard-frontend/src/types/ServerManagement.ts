@@ -21,6 +21,7 @@ export interface ManagedServer {
   healthChecks?: ServerHealthCheck[];
   updateReports?: UpdateReport[];
   alerts?: ServerAlert[];
+  isDashboardServer?: boolean;
 }
 
 export interface CreateServerDto {

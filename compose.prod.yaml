@@ -1,0 +1,63 @@
+services:
+  database:
+    image: postgres:16
+    environment:
+      POSTGRES_DB: servicesdashboard
+      POSTGRES_USER: ${DB_USER:-admin}
+      POSTGRES_PASSWORD: ${DB_PASSWORD:-admin123}
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    networks:
+      - app_network
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${DB_USER:-admin} -d servicesdashboard"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  servicesdashboard:
+    build:
+      context: ./ServicesDashboard
+      dockerfile: Dockerfile
+    environment:
+      - ASPNETCORE_ENVIRONMENT=Production
+      - ASPNETCORE_URLS=http://+:8080
+      - ConnectionStrings__DefaultConnection=Host=database;Database=servicesdashboard;Username=${DB_USER:-admin};Password=${DB_PASSWORD:-admin123}
+      - AppSettings__DefaultOllamaBaseUrl=${OLLAMA_URL:-http://host.docker.internal:11434}
+    networks:
+      - app_network
+    depends_on:
+      database:
+        condition: service_healthy
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8080/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  frontend:
+    build:
+      context: ./services-dashboard-frontend
+      dockerfile: Dockerfile.prod
+    ports:
+      - "${APP_PORT:-5050}:80"
+    networks:
+      - app_network
+    depends_on:
+      servicesdashboard:
+        condition: service_healthy
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+networks:
+  app_network:
+    driver: bridge
+
+volumes:
+  postgres_data:

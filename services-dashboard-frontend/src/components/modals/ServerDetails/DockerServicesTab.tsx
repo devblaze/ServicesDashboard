@@ -15,11 +15,13 @@ import type { DockerService, CreateServiceFromDockerRequest } from '../../../ser
 
 interface DockerServicesTabProps {
   serverId: number;
+  serverHostAddress: string;
   darkMode: boolean;
 }
 
 export const DockerServicesTab: React.FC<DockerServicesTabProps> = ({
   serverId,
+  serverHostAddress,
   darkMode
 }) => {
   const [showAddModal, setShowAddModal] = useState(false);
@@ -57,6 +59,54 @@ export const DockerServicesTab: React.FC<DockerServicesTabProps> = ({
     if (status.toLowerCase().includes('up')) return <CheckCircle className="w-4 h-4" />;
     if (status.toLowerCase().includes('exited')) return <AlertCircle className="w-4 h-4" />;
     return <Clock className="w-4 h-4" />;
+  };
+
+  // Generate service URL for containers with exposed web ports
+  const generateServiceUrl = (service: DockerService, serverHostAddress: string): string | null => {
+    if (!service.status.toLowerCase().includes('up') || service.ports.length === 0) return null;
+
+    // Service-specific port mappings for known services
+    const servicePortMap: Record<string, { port: number; protocol: 'http' | 'https' }> = {
+      'portainer': { port: 9443, protocol: 'https' },
+      'traefik': { port: 8080, protocol: 'http' },
+      'nginx': { port: 80, protocol: 'http' },
+      'grafana': { port: 3000, protocol: 'http' },
+      'prometheus': { port: 9090, protocol: 'http' },
+    };
+
+    // Check if this is a known service
+    const serviceName = service.image.toLowerCase();
+    for (const [key, value] of Object.entries(servicePortMap)) {
+      if (serviceName.includes(key)) {
+        const matchingPort = service.ports.find(p => p.hostPort === value.port);
+        if (matchingPort?.hostPort) {
+          return `${value.protocol}://${serverHostAddress}:${matchingPort.hostPort}`;
+        }
+      }
+    }
+
+    // Common web service ports (ordered by priority)
+    // HTTPS ports first, then common HTTP ports
+    const webPorts = [443, 9443, 8443, 80, 8080, 3000, 5000, 8000, 8888, 9000, 3001, 4000, 5173, 5174];
+
+    // Find the first host port that matches common web service ports
+    const webPort = service.ports.find(p =>
+      p.hostPort && webPorts.includes(p.hostPort)
+    );
+
+    if (webPort?.hostPort) {
+      // Use HTTPS for standard HTTPS ports
+      const protocol = [443, 9443, 8443].includes(webPort.hostPort) ? 'https' : 'http';
+      return `${protocol}://${serverHostAddress}:${webPort.hostPort}`;
+    }
+
+    // If no standard web port found, check if any port is exposed on the host
+    const firstHostPort = service.ports.find(p => p.hostPort);
+    if (firstHostPort?.hostPort) {
+      return `http://${serverHostAddress}:${firstHostPort.hostPort}`;
+    }
+
+    return null;
   };
 
   if (isLoading) {
@@ -177,20 +227,28 @@ export const DockerServicesTab: React.FC<DockerServicesTabProps> = ({
                       </div>
                     )}
                     
-                    {service.serviceUrl && (
-                      <a
-                        href={service.serviceUrl}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className={`inline-flex items-center text-sm ${
-                          darkMode ? 'text-blue-400 hover:text-blue-300' : 'text-blue-600 hover:text-blue-700'
-                        }`}
-                      >
-                        <Globe className="w-4 h-4 mr-1" />
-                        {service.serviceUrl}
-                        <ExternalLink className="w-3 h-3 ml-1" />
-                      </a>
-                    )}
+                    {(() => {
+                      const generatedUrl = generateServiceUrl(service, serverHostAddress);
+                      const serviceUrl = service.serviceUrl || generatedUrl;
+
+                      if (serviceUrl) {
+                        return (
+                          <a
+                            href={serviceUrl}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className={`inline-flex items-center text-sm font-medium transition-colors ${
+                              darkMode ? 'text-blue-400 hover:text-blue-300' : 'text-blue-600 hover:text-blue-700'
+                            }`}
+                          >
+                            <Globe className="w-4 h-4 mr-1" />
+                            {generatedUrl ? 'Open Service' : serviceUrl}
+                            <ExternalLink className="w-3 h-3 ml-1" />
+                          </a>
+                        );
+                      }
+                      return null;
+                    })()}
                   </div>
                 </div>
                 

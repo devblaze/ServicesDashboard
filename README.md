@@ -448,6 +448,188 @@ cd ServicesDashboard.Tests/LoadTests
 # Run performance tests
 dotnet run --scenario NetworkDiscovery --users 50 --duration 5m
 ```
+## 🐳 Docker Production Deployment
+
+### Quick Deploy with Docker Compose
+
+The easiest way to deploy Services Dashboard is using Docker Compose. This method packages the entire application (frontend, backend, and database) in containers.
+
+#### Prerequisites
+- Docker Engine 20.10+ and Docker Compose 2.0+
+- Minimum 2GB RAM (4GB+ recommended)
+- 10GB free disk space
+
+#### Step 1: Clone the Repository
+```bash
+git clone https://github.com/yourusername/ServicesDashboard.git
+cd ServicesDashboard
+```
+
+#### Step 2: Configure Environment
+```bash
+# Copy the example environment file
+cp .env.example .env
+
+# Edit the .env file with your settings
+nano .env
+```
+
+**Important: Change the default database password in `.env`:**
+```env
+DB_USER=admin
+DB_PASSWORD=your_secure_password_here
+APP_PORT=5050
+```
+
+#### Step 3: Deploy with Docker Compose
+```bash
+# Build and start all services
+docker-compose -f compose.prod.yaml up -d
+
+# View logs
+docker-compose -f compose.prod.yaml logs -f
+
+# Check service status
+docker-compose -f compose.prod.yaml ps
+```
+
+#### Step 4: Access the Application
+- **Dashboard:** http://your-server-ip:5050
+- **Backend API:** http://your-server-ip:5050/api
+- **Health Check:** http://your-server-ip:5050/health
+
+#### Managing the Application
+```bash
+# Stop all services
+docker-compose -f compose.prod.yaml down
+
+# Stop and remove volumes (WARNING: deletes all data)
+docker-compose -f compose.prod.yaml down -v
+
+# Restart services
+docker-compose -f compose.prod.yaml restart
+
+# View logs for specific service
+docker-compose -f compose.prod.yaml logs -f servicesdashboard
+
+# Update to latest version
+git pull
+docker-compose -f compose.prod.yaml up -d --build
+```
+
+#### Docker Compose Production Architecture
+```
+┌─────────────────────────────────────────┐
+│         Frontend (Nginx + React)        │
+│         Port: 5050 (configurable)       │
+└────────────────┬────────────────────────┘
+                 │
+                 ▼
+┌─────────────────────────────────────────┐
+│     Backend (.NET 9 Web API)            │
+│     Internal: 8080                      │
+└────────────────┬────────────────────────┘
+                 │
+                 ▼
+┌─────────────────────────────────────────┐
+│        Database (PostgreSQL 16)         │
+│        Internal: 5432                   │
+└─────────────────────────────────────────┘
+```
+
+**Features:**
+- ✅ Single command deployment
+- ✅ Automatic database migrations
+- ✅ Health checks and auto-restart
+- ✅ Persistent data storage
+- ✅ Optimized production builds
+- ✅ Nginx reverse proxy with caching
+- ✅ Easy updates and rollbacks
+
+#### Firewall Configuration
+```bash
+# Allow application port (if using firewall)
+sudo ufw allow 5050/tcp
+
+# Or for iptables
+sudo iptables -A INPUT -p tcp --dport 5050 -j ACCEPT
+```
+
+#### Data Backup
+```bash
+# Backup database
+docker-compose -f compose.prod.yaml exec database pg_dump -U admin servicesdashboard > backup.sql
+
+# Restore database
+cat backup.sql | docker-compose -f compose.prod.yaml exec -T database psql -U admin servicesdashboard
+```
+
+#### Troubleshooting
+
+**Issue: Container fails to start**
+```bash
+# Check logs
+docker-compose -f compose.prod.yaml logs
+
+# Check container status
+docker-compose -f compose.prod.yaml ps
+```
+
+**Issue: Can't connect to application**
+```bash
+# Verify containers are running
+docker ps
+
+# Check if port is open
+sudo netstat -tulpn | grep 5050
+
+# Test from inside container
+docker-compose -f compose.prod.yaml exec frontend wget -O- http://localhost/health
+```
+
+**Issue: Database connection errors**
+```bash
+# Check database is healthy
+docker-compose -f compose.prod.yaml exec database pg_isready -U admin
+
+# Restart services
+docker-compose -f compose.prod.yaml restart
+```
+
+### Alternative: Docker Hub Images
+
+If you prefer using pre-built images, you can pull them from Docker Hub:
+
+```bash
+# Pull images
+docker pull yourusername/servicesdashboard-backend:latest
+docker pull yourusername/servicesdashboard-frontend:latest
+
+# Run with docker run
+docker network create app_network
+
+docker run -d \
+  --name database \
+  --network app_network \
+  -e POSTGRES_DB=servicesdashboard \
+  -e POSTGRES_USER=admin \
+  -e POSTGRES_PASSWORD=your_password \
+  -v postgres_data:/var/lib/postgresql/data \
+  postgres:16
+
+docker run -d \
+  --name servicesdashboard \
+  --network app_network \
+  -e ConnectionStrings__DefaultConnection="Host=database;Database=servicesdashboard;Username=admin;Password=your_password" \
+  yourusername/servicesdashboard-backend:latest
+
+docker run -d \
+  --name frontend \
+  --network app_network \
+  -p 5050:80 \
+  yourusername/servicesdashboard-frontend:latest
+```
+
 ## 🔒 Security Best Practices
 ### Development Security
 - **Input Validation**: All API endpoints validate and sanitize input
