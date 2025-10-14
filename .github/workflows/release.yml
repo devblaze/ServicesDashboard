@@ -17,13 +17,7 @@ jobs:
     strategy:
       matrix:
         include:
-          # Raspberry Pi Zero (ARM32v6)
-          - name: Pi Zero
-            artifact_name: pi-zero
-            runtime: linux-arm
-            asset_name: servicesdashboard-pizero-linux-arm.tar.gz
-
-          # Raspberry Pi 3/4 (ARM32v7)
+          # Raspberry Pi 3/4 (ARM32v7) - Pi Zero NOT supported (ARMv6 incompatible with .NET 9)
           - name: Pi 3-4 32-bit
             artifact_name: pi-3-4-32bit
             runtime: linux-arm
@@ -87,26 +81,14 @@ jobs:
       - name: Publish backend
         working-directory: ./ServicesDashboard
         run: |
-          # Pi Zero needs special build flags to avoid segfaults
-          if [ "${{ matrix.artifact_name }}" = "pi-zero" ]; then
-            dotnet publish \
-              --configuration Release \
-              --runtime ${{ matrix.runtime }} \
-              --self-contained true \
-              -p:PublishSingleFile=false \
-              -p:PublishTrimmed=false \
-              -p:EnableCompressionInSingleFile=false \
-              --output ./publish
-          else
-            dotnet publish \
-              --configuration Release \
-              --runtime ${{ matrix.runtime }} \
-              --self-contained true \
-              -p:PublishSingleFile=true \
-              -p:PublishTrimmed=true \
-              -p:EnableCompressionInSingleFile=true \
-              --output ./publish
-          fi
+          dotnet publish \
+            --configuration Release \
+            --runtime ${{ matrix.runtime }} \
+            --self-contained true \
+            -p:PublishSingleFile=true \
+            -p:PublishTrimmed=true \
+            -p:EnableCompressionInSingleFile=true \
+            --output ./publish
 
       - name: Copy frontend build to backend
         run: |
