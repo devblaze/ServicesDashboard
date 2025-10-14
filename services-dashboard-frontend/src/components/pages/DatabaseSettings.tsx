@@ -25,13 +25,13 @@ export function DatabaseSettings({ darkMode }: DatabaseSettingsProps) {
   const [showMigrationConfirm, setShowMigrationConfirm] = useState(false);
 
   // Queries
-  const { data: status, isLoading: statusLoading } = useQuery({
+  const { data: status } = useQuery({
     queryKey: ['database-status'],
     queryFn: databaseApi.getDatabaseStatus,
     refetchInterval: 10000
   });
 
-  const { data: config } = useQuery({
+  useQuery({
     queryKey: ['database-configuration'],
     queryFn: databaseApi.getDatabaseConfiguration
   });

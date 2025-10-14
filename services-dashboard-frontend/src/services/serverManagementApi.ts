@@ -1,11 +1,12 @@
 import { BaseApiClient } from './BaseApiClient';
-import type { 
-  ManagedServer, 
-  ServerAlert, 
+import type {
+  ManagedServer,
+  ServerAlert,
   ServerHealthCheck,
   UpdateReport,
   CreateServerDto,
   ServerType,
+  ServerGroup,
   AlertType,
   AlertSeverity,
 } from '../types/ServerManagement';
@@ -90,6 +91,7 @@ interface RawManagedServer {
   encryptedPassword: string | null;
   type: number;
   status: number;
+  group: string;
   operatingSystem: string | null;
   systemInfo: string | null;
   tags: string | null;
@@ -186,6 +188,11 @@ class ServerManagementApiClient extends BaseApiClient {
       case ServerTypeEnum.Container: return 'Container';
       default: return 'Server';
     }
+  }
+
+  private transformGroup(group: string): ServerGroup {
+    // Backend sends string enums like "OnPremise" or "Remote"
+    return group as ServerGroup;
   }
 
   private transformAlertType(type: number): AlertType {
@@ -295,6 +302,7 @@ class ServerManagementApiClient extends BaseApiClient {
       ...raw,
       status: this.transformStatus(raw.status),
       type: this.transformType(raw.type),
+      group: this.transformGroup(raw.group),
       operatingSystem: raw.operatingSystem ?? undefined,
       systemInfo: raw.systemInfo ?? undefined,
       tags: raw.tags ?? undefined,
