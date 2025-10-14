@@ -74,6 +74,17 @@ export const OverviewTab: React.FC<OverviewTabProps> = ({
 }) => {
   const systemInfo = getSystemInfo(server.systemInfo);
 
+  const parseRawData = (rawData: string | undefined): any => {
+    if (!rawData) return null;
+    try {
+      return JSON.parse(rawData);
+    } catch {
+      return null;
+    }
+  };
+
+  const rawHealthData = latestHealthCheck ? parseRawData(latestHealthCheck.rawData) : null;
+
   const MetricCard: React.FC<{
     icon: React.ComponentType<{ className?: string }>;
     label: string;
@@ -88,14 +99,16 @@ export const OverviewTab: React.FC<OverviewTabProps> = ({
           {label}
         </span>
       </div>
-      <p className={`text-2xl font-bold ${darkMode ? 'text-white' : 'text-gray-900'}`}>
-        {value?.toFixed(1) || 'N/A'}%
-      </p>
-      {additionalInfo && (
-        <p className={`text-xs mt-1 ${darkMode ? 'text-gray-400' : 'text-gray-600'}`}>
-          {additionalInfo}
+      <div className="flex items-baseline space-x-2">
+        <p className={`text-2xl font-bold ${darkMode ? 'text-white' : 'text-gray-900'}`}>
+          {value?.toFixed(1) || 'N/A'}%
         </p>
-      )}
+        {additionalInfo && (
+          <p className={`text-sm ${darkMode ? 'text-gray-400' : 'text-gray-600'}`}>
+            {additionalInfo}
+          </p>
+        )}
+      </div>
       <div className={`w-full rounded-full h-2 mt-2 ${darkMode ? 'bg-gray-600' : 'bg-gray-200'}`}>
         <div
           className={`h-2 rounded-full transition-all duration-300 ${
@@ -132,11 +145,43 @@ export const OverviewTab: React.FC<OverviewTabProps> = ({
         System Overview
       </h3>
 
+      {/* Quick Info Cards */}
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+        <InfoCard
+          icon={Monitor}
+          label="Operating System"
+          value={rawHealthData?.OperatingSystem || server.operatingSystem || 'Unknown'}
+          color="text-blue-400"
+        />
+        <InfoCard
+          icon={Server}
+          label="Server Type"
+          value={server.type}
+          color="text-purple-400"
+        />
+        {latestHealthCheck?.loadAverage && (
+          <InfoCard
+            icon={Activity}
+            label="Load Average"
+            value={latestHealthCheck.loadAverage.toFixed(2)}
+            color="text-orange-400"
+          />
+        )}
+        {latestHealthCheck?.runningProcesses && (
+          <InfoCard
+            icon={Cpu}
+            label="Running Processes"
+            value={latestHealthCheck.runningProcesses}
+            color="text-cyan-400"
+          />
+        )}
+      </div>
+
       {/* Performance Metrics */}
       {latestHealthCheck ? (
         <div className="space-y-4">
           <h4 className={`text-md font-medium ${darkMode ? 'text-gray-200' : 'text-gray-800'}`}>
-            Performance Metrics
+            Resource Usage
           </h4>
           <div className="grid grid-cols-3 gap-4">
             <MetricCard
@@ -144,14 +189,13 @@ export const OverviewTab: React.FC<OverviewTabProps> = ({
               label="CPU Usage"
               value={latestHealthCheck.cpuUsage}
               color="text-blue-400"
-              additionalInfo={systemInfo?.systemLoad ? `Load: ${systemInfo.systemLoad}` : undefined}
             />
             <MetricCard
               icon={MemoryStick}
               label="Memory Usage"
               value={latestHealthCheck.memoryUsage}
               color="text-green-400"
-              additionalInfo={systemInfo?.totalMemory ? `Total: ${formatMemorySize(systemInfo.totalMemory)}` : undefined}
+              additionalInfo={systemInfo?.totalMemory ? `of ${formatMemorySize(systemInfo.totalMemory)}` : undefined}
             />
             <MetricCard
               icon={HardDrive}
@@ -165,6 +209,7 @@ export const OverviewTab: React.FC<OverviewTabProps> = ({
         <div className={`text-center py-8 ${darkMode ? 'text-gray-400' : 'text-gray-600'}`}>
           <Activity className="w-12 h-12 mx-auto mb-3 opacity-50" />
           <p>No health check data available</p>
+          <p className="text-sm mt-2">Click "Perform Health Check" to collect system metrics</p>
         </div>
       )}
 
