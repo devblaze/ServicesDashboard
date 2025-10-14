@@ -13,7 +13,9 @@ import {
   Grip,
   Layers,
   Upload,
-  X
+  X,
+  ExternalLink,
+  Globe
 } from 'lucide-react';
 import { dockerServicesApi } from '../../services/DockerServicesApi.ts';
 import { useEscapeKey } from '../../hooks/useEscapeKey';
@@ -362,6 +364,56 @@ export function DockerServices({ darkMode }: DockerServicesProps) {
     }
   };
 
+  // Generate service URL for containers with exposed web ports
+  const generateServiceUrl = (service: DockerService): string | null => {
+    if (!service.isRunning || service.ports.length === 0) return null;
+
+    // Service-specific port mappings for known services
+    const servicePortMap: Record<string, { port: number; protocol: 'http' | 'https' }> = {
+      'portainer': { port: 9443, protocol: 'https' },
+      'traefik': { port: 8080, protocol: 'http' },
+      'nginx': { port: 80, protocol: 'http' },
+      'grafana': { port: 3000, protocol: 'http' },
+      'prometheus': { port: 9090, protocol: 'http' },
+    };
+
+    // Check if this is a known service
+    const serviceName = service.image.toLowerCase();
+    for (const [key, value] of Object.entries(servicePortMap)) {
+      if (serviceName.includes(key)) {
+        const matchingPort = service.ports.find(p => p.publicPort === value.port);
+        if (matchingPort?.publicPort) {
+          return `${value.protocol}://${service.serverHostAddress}:${matchingPort.publicPort}`;
+        }
+      }
+    }
+
+    // Common web service ports (ordered by priority)
+    // HTTPS ports first, then common HTTP ports
+    const webPorts = [443, 9443, 8443, 80, 8080, 3000, 5000, 8000, 8888, 9000, 3001, 4000, 5173, 5174];
+
+    // Find the first public port that matches common web service ports
+    const webPort = service.ports.find(p =>
+      p.publicPort && webPorts.includes(p.publicPort)
+    );
+
+    if (webPort?.publicPort) {
+      // Use HTTPS for standard HTTPS ports
+      const protocol = [443, 9443, 8443].includes(webPort.publicPort) ? 'https' : 'http';
+      const host = service.serverHostAddress;
+      return `${protocol}://${host}:${webPort.publicPort}`;
+    }
+
+    // If no standard web port found, check if any port is exposed publicly
+    const firstPublicPort = service.ports.find(p => p.publicPort);
+    if (firstPublicPort?.publicPort) {
+      const host = service.serverHostAddress;
+      return `http://${host}:${firstPublicPort.publicPort}`;
+    }
+
+    return null;
+  };
+
   const renderServiceCard = (service: DockerService, hideServerInfo = false) => (
     <div
       key={service.containerId}
@@ -375,11 +427,11 @@ export function DockerServices({ darkMode }: DockerServicesProps) {
             : 'bg-gray-50 border-gray-200 hover:shadow-md'
       }`}
     >
-      <div className="flex items-start justify-between">
-        <div className="flex-1">
+      <div className="flex items-start justify-between gap-4">
+        <div className="flex-1 min-w-0">
           <div className="flex items-center space-x-3 mb-3">
             {isArranging && (
-              <Grip className={`w-4 h-4 cursor-grab ${darkMode ? 'text-gray-400' : 'text-gray-500'}`} />
+              <Grip className={`w-4 h-4 flex-shrink-0 cursor-grab ${darkMode ? 'text-gray-400' : 'text-gray-500'}`} />
             )}
 
             {/* Container Icon */}
@@ -387,7 +439,7 @@ export function DockerServices({ darkMode }: DockerServicesProps) {
               <img
                 src={service.customIconData}
                 alt={service.name}
-                className="w-10 h-10 rounded object-cover"
+                className="w-10 h-10 flex-shrink-0 rounded object-cover"
                 onError={(e) => {
                   e.currentTarget.style.display = 'none';
                   e.currentTarget.nextElementSibling?.classList.remove('hidden');
@@ -397,7 +449,7 @@ export function DockerServices({ darkMode }: DockerServicesProps) {
               <img
                 src={service.customIconUrl}
                 alt={service.name}
-                className="w-10 h-10 rounded object-cover"
+                className="w-10 h-10 flex-shrink-0 rounded object-cover"
                 onError={(e) => {
                   e.currentTarget.style.display = 'none';
                   e.currentTarget.nextElementSibling?.classList.remove('hidden');
@@ -407,26 +459,26 @@ export function DockerServices({ darkMode }: DockerServicesProps) {
               <img
                 src={getContainerIcon(service.image)}
                 alt={service.displayImage}
-                className="w-10 h-10 rounded object-cover"
+                className="w-10 h-10 flex-shrink-0 rounded object-cover"
                 onError={(e) => {
                   e.currentTarget.style.display = 'none';
                   e.currentTarget.nextElementSibling?.classList.remove('hidden');
                 }}
               />
             )}
-            <Container className={`w-8 h-8 hidden ${
+            <Container className={`w-8 h-8 flex-shrink-0 hidden ${
               service.isRunning
                 ? darkMode ? 'text-green-400' : 'text-green-600'
                 : darkMode ? 'text-gray-400' : 'text-gray-500'
             }`} />
 
-            <div>
-              <h3 className={`font-semibold ${darkMode ? 'text-white' : 'text-gray-900'}`}>
+            <div className="min-w-0 flex-1">
+              <h3 className={`font-semibold truncate ${darkMode ? 'text-white' : 'text-gray-900'}`}>
                 {service.name}
               </h3>
               <div className="flex items-center space-x-2 mt-1">
                 {getStatusIcon(service.status)}
-                <span className={`text-sm font-medium capitalize px-2 py-0.5 rounded ${
+                <span className={`text-sm font-medium capitalize px-2 py-0.5 rounded whitespace-nowrap ${
                   service.isRunning
                     ? darkMode
                       ? 'text-green-400 bg-green-900/30'
@@ -442,9 +494,9 @@ export function DockerServices({ darkMode }: DockerServicesProps) {
           </div>
 
           <div className="space-y-2 mb-4">
-            <div className="flex items-center space-x-2">
-              <Tag className={`w-4 h-4 ${darkMode ? 'text-gray-400' : 'text-gray-500'}`} />
-              <span className={`text-sm ${darkMode ? 'text-gray-300' : 'text-gray-600'}`}>
+            <div className="flex items-center space-x-2 min-w-0">
+              <Tag className={`w-4 h-4 flex-shrink-0 ${darkMode ? 'text-gray-400' : 'text-gray-500'}`} />
+              <span className={`text-sm truncate ${darkMode ? 'text-gray-300' : 'text-gray-600'}`}>
                 {service.displayImage}
                 <span className={`ml-1 ${darkMode ? 'text-gray-400' : 'text-gray-500'}`}>
                   :{service.imageTag}
@@ -453,9 +505,9 @@ export function DockerServices({ darkMode }: DockerServicesProps) {
             </div>
 
             {!hideServerInfo && (
-              <div className="flex items-center space-x-2">
-                <Server className={`w-4 h-4 ${darkMode ? 'text-gray-400' : 'text-gray-500'}`} />
-                <span className={`text-sm ${darkMode ? 'text-gray-300' : 'text-gray-600'}`}>
+              <div className="flex items-center space-x-2 min-w-0">
+                <Server className={`w-4 h-4 flex-shrink-0 ${darkMode ? 'text-gray-400' : 'text-gray-500'}`} />
+                <span className={`text-sm truncate ${darkMode ? 'text-gray-300' : 'text-gray-600'}`}>
                   {service.serverName} ({service.serverHostAddress})
                 </span>
               </div>
@@ -494,11 +546,32 @@ export function DockerServices({ darkMode }: DockerServicesProps) {
                 Created {new Date(service.createdAt).toLocaleDateString()}
               </span>
             </div>
+
+            {/* Service URL */}
+            {generateServiceUrl(service) && (
+              <div className="flex items-center space-x-2 pt-2 border-t border-gray-600/30">
+                <Globe className={`w-4 h-4 ${darkMode ? 'text-blue-400' : 'text-blue-600'}`} />
+                <a
+                  href={generateServiceUrl(service)!}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className={`text-sm font-medium flex items-center space-x-1 transition-colors ${
+                    darkMode
+                      ? 'text-blue-400 hover:text-blue-300'
+                      : 'text-blue-600 hover:text-blue-700'
+                  }`}
+                  onClick={(e) => e.stopPropagation()}
+                >
+                  <span>Open Service</span>
+                  <ExternalLink className="w-3 h-3" />
+                </a>
+              </div>
+            )}
           </div>
         </div>
 
         {!isArranging && (
-          <div className="flex flex-col space-y-2">
+          <div className="flex flex-col space-y-2 flex-shrink-0">
             <div className="flex space-x-2">
               {service.isRunning ? (
                 <>
@@ -508,7 +581,7 @@ export function DockerServices({ darkMode }: DockerServicesProps) {
                       containerId: service.containerId
                     })}
                     disabled={stopContainerMutation.isPending}
-                    className={`p-2 rounded-lg transition-colors ${
+                    className={`p-2 rounded-lg transition-colors flex-shrink-0 ${
                       darkMode
                         ? 'bg-red-900/30 hover:bg-red-900/50 text-red-400'
                         : 'bg-red-100 hover:bg-red-200 text-red-600'
@@ -523,7 +596,7 @@ export function DockerServices({ darkMode }: DockerServicesProps) {
                       containerId: service.containerId
                     })}
                     disabled={restartContainerMutation.isPending}
-                    className={`p-2 rounded-lg transition-colors ${
+                    className={`p-2 rounded-lg transition-colors flex-shrink-0 ${
                       darkMode
                         ? 'bg-blue-900/30 hover:bg-blue-900/50 text-blue-400'
                         : 'bg-blue-100 hover:bg-blue-200 text-blue-600'
@@ -540,7 +613,7 @@ export function DockerServices({ darkMode }: DockerServicesProps) {
                     containerId: service.containerId
                   })}
                   disabled={startContainerMutation.isPending}
-                  className={`p-2 rounded-lg transition-colors ${
+                  className={`p-2 rounded-lg transition-colors flex-shrink-0 ${
                     darkMode
                       ? 'bg-green-900/30 hover:bg-green-900/50 text-green-400'
                       : 'bg-green-100 hover:bg-green-200 text-green-600'
@@ -553,7 +626,7 @@ export function DockerServices({ darkMode }: DockerServicesProps) {
             </div>
             <button
               onClick={() => openUploadModal(service)}
-              className={`p-2 rounded-lg transition-colors ${
+              className={`p-2 rounded-lg transition-colors flex-shrink-0 ${
                 darkMode
                   ? 'bg-purple-900/30 hover:bg-purple-900/50 text-purple-400'
                   : 'bg-purple-100 hover:bg-purple-200 text-purple-600'

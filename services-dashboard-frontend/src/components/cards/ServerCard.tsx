@@ -142,9 +142,20 @@ export const ServerCard: React.FC<ServerCardProps> = ({
               {getServerTypeIcon(server.type)}
             </div>
             <div>
-              <h3 className={`font-semibold ${darkMode ? 'text-white' : 'text-gray-900'}`}>
-                {server.name}
-              </h3>
+              <div className="flex items-center space-x-2">
+                <h3 className={`font-semibold ${darkMode ? 'text-white' : 'text-gray-900'}`}>
+                  {server.name}
+                </h3>
+                {server.isDashboardServer && (
+                  <span className={`inline-flex items-center px-2 py-0.5 rounded text-xs font-medium ${
+                    darkMode
+                      ? 'bg-blue-900/50 text-blue-300 border border-blue-600/50'
+                      : 'bg-blue-100 text-blue-700 border border-blue-300'
+                  }`}>
+                    Dashboard
+                  </span>
+                )}
+              </div>
               <p className={`text-sm ${darkMode ? 'text-gray-400' : 'text-gray-600'}`}>
                 {server.hostAddress}
               </p>

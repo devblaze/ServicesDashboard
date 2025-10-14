@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import { useQuery, useQueryClient, useMutation } from '@tanstack/react-query';
 import {
   Server,
@@ -104,7 +104,7 @@ export const ServerManagement: React.FC<ServerManagementProps> = ({ darkMode = t
 
   // Bulk update check mutation
   const bulkUpdateCheckMutation = useMutation({
-    mutationFn: (serverIds: number[]) => 
+    mutationFn: (serverIds: number[]) =>
       Promise.all(serverIds.map(id => serverManagementApi.checkUpdates(id))),
     onSuccess: (results, serverIds) => {
       // Update all servers in the cache
@@ -129,6 +129,17 @@ export const ServerManagement: React.FC<ServerManagementProps> = ({ darkMode = t
       setIsSelectionMode(false);
     },
   });
+
+  // Automatically check health for servers with Unknown status when page loads
+  useEffect(() => {
+    if (!isLoading && servers.length > 0) {
+      const unknownServers = servers.filter(s => s.status === 'Unknown');
+      if (unknownServers.length > 0) {
+        const unknownServerIds = unknownServers.map(s => s.id);
+        bulkHealthCheckMutation.mutate(unknownServerIds);
+      }
+    }
+  }, [isLoading, servers.length]); // Only run when loading completes or server count changes
 
   const toggleServerSelection = (serverId: number) => {
     const newSelection = new Set(selectedServerIds);
