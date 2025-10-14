@@ -8,6 +8,57 @@ A modern full-stack web application for monitoring and managing containerized se
 
 Services Dashboard is a comprehensive monitoring solution that combines real-time service health monitoring with AI-powered insights. It features an intuitive React frontend, a robust .NET backend, and seamless Docker integration for easy deployment and development.
 
+## ⚡ Quick Install
+
+### One-Line Install (Linux/macOS/Raspberry Pi)
+
+Get started in seconds with our automated installer:
+
+**Raspberry Pi Zero / Pi 1:**
+```bash
+curl -fsSL https://github.com/nickantoniadis/ServicesDashboard/releases/latest/download/servicesdashboard-pizero-linux-arm.tar.gz | sudo tar -xzf - && sudo bash install.sh
+```
+
+> **Pi Zero Note:** Version v0.0.2+ includes optimized builds for Raspberry Pi Zero with ARMv6 compatibility. If you installed v0.0.1 and experienced crashes, please upgrade to the latest version.
+
+**For other platforms:**
+```bash
+# Raspberry Pi 3/4 (32-bit)
+curl -fsSL https://github.com/nickantoniadis/ServicesDashboard/releases/latest/download/servicesdashboard-pi-linux-arm.tar.gz | sudo tar -xzf - && sudo bash install.sh
+
+# Raspberry Pi 4/5 (64-bit)
+curl -fsSL https://github.com/nickantoniadis/ServicesDashboard/releases/latest/download/servicesdashboard-pi-linux-arm64.tar.gz | sudo tar -xzf - && sudo bash install.sh
+
+# Linux x64
+curl -fsSL https://github.com/nickantoniadis/ServicesDashboard/releases/latest/download/servicesdashboard-linux-x64.tar.gz | sudo tar -xzf - && sudo bash install.sh
+
+# macOS (Intel)
+curl -fsSL https://github.com/nickantoniadis/ServicesDashboard/releases/latest/download/servicesdashboard-macos-x64.tar.gz | tar -xzf - && sudo bash install.sh
+
+# macOS (Apple Silicon)
+curl -fsSL https://github.com/nickantoniadis/ServicesDashboard/releases/latest/download/servicesdashboard-macos-arm64.tar.gz | tar -xzf - && sudo bash install.sh
+```
+
+> **Note:** Replace `nickantoniadis` with your GitHub username if different. For a specific version, replace `latest/download` with `download/v0.0.1` (or your version number).
+
+**After installation:**
+```bash
+# Start the service
+sudo systemctl start servicesdashboard
+
+# Check status
+sudo systemctl status servicesdashboard
+
+# View logs
+sudo journalctl -u servicesdashboard -f
+
+# Access the dashboard
+# Navigate to http://your-ip:5050
+```
+
+**For Windows:**
+Download the latest release from [GitHub Releases](https://github.com/nickantoniadis/ServicesDashboard/releases/latest) and run `install.ps1` as Administrator.
+
 ## 🚀 Key Features
 
 ### 📊 Service Management & Monitoring
