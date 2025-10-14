@@ -14,12 +14,12 @@ Services Dashboard is a comprehensive monitoring solution that combines real-tim
 
 Get started in seconds with our automated installer:
 
-**Raspberry Pi Zero / Pi 1:**
+**Raspberry Pi 3/4 (32-bit):**
 ```bash
-curl -fsSL https://github.com/nickantoniadis/ServicesDashboard/releases/latest/download/servicesdashboard-pizero-linux-arm.tar.gz | sudo tar -xzf - && sudo bash install.sh
+curl -fsSL https://github.com/nickantoniadis/ServicesDashboard/releases/latest/download/servicesdashboard-pi-linux-arm.tar.gz | sudo tar -xzf - && sudo bash install.sh
 ```
 
-> **Pi Zero Note:** Version v0.0.2+ includes optimized builds for Raspberry Pi Zero with ARMv6 compatibility. If you installed v0.0.1 and experienced crashes, please upgrade to the latest version.
+> **⚠️ Raspberry Pi Zero / Pi 1 NOT Supported:** .NET 9.0 does not support ARMv6 architecture (Raspberry Pi Zero, Pi 1). Please use Raspberry Pi 3 or newer (ARMv7/ARMv8). The Pi Zero has only 512MB RAM which is also insufficient for .NET applications. Minimum recommended: **Raspberry Pi 3 with 1GB+ RAM**.
 
 **For other platforms:**
 ```bash
