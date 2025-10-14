@@ -7,13 +7,42 @@ on:
     branches: [ main, develop ]
 
 jobs:
-  test:
+  frontend:
+    name: Frontend Checks
     runs-on: ubuntu-latest
-    
+
     steps:
     - name: Checkout code
       uses: actions/checkout@v4
-      
+
+    - name: Setup Node.js
+      uses: actions/setup-node@v4
+      with:
+        node-version: '20'
+
+    - name: Enable Corepack
+      run: corepack enable
+
+    - name: Install dependencies
+      working-directory: ./services-dashboard-frontend
+      run: yarn install --frozen-lockfile
+
+    - name: Run ESLint
+      working-directory: ./services-dashboard-frontend
+      run: yarn lint || true  # Don't fail on lint errors for now
+
+    - name: Build frontend
+      working-directory: ./services-dashboard-frontend
+      run: yarn build
+
+  backend:
+    name: Backend Tests
+    runs-on: ubuntu-latest
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
     - name: Setup .NET
       uses: actions/setup-dotnet@v4
       with:
@@ -27,10 +56,10 @@ jobs:
 
     - name: Restore dependencies
       run: dotnet restore
-      
+
     - name: Build solution
       run: dotnet build --no-restore --configuration Release
-      
+
     - name: Run unit tests
       run: |
         dotnet test \
