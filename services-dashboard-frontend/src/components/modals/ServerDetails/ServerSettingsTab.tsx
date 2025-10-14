@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { Edit3, Save, Loader2, Trash2 } from 'lucide-react';
 import { useMutation, useQueryClient, useQuery } from '@tanstack/react-query';
-import type { ManagedServer, ServerType } from '../../../types/ServerManagement';
+import type { ManagedServer, ServerType, ServerGroup } from '../../../types/ServerManagement';
 import { serverManagementApi } from '../../../services/serverManagementApi';
 
 interface SettingsTabProps {
@@ -17,6 +17,7 @@ interface EditForm {
   sshPort: number;
   username: string;
   type: ServerType;
+  group: ServerGroup;
   tags: string;
   parentServerId: number | null;
 }
@@ -41,6 +42,7 @@ export const SettingsTab: React.FC<SettingsTabProps> = ({
     sshPort: server.sshPort || 22,
     username: server.username || 'root',
     type: server.type,
+    group: server.group,
     tags: server.tags || '',
     parentServerId: server.parentServerId || null
   });
@@ -79,6 +81,7 @@ export const SettingsTab: React.FC<SettingsTabProps> = ({
       sshPort: editForm.sshPort,
       username: editForm.username,
       type: editForm.type,
+      group: editForm.group,
       tags: editForm.tags || undefined,
       parentServerId: editForm.parentServerId,
     };
@@ -218,6 +221,33 @@ export const SettingsTab: React.FC<SettingsTabProps> = ({
           ) : (
             <p className={`px-3 py-2 ${darkMode ? 'text-gray-200' : 'text-gray-800'}`}>
               {SERVER_TYPES.find(t => t.value === editForm.type)?.icon} {SERVER_TYPES.find(t => t.value === editForm.type)?.label}
+            </p>
+          )}
+        </div>
+
+        {/* Server Group */}
+        <div>
+          <label className={`block text-sm font-medium mb-2 ${
+            darkMode ? 'text-gray-200' : 'text-gray-700'
+          }`}>
+            Server Group
+          </label>
+          {isEditing ? (
+            <select
+              value={editForm.group}
+              onChange={(e) => setEditForm({...editForm, group: e.target.value as ServerGroup})}
+              className={`w-full px-3 py-2 rounded-lg border ${
+                darkMode
+                  ? 'bg-gray-700/50 border-gray-600/50 text-white'
+                  : 'bg-white border-gray-300 text-gray-900'
+              } focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500/50`}
+            >
+              <option value="OnPremise">🏢 On-Premise</option>
+              <option value="Remote">🌐 Remote</option>
+            </select>
+          ) : (
+            <p className={`px-3 py-2 ${darkMode ? 'text-gray-200' : 'text-gray-800'}`}>
+              {editForm.group === 'OnPremise' ? '🏢 On-Premise' : '🌐 Remote'}
             </p>
           )}
         </div>

@@ -6,16 +6,19 @@ namespace ServicesDashboard.Data.Entities;
 public class DockerServiceArrangement
 {
     public int Id { get; set; }
-    
+
     [Required]
     public string ContainerId { get; set; } = string.Empty;
-    
+
     [Required]
     public string ContainerName { get; set; } = string.Empty;
-    
+
     public int ServerId { get; set; }
-    
+
     public int Order { get; set; }
+
+    // Store the Docker image name for icon sharing across containers with same image
+    public string? ImageName { get; set; }
 
     // Icon fields
     public string? CustomIconUrl { get; set; }  // Custom uploaded icon URL or Docker Hub icon URL

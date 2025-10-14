@@ -62,4 +62,5 @@ public class UpdateDockerServiceIconRequest
     public string? IconData { get; set; }  // For base64 uploaded image
     public bool RemoveBackground { get; set; }  // Whether to remove background from the image
     public bool DownloadFromUrl { get; set; }  // Whether to download and process the URL image
+    public string? ImageName { get; set; }  // Docker image name for icon sharing
 }

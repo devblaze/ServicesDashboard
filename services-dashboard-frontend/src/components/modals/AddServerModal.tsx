@@ -14,7 +14,7 @@ import {
 import { serverManagementApi } from '../../services/serverManagementApi';
 import { sshCredentialsApi } from '../../services/sshCredentialsApi';
 import { useEscapeKey } from '../../hooks/useEscapeKey';
-import type { CreateServerDto, ServerType } from '../../types/ServerManagement';
+import type { CreateServerDto, ServerType, ServerGroup } from '../../types/ServerManagement';
 
 interface AddServerModalProps {
   isOpen: boolean;
@@ -29,6 +29,7 @@ interface FormData {
   username: string;
   password: string; // Separate from encryptedPassword for form handling
   type: ServerType;
+  group: ServerGroup;
   tags: string; // Change to string instead of string | null
   parentServerId: number | null;
   useCredential: boolean;
@@ -53,6 +54,7 @@ const DEFAULT_FORM_DATA: FormData = {
   username: 'root',
   password: '',
   type: 'Server',
+  group: 'Remote',
   tags: '',
   parentServerId: null,
   useCredential: false,
@@ -257,6 +259,7 @@ export const AddServerModal: React.FC<AddServerModalProps> = ({
       username: username,
       password: password, // Will be encrypted by backend
       type: formData.type,
+      group: formData.group,
       tags: formData.tags.trim() || null,
       // TODO: Add credentialId support to CreateServerDto
     };
@@ -289,6 +292,7 @@ export const AddServerModal: React.FC<AddServerModalProps> = ({
       username: username,
       password: password, // Will be encrypted by backend
       type: formData.type,
+      group: formData.group,
       tags: formData.tags.trim() || null,
       parentServerId: formData.parentServerId,
       // TODO: Add credentialId to CreateServerDto type
@@ -413,8 +417,8 @@ export const AddServerModal: React.FC<AddServerModalProps> = ({
             )}
           </div>
 
-          {/* Server Type and SSH Port */}
-          <div className="grid grid-cols-2 gap-4">
+          {/* Server Type, Group, and SSH Port */}
+          <div className="grid grid-cols-3 gap-4">
             <div>
               <label className={`block text-sm font-medium mb-2 ${
                 darkMode ? 'text-gray-200' : 'text-gray-700'
@@ -436,6 +440,27 @@ export const AddServerModal: React.FC<AddServerModalProps> = ({
                     {type.icon} {type.label}
                   </option>
                 ))}
+              </select>
+            </div>
+
+            <div>
+              <label className={`block text-sm font-medium mb-2 ${
+                darkMode ? 'text-gray-200' : 'text-gray-700'
+              }`}>
+                Server Group
+              </label>
+              <select
+                value={formData.group}
+                onChange={(e) => handleInputChange('group', e.target.value)}
+                disabled={addServerMutation.isPending}
+                className={`w-full px-3 py-2 rounded-lg border transition-colors ${
+                  darkMode
+                    ? 'bg-gray-700/50 border-gray-600/50 text-white focus:border-blue-500/50 focus:ring-2 focus:ring-blue-500/20'
+                    : 'bg-white/50 border-gray-300/50 text-gray-900 focus:border-blue-500/50 focus:ring-2 focus:ring-blue-500/20'
+                } focus:outline-none disabled:opacity-50 disabled:cursor-not-allowed`}
+              >
+                <option value="OnPremise">🏢 On-Premise</option>
+                <option value="Remote">🌐 Remote</option>
               </select>
             </div>
 

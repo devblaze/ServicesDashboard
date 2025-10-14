@@ -8,6 +8,7 @@ export interface ManagedServer {
   username?: string;
   type: ServerType;
   status: ServerStatus;
+  group: ServerGroup;
   operatingSystem?: string;
   systemInfo?: string;
   lastCheckTime?: string;
@@ -29,6 +30,7 @@ export interface CreateServerDto {
   username: string;
   password: string;
   type: ServerType;
+  group: ServerGroup;
   tags?: string | null;
   parentServerId?: number | null;
 }
@@ -149,4 +151,11 @@ export const ALERT_SEVERITIES = [
   'Medium',
   'High',
   'Critical'
+] as const;
+
+export type ServerGroup = 'OnPremise' | 'Remote';
+
+export const SERVER_GROUPS = [
+  'OnPremise',
+  'Remote'
 ] as const;
