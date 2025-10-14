@@ -32,6 +32,16 @@ export interface GeneralSettings {
   customPorts?: string;
 }
 
+export interface ServerMonitoringSettings {
+  enableAutoMonitoring: boolean;
+  monitoringIntervalMinutes: number;
+  enableHealthChecks: boolean;
+  enableUpdateChecks: boolean;
+  notifyOnHealthCheckFailure: boolean;
+  notifyOnCriticalStatus: boolean;
+  notifyOnSecurityUpdates: boolean;
+}
+
 export interface SettingsGroup {
   category: string;
   displayName: string;

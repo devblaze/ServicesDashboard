@@ -1,8 +1,9 @@
 import React, { useState } from 'react';
-import { Settings, Bot, Bell, Palette, Key, GitBranch, Database } from 'lucide-react';
+import { Settings, Bot, Bell, Palette, Key, GitBranch, Database, Activity } from 'lucide-react';
 import { AISettingsSection } from '../applicationSettings/AISettingsManagementSection';
 import { NotificationSettingsSection } from '../applicationSettings/NotificationSettingsSection';
 import { GeneralSettingsSection } from '../applicationSettings/GeneralSettingsSection';
+import { ServerMonitoringSettingsSection } from '../applicationSettings/ServerMonitoringSettingsSection';
 import { ApiConnectionStatus } from '../applicationSettings/ApiConnectionStatus.tsx';
 import { CredentialsManager } from '../CredentialsManager';
 import { GitProvidersManagement } from './GitProvidersManagement';
@@ -12,7 +13,7 @@ interface SettingsPageProps {
   darkMode?: boolean;
 }
 
-type SettingSection = 'ai' | 'notifications' | 'general' | 'credentials' | 'git-providers' | 'database';
+type SettingSection = 'ai' | 'notifications' | 'general' | 'server-monitoring' | 'credentials' | 'git-providers' | 'database';
 
 export const ApplicationSettings: React.FC<SettingsPageProps> = ({ darkMode = true }) => {
   const [activeSection, setActiveSection] = useState<SettingSection>('ai');
@@ -31,6 +32,13 @@ export const ApplicationSettings: React.FC<SettingsPageProps> = ({ darkMode = tr
       icon: Bot,
       description: 'Configure AI providers and models',
       component: AISettingsSection
+    },
+    {
+      key: 'server-monitoring' as const,
+      label: 'Server Monitoring',
+      icon: Activity,
+      description: 'Automated health & update checks',
+      component: ServerMonitoringSettingsSection
     },
     {
       key: 'credentials' as const,

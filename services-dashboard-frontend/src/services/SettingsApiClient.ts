@@ -1,5 +1,5 @@
 import { BaseApiClient } from './BaseApiClient';
-import type { AISettings, NotificationSettings, GeneralSettings, SettingsGroup } from '../types/SettingsInterfaces';
+import type { AISettings, NotificationSettings, GeneralSettings, ServerMonitoringSettings, SettingsGroup } from '../types/SettingsInterfaces';
 
 class SettingsApiClient extends BaseApiClient {
   constructor() {
@@ -44,6 +44,15 @@ class SettingsApiClient extends BaseApiClient {
 
   async updateGeneralSettings(settings: GeneralSettings): Promise<void> {
     return this.request<void>('post', '/settings/general', settings);
+  }
+
+  // Server Monitoring Settings
+  async getServerMonitoringSettings(): Promise<ServerMonitoringSettings> {
+    return this.request<ServerMonitoringSettings>('get', '/settings/server-monitoring');
+  }
+
+  async updateServerMonitoringSettings(settings: ServerMonitoringSettings): Promise<void> {
+    return this.request<void>('post', '/settings/server-monitoring', settings);
   }
 }
 

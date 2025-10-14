@@ -48,6 +48,9 @@ export const ServerManagement: React.FC<ServerManagementProps> = ({ darkMode = t
     queryKey: ['managed-servers'],
     queryFn: () => serverManagementApi.getServers(),
     refetchInterval: 5 * 60 * 1000, // Refresh every 5 minutes
+    refetchOnMount: true, // Refetch when component mounts
+    refetchOnWindowFocus: true, // Refetch when window gains focus
+    staleTime: 30 * 1000, // Consider data stale after 30 seconds
     retry: 1,
   });
 
