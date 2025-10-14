@@ -66,6 +66,9 @@ jobs:
         with:
           node-version: '20'
 
+      - name: Enable Corepack
+        run: corepack enable
+
       - name: Install frontend dependencies
         working-directory: ./services-dashboard-frontend
         run: yarn install --frozen-lockfile
