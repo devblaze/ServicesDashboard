@@ -127,14 +127,26 @@ jobs:
       - name: Publish backend
         working-directory: ./ServicesDashboard
         run: |
-          dotnet publish \
-            --configuration Release \
-            --runtime ${{ matrix.runtime }} \
-            --self-contained true \
-            -p:PublishSingleFile=true \
-            -p:PublishTrimmed=true \
-            -p:EnableCompressionInSingleFile=true \
-            --output ./publish
+          # Pi Zero needs special build flags to avoid segfaults
+          if [ "${{ matrix.artifact_name }}" = "pi-zero" ]; then
+            dotnet publish \
+              --configuration Release \
+              --runtime ${{ matrix.runtime }} \
+              --self-contained true \
+              -p:PublishSingleFile=false \
+              -p:PublishTrimmed=false \
+              -p:EnableCompressionInSingleFile=false \
+              --output ./publish
+          else
+            dotnet publish \
+              --configuration Release \
+              --runtime ${{ matrix.runtime }} \
+              --self-contained true \
+              -p:PublishSingleFile=true \
+              -p:PublishTrimmed=true \
+              -p:EnableCompressionInSingleFile=true \
+              --output ./publish
+          fi
 
       - name: Copy frontend build to backend
         run: |
@@ -146,6 +158,12 @@ jobs:
           cp ServicesDashboard/appsettings.json ServicesDashboard/publish/
           cp ServicesDashboard/appsettings.Production.json ServicesDashboard/publish/
           cp ServicesDashboard/appsettings.PiZero.json ServicesDashboard/publish/
+
+      - name: Copy update script (Unix)
+        if: ${{ !contains(matrix.runtime, 'win') }}
+        run: |
+          cp ServicesDashboard/update.sh ServicesDashboard/publish/
+          chmod +x ServicesDashboard/publish/update.sh
 
       - name: Create installation script (Unix)
         if: ${{ !contains(matrix.runtime, 'win') }}

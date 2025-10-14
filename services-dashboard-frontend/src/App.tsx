@@ -4,6 +4,8 @@ import { MonitoringProvider } from './providers/MonitoringProvider';
 import { LoadingSpinner } from './components/ui/LoadingSpinner';
 import { ScanNotifications } from './components/ScanNotifications';
 import { MonitoringStatusIndicator } from './components/ui/MonitoringStatusIndicator';
+import { UpdateNotification } from './components/UpdateNotification';
+import { VersionFooter } from './components/ui/VersionFooter';
 
 // Lazy load page components for better code splitting
 const ServicesList = lazy(() => import('./components/pages/ServicesList.tsx').then(module => ({ default: module.ServicesList })));
@@ -173,6 +175,12 @@ function App() {
 
         {/* Scan Notifications Component */}
         <ScanNotifications onNavigateToDiscovery={() => setActiveTab('network')} />
+
+        {/* Update Notification Component */}
+        <UpdateNotification />
+
+        {/* Version Footer */}
+        <VersionFooter darkMode={darkMode} />
       </MonitoringProvider>
     </QueryProvider>
   );

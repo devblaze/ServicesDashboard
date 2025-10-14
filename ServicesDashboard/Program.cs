@@ -99,6 +99,9 @@ builder.Services.AddScoped<IDeploymentService, DeploymentService>();
 builder.Services.AddScoped<IDeploymentExecutor, DeploymentExecutor>();
 builder.Services.AddScoped<IAiDeploymentAssistant, AiDeploymentAssistant>();
 
+// Update Service
+builder.Services.AddScoped<IUpdateService, UpdateService>();
+
 // Add SignalR for real-time notifications
 builder.Services.AddSignalR();
 

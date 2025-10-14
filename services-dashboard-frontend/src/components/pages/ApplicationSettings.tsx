@@ -1,9 +1,10 @@
 import React, { useState } from 'react';
-import { Settings, Bot, Bell, Palette, Key, GitBranch, Database, Activity } from 'lucide-react';
+import { Settings, Bot, Bell, Palette, Key, GitBranch, Database, Activity, Download } from 'lucide-react';
 import { AISettingsSection } from '../applicationSettings/AISettingsManagementSection';
 import { NotificationSettingsSection } from '../applicationSettings/NotificationSettingsSection';
 import { GeneralSettingsSection } from '../applicationSettings/GeneralSettingsSection';
 import { ServerMonitoringSettingsSection } from '../applicationSettings/ServerMonitoringSettingsSection';
+import { UpdateSettingsSection } from '../applicationSettings/UpdateSettingsSection';
 import { ApiConnectionStatus } from '../applicationSettings/ApiConnectionStatus.tsx';
 import { CredentialsManager } from '../CredentialsManager';
 import { GitProvidersManagement } from './GitProvidersManagement';
@@ -13,12 +14,19 @@ interface SettingsPageProps {
   darkMode?: boolean;
 }
 
-type SettingSection = 'ai' | 'notifications' | 'general' | 'server-monitoring' | 'credentials' | 'git-providers' | 'database';
+type SettingSection = 'ai' | 'notifications' | 'general' | 'server-monitoring' | 'credentials' | 'git-providers' | 'database' | 'updates';
 
 export const ApplicationSettings: React.FC<SettingsPageProps> = ({ darkMode = true }) => {
   const [activeSection, setActiveSection] = useState<SettingSection>('ai');
 
   const sections = [
+    {
+      key: 'updates' as const,
+      label: 'Updates',
+      icon: Download,
+      description: 'Check for application updates',
+      component: UpdateSettingsSection
+    },
     {
       key: 'database' as const,
       label: 'Database',
