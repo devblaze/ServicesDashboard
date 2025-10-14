@@ -33,7 +33,8 @@ public class UpdateDockerServiceIconEndpoint : Endpoint<UpdateDockerServiceIconR
                 req.IconUrl,
                 req.IconData,
                 req.RemoveBackground,
-                req.DownloadFromUrl
+                req.DownloadFromUrl,
+                req.ImageName
             );
 
             if (success)

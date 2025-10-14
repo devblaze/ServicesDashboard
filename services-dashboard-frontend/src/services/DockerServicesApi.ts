@@ -85,7 +85,8 @@ class DockerServicesApi extends BaseApiClient {
     iconUrl?: string,
     iconData?: string,
     removeBackground?: boolean,
-    downloadFromUrl?: boolean
+    downloadFromUrl?: boolean,
+    imageName?: string
   ): Promise<void> {
     return await this.request<void>('put', '/dockerservices/icon', {
       serverId,
@@ -93,7 +94,8 @@ class DockerServicesApi extends BaseApiClient {
       iconUrl,
       iconData,
       removeBackground: removeBackground || false,
-      downloadFromUrl: downloadFromUrl || false
+      downloadFromUrl: downloadFromUrl || false,
+      imageName
     });
   }
 }
@@ -134,8 +136,9 @@ export const dockerServicesApi = {
     iconUrl?: string,
     iconData?: string,
     removeBackground?: boolean,
-    downloadFromUrl?: boolean
+    downloadFromUrl?: boolean,
+    imageName?: string
   ): Promise<void> => {
-    return dockerServicesApiInstance.updateServiceIcon(serverId, containerId, iconUrl, iconData, removeBackground, downloadFromUrl);
+    return dockerServicesApiInstance.updateServiceIcon(serverId, containerId, iconUrl, iconData, removeBackground, downloadFromUrl, imageName);
   }
 };

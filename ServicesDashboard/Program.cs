@@ -31,9 +31,23 @@ builder.Services.AddEndpointsApiExplorer();
 // Add configuration
 builder.Services.Configure<AppSettings>(builder.Configuration.GetSection("AppSettings"));
 
-// Add Entity Framework
+// Add Entity Framework with support for both PostgreSQL and SQLite
+var databaseProvider = builder.Configuration.GetValue<string>("DatabaseProvider") ?? "PostgreSQL";
 builder.Services.AddDbContext<ServicesDashboardContext>(options =>
-    options.UseNpgsql(builder.Configuration.GetConnectionString("DefaultConnection")));
+{
+    if (databaseProvider.Equals("SQLite", StringComparison.OrdinalIgnoreCase))
+    {
+        var sqliteConnection = builder.Configuration.GetConnectionString("SQLiteConnection")
+            ?? "Data Source=servicesdashboard.db";
+        options.UseSqlite(sqliteConnection);
+        Console.WriteLine($"🗄️ Using SQLite database: {sqliteConnection}");
+    }
+    else
+    {
+        options.UseNpgsql(builder.Configuration.GetConnectionString("DefaultConnection"));
+        Console.WriteLine("🗄️ Using PostgreSQL database");
+    }
+});
 
 // Add OllamaSharp client
 builder.Services.AddSingleton<IOllamaApiClient>(provider => 
@@ -73,6 +87,7 @@ builder.Services.AddScoped<ISettingsService, DatabaseSettingsService>();
 builder.Services.AddScoped<IDockerServicesService, DockerServicesService>();
 builder.Services.AddScoped<IScheduledTaskService, ScheduledTaskService>();
 builder.Services.AddHostedService<ScheduledTaskExecutorWorker>();
+builder.Services.AddScoped<ServicesDashboard.Services.Database.IDatabaseMigrationService, ServicesDashboard.Services.Database.DatabaseMigrationService>();
 builder.Services.AddHttpClient();
 
 // Git Provider and Deployment Management Services
@@ -113,6 +128,7 @@ builder.Services.ConfigureHttpJsonOptions(options =>
 {
     options.SerializerOptions.ReferenceHandler = ReferenceHandler.IgnoreCycles;
     options.SerializerOptions.WriteIndented = true;
+    options.SerializerOptions.Converters.Add(new JsonStringEnumConverter());
 });
 
 var app = builder.Build();

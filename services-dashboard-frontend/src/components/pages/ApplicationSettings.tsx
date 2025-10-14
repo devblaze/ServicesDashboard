@@ -1,22 +1,30 @@
 import React, { useState } from 'react';
-import { Settings, Bot, Bell, Palette, Key, GitBranch } from 'lucide-react';
+import { Settings, Bot, Bell, Palette, Key, GitBranch, Database } from 'lucide-react';
 import { AISettingsSection } from '../applicationSettings/AISettingsManagementSection';
 import { NotificationSettingsSection } from '../applicationSettings/NotificationSettingsSection';
 import { GeneralSettingsSection } from '../applicationSettings/GeneralSettingsSection';
 import { ApiConnectionStatus } from '../applicationSettings/ApiConnectionStatus.tsx';
 import { CredentialsManager } from '../CredentialsManager';
 import { GitProvidersManagement } from './GitProvidersManagement';
+import { DatabaseSettings } from './DatabaseSettings';
 
 interface SettingsPageProps {
   darkMode?: boolean;
 }
 
-type SettingSection = 'ai' | 'notifications' | 'general' | 'credentials' | 'git-providers';
+type SettingSection = 'ai' | 'notifications' | 'general' | 'credentials' | 'git-providers' | 'database';
 
 export const ApplicationSettings: React.FC<SettingsPageProps> = ({ darkMode = true }) => {
   const [activeSection, setActiveSection] = useState<SettingSection>('ai');
 
   const sections = [
+    {
+      key: 'database' as const,
+      label: 'Database',
+      icon: Database,
+      description: 'Database configuration & migration',
+      component: DatabaseSettings
+    },
     {
       key: 'ai' as const,
       label: 'AI Settings',

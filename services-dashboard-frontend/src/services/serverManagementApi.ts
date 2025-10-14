@@ -388,11 +388,11 @@ class ServerManagementApiClient extends BaseApiClient {
   }
 
   async performHealthCheck(serverId: number): Promise<ServerHealthCheck> {
-    return this.request<ServerHealthCheck>('post', `/servermanagement/${serverId}/health-check`);
+    return this.request<ServerHealthCheck>('post', `/servermanagement/${serverId}/health-check`, {});
   }
 
   async checkUpdates(serverId: number): Promise<UpdateReport> {
-    return this.request<UpdateReport>('post', `/servermanagement/${serverId}/check-updates`);
+    return this.request<UpdateReport>('post', `/servermanagement/${serverId}/check-updates`, {});
   }
 
   async testServerConnection(server: ManagedServer): Promise<boolean> {

@@ -12,7 +12,7 @@ public interface IDockerServicesService
 {
     Task<List<DockerServiceWithServer>> ApplyArrangementsAsync(List<DockerServiceWithServer> services);
     Task UpdateArrangementsAsync(List<DockerServiceArrangementDto> arrangements);
-    Task<bool> UpdateServiceIconAsync(int serverId, string containerId, string? iconUrl, string? iconData, bool removeBackground, bool downloadFromUrl);
+    Task<bool> UpdateServiceIconAsync(int serverId, string containerId, string? iconUrl, string? iconData, bool removeBackground, bool downloadFromUrl, string? imageName);
 }
 
 public class DockerServicesService : IDockerServicesService
@@ -38,9 +38,21 @@ public class DockerServicesService : IDockerServicesService
             var arrangements = await _context.DockerServiceArrangements
                 .ToDictionaryAsync(a => $"{a.ServerId}:{a.ContainerId}", a => a);
 
+            // Create a dictionary for icon sharing by image name
+            var iconsByImage = await _context.DockerServiceArrangements
+                .Where(a => !string.IsNullOrEmpty(a.ImageName) &&
+                           (a.CustomIconUrl != null || a.CustomIconData != null))
+                .GroupBy(a => a.ImageName!)
+                .ToDictionaryAsync(
+                    g => g.Key,
+                    g => g.OrderByDescending(a => a.UpdatedAt).First()
+                );
+
             var arrangedServices = services.Select(service =>
             {
                 var key = $"{service.ServerId}:{service.ContainerId}";
+
+                // First check for container-specific arrangement
                 if (arrangements.TryGetValue(key, out var arrangement))
                 {
                     service.Order = arrangement.Order;
@@ -50,7 +62,17 @@ public class DockerServicesService : IDockerServicesService
                 else
                 {
                     service.Order = int.MaxValue;
+
+                    // If no container-specific icon, check for image-based icon sharing
+                    if (iconsByImage.TryGetValue(service.Image, out var sharedIconArrangement))
+                    {
+                        service.CustomIconUrl = sharedIconArrangement.CustomIconUrl;
+                        service.CustomIconData = sharedIconArrangement.CustomIconData;
+                        _logger.LogDebug("Sharing icon from image {ImageName} for container {ContainerName}",
+                            service.Image, service.Name);
+                    }
                 }
+
                 return service;
             }).ToList();
 
@@ -106,7 +128,7 @@ public class DockerServicesService : IDockerServicesService
         }
     }
 
-    public async Task<bool> UpdateServiceIconAsync(int serverId, string containerId, string? iconUrl, string? iconData, bool removeBackground, bool downloadFromUrl)
+    public async Task<bool> UpdateServiceIconAsync(int serverId, string containerId, string? iconUrl, string? iconData, bool removeBackground, bool downloadFromUrl, string? imageName)
     {
         try
         {
@@ -174,6 +196,7 @@ public class DockerServicesService : IDockerServicesService
                     ContainerId = containerId,
                     ContainerName = containerName,
                     Order = int.MaxValue,
+                    ImageName = imageName,
                     CustomIconUrl = finalIconUrl,
                     CustomIconData = processedIconData
                 };
@@ -181,6 +204,7 @@ public class DockerServicesService : IDockerServicesService
             }
             else
             {
+                arrangement.ImageName = imageName;
                 arrangement.CustomIconUrl = finalIconUrl;
                 arrangement.CustomIconData = processedIconData;
                 arrangement.UpdatedAt = DateTime.UtcNow;

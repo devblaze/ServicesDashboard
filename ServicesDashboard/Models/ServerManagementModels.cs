@@ -50,6 +50,9 @@ public class ManagedServer
     
     public string? Tags { get; set; }
 
+    [Required]
+    public ServerGroup Group { get; set; } = ServerGroup.Remote;
+
     // Parent-Child relationship for server hierarchies (e.g., VM host and VMs)
     public int? ParentServerId { get; set; }
 
@@ -206,4 +209,10 @@ public enum AlertSeverity
     Medium,
     High,
     Critical
+}
+
+public enum ServerGroup
+{
+    OnPremise,
+    Remote
 }

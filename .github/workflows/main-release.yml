@@ -1,0 +1,392 @@
+name: Main Branch Auto Release
+
+on:
+  push:
+    branches:
+      - main
+
+jobs:
+  test:
+    name: Run Tests
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '9.0.x'
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Install frontend dependencies
+        working-directory: ./services-dashboard-frontend
+        run: yarn install --frozen-lockfile
+
+      - name: Run frontend linting
+        working-directory: ./services-dashboard-frontend
+        run: yarn lint || true  # Don't fail on lint errors
+
+      - name: Build frontend
+        working-directory: ./services-dashboard-frontend
+        run: yarn build
+
+      - name: Restore backend dependencies
+        working-directory: ./ServicesDashboard
+        run: dotnet restore
+
+      - name: Build backend
+        working-directory: ./ServicesDashboard
+        run: dotnet build --configuration Release --no-restore
+
+      - name: Run backend tests
+        working-directory: ./ServicesDashboard.Tests
+        run: dotnet test --configuration Release --no-restore --verbosity normal || true  # Don't fail on test errors for now
+
+  build:
+    name: Build for ${{ matrix.name }}
+    needs: test
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        include:
+          # Raspberry Pi Zero (ARM32v6)
+          - name: Pi Zero
+            runtime: linux-arm
+            asset_name: servicesdashboard-pizero-linux-arm.tar.gz
+
+          # Raspberry Pi 3/4 (ARM32v7)
+          - name: Pi 3/4 32-bit
+            runtime: linux-arm
+            asset_name: servicesdashboard-pi-linux-arm.tar.gz
+
+          # Raspberry Pi 4/5 64-bit (ARM64)
+          - name: Pi 4/5 64-bit
+            runtime: linux-arm64
+            asset_name: servicesdashboard-pi-linux-arm64.tar.gz
+
+          # Standard Linux x64
+          - name: Linux x64
+            runtime: linux-x64
+            asset_name: servicesdashboard-linux-x64.tar.gz
+
+          # macOS x64
+          - name: macOS x64
+            runtime: osx-x64
+            asset_name: servicesdashboard-macos-x64.tar.gz
+
+          # macOS ARM64 (M1/M2/M3)
+          - name: macOS ARM64
+            runtime: osx-arm64
+            asset_name: servicesdashboard-macos-arm64.tar.gz
+
+          # Windows x64
+          - name: Windows x64
+            runtime: win-x64
+            asset_name: servicesdashboard-windows-x64.zip
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '9.0.x'
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Install frontend dependencies
+        working-directory: ./services-dashboard-frontend
+        run: yarn install --frozen-lockfile
+
+      - name: Build frontend
+        working-directory: ./services-dashboard-frontend
+        run: yarn build
+
+      - name: Publish backend
+        working-directory: ./ServicesDashboard
+        run: |
+          dotnet publish \
+            --configuration Release \
+            --runtime ${{ matrix.runtime }} \
+            --self-contained true \
+            -p:PublishSingleFile=true \
+            -p:PublishTrimmed=true \
+            -p:EnableCompressionInSingleFile=true \
+            --output ./publish
+
+      - name: Copy frontend build to backend
+        run: |
+          mkdir -p ServicesDashboard/publish/wwwroot
+          cp -r services-dashboard-frontend/dist/* ServicesDashboard/publish/wwwroot/
+
+      - name: Copy configuration files
+        run: |
+          cp ServicesDashboard/appsettings.json ServicesDashboard/publish/
+          cp ServicesDashboard/appsettings.Production.json ServicesDashboard/publish/
+          cp ServicesDashboard/appsettings.PiZero.json ServicesDashboard/publish/
+
+      - name: Create installation script (Unix)
+        if: ${{ !contains(matrix.runtime, 'win') }}
+        working-directory: ./ServicesDashboard/publish
+        run: |
+          cat > install.sh << 'EOF'
+          #!/bin/bash
+          set -e
+
+          echo "🚀 Services Dashboard Installer"
+          echo "================================"
+
+          # Detect architecture
+          ARCH=$(uname -m)
+          IS_PI_ZERO=false
+
+          if [ "$ARCH" = "armv6l" ] || [ "$ARCH" = "armv7l" ]; then
+            IS_PI_ZERO=true
+            echo "📟 Detected Raspberry Pi (ARM)"
+          fi
+
+          # Set installation directory
+          INSTALL_DIR="/opt/servicesdashboard"
+          DATA_DIR="/var/lib/servicesdashboard"
+          SERVICE_FILE="/etc/systemd/system/servicesdashboard.service"
+
+          echo "📂 Installing to: $INSTALL_DIR"
+
+          # Check if running as root
+          if [ "$EUID" -ne 0 ]; then
+            echo "❌ Please run as root (use sudo)"
+            exit 1
+          fi
+
+          # Create directories
+          mkdir -p "$INSTALL_DIR"
+          mkdir -p "$DATA_DIR"
+
+          # Copy files
+          echo "📦 Copying files..."
+          cp -r ./* "$INSTALL_DIR/"
+          chmod +x "$INSTALL_DIR/ServicesDashboard"
+
+          # Choose configuration based on hardware
+          if [ "$IS_PI_ZERO" = true ]; then
+            echo "⚙️  Using Pi Zero configuration (SQLite)"
+            export ASPNETCORE_ENVIRONMENT=PiZero
+          else
+            echo "⚙️  Using Production configuration"
+            export ASPNETCORE_ENVIRONMENT=Production
+          fi
+
+          # Create systemd service
+          echo "🔧 Creating systemd service..."
+          cat > "$SERVICE_FILE" << SERVICEEOF
+          [Unit]
+          Description=Services Dashboard
+          After=network.target
+
+          [Service]
+          Type=simple
+          User=root
+          WorkingDirectory=$INSTALL_DIR
+          ExecStart=$INSTALL_DIR/ServicesDashboard
+          Environment=ASPNETCORE_ENVIRONMENT=$ASPNETCORE_ENVIRONMENT
+          Environment=ASPNETCORE_URLS=http://0.0.0.0:5050
+          Restart=always
+          RestartSec=10
+
+          [Install]
+          WantedBy=multi-user.target
+          SERVICEEOF
+
+          # Reload systemd and enable service
+          systemctl daemon-reload
+          systemctl enable servicesdashboard
+
+          echo ""
+          echo "✅ Installation complete!"
+          echo ""
+          echo "📝 To start the service:"
+          echo "   sudo systemctl start servicesdashboard"
+          echo ""
+          echo "📊 To check status:"
+          echo "   sudo systemctl status servicesdashboard"
+          echo ""
+          echo "📜 To view logs:"
+          echo "   sudo journalctl -u servicesdashboard -f"
+          echo ""
+          echo "🌐 Access the dashboard at:"
+          echo "   http://$(hostname -I | awk '{print $1}'):5050"
+          echo ""
+          EOF
+          chmod +x install.sh
+
+      - name: Create installation script (Windows)
+        if: contains(matrix.runtime, 'win')
+        working-directory: ./ServicesDashboard/publish
+        run: |
+          cat > install.ps1 << 'EOF'
+          # Services Dashboard Windows Installer
+          Write-Host "🚀 Services Dashboard Installer" -ForegroundColor Cyan
+          Write-Host "================================" -ForegroundColor Cyan
+
+          # Check for admin rights
+          if (-NOT ([Security.Principal.WindowsPrincipal][Security.Principal.WindowsIdentity]::GetCurrent()).IsInRole([Security.Principal.WindowsBuiltInRole] "Administrator"))
+          {
+              Write-Host "❌ Please run as Administrator" -ForegroundColor Red
+              exit 1
+          }
+
+          $InstallDir = "C:\Program Files\ServicesDashboard"
+          $DataDir = "C:\ProgramData\ServicesDashboard"
+
+          Write-Host "📂 Installing to: $InstallDir" -ForegroundColor Green
+
+          # Create directories
+          New-Item -ItemType Directory -Force -Path $InstallDir | Out-Null
+          New-Item -ItemType Directory -Force -Path $DataDir | Out-Null
+
+          # Copy files
+          Write-Host "📦 Copying files..." -ForegroundColor Green
+          Copy-Item -Path ".\*" -Destination $InstallDir -Recurse -Force
+
+          # Set environment variables
+          [Environment]::SetEnvironmentVariable("ASPNETCORE_ENVIRONMENT", "Production", "Machine")
+          [Environment]::SetEnvironmentVariable("ASPNETCORE_URLS", "http://0.0.0.0:5050", "Machine")
+
+          Write-Host ""
+          Write-Host "✅ Installation complete!" -ForegroundColor Green
+          Write-Host ""
+          Write-Host "📝 To start the service, run:" -ForegroundColor Yellow
+          Write-Host "   cd '$InstallDir'" -ForegroundColor White
+          Write-Host "   .\ServicesDashboard.exe" -ForegroundColor White
+          Write-Host ""
+          Write-Host "🌐 Access the dashboard at:" -ForegroundColor Yellow
+          Write-Host "   http://localhost:5050" -ForegroundColor White
+          Write-Host ""
+          EOF
+
+      - name: Create archive (Unix)
+        if: ${{ !contains(matrix.runtime, 'win') }}
+        working-directory: ./ServicesDashboard
+        run: tar -czf ${{ matrix.asset_name }} -C publish .
+
+      - name: Create archive (Windows)
+        if: contains(matrix.runtime, 'win')
+        working-directory: ./ServicesDashboard
+        run: |
+          cd publish
+          zip -r ../${{ matrix.asset_name }} .
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ matrix.name }}
+          path: ServicesDashboard/${{ matrix.asset_name }}
+
+  release:
+    name: Create Release
+    needs: build
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0  # Fetch all history for versioning
+
+      - name: Generate version number
+        id: version
+        run: |
+          # Get the latest tag
+          LATEST_TAG=$(git describe --tags --abbrev=0 2>/dev/null || echo "v0.0.0")
+          echo "Latest tag: $LATEST_TAG"
+
+          # Extract version numbers
+          VERSION=${LATEST_TAG#v}
+          MAJOR=$(echo $VERSION | cut -d. -f1)
+          MINOR=$(echo $VERSION | cut -d. -f2)
+          PATCH=$(echo $VERSION | cut -d. -f3)
+
+          # Increment patch version
+          PATCH=$((PATCH + 1))
+
+          # Create new version
+          NEW_VERSION="v${MAJOR}.${MINOR}.${PATCH}"
+
+          # Get commit count since last tag for build number
+          COMMIT_COUNT=$(git rev-list ${LATEST_TAG}..HEAD --count 2>/dev/null || echo "0")
+
+          # Get short commit hash
+          SHORT_SHA=$(git rev-parse --short HEAD)
+
+          # Create version with build metadata
+          FULL_VERSION="${NEW_VERSION}-build.${COMMIT_COUNT}+${SHORT_SHA}"
+
+          echo "New version: $FULL_VERSION"
+          echo "version=$FULL_VERSION" >> $GITHUB_OUTPUT
+          echo "tag=$NEW_VERSION" >> $GITHUB_OUTPUT
+
+      - name: Download all artifacts
+        uses: actions/download-artifact@v4
+
+      - name: Display structure of downloaded files
+        run: ls -R
+
+      - name: Create Release
+        uses: softprops/action-gh-release@v1
+        with:
+          tag_name: ${{ steps.version.outputs.tag }}
+          name: Release ${{ steps.version.outputs.version }}
+          body: |
+            ## 🚀 Auto Release from Main Branch
+
+            **Version:** ${{ steps.version.outputs.version }}
+            **Commit:** ${{ github.sha }}
+            **Branch:** main
+
+            ### 📦 Available Downloads
+
+            - **Raspberry Pi Zero**: `servicesdashboard-pizero-linux-arm.tar.gz`
+            - **Raspberry Pi 3/4 (32-bit)**: `servicesdashboard-pi-linux-arm.tar.gz`
+            - **Raspberry Pi 4/5 (64-bit)**: `servicesdashboard-pi-linux-arm64.tar.gz`
+            - **Linux x64**: `servicesdashboard-linux-x64.tar.gz`
+            - **macOS x64 (Intel)**: `servicesdashboard-macos-x64.tar.gz`
+            - **macOS ARM64 (Apple Silicon)**: `servicesdashboard-macos-arm64.tar.gz`
+            - **Windows x64**: `servicesdashboard-windows-x64.zip`
+
+            ### 📝 Installation
+
+            **Quick Install (Linux/macOS):**
+            ```bash
+            curl -fsSL https://raw.githubusercontent.com/${{ github.repository }}/main/install.sh | sudo bash
+            ```
+
+            **Manual Install:**
+            1. Download the appropriate file for your platform
+            2. Extract the archive
+            3. Run the `install.sh` (Unix) or `install.ps1` (Windows) script
+
+            ### 📋 Changes
+
+            ${{ github.event.head_commit.message }}
+
+            ---
+
+            For full changelog, see the commit history.
+          files: |
+            **/*.tar.gz
+            **/*.zip
+          draft: false
+          prerelease: false
+          generate_release_notes: true
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

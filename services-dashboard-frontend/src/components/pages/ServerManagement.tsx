@@ -176,10 +176,21 @@ export const ServerManagement: React.FC<ServerManagementProps> = ({ darkMode = t
     }
   };
 
-  // Organize servers hierarchically
-  const { organizedServers, childrenMap } = useMemo(() => {
+  // Organize servers hierarchically or by group
+  const { organizedServers, childrenMap, groupedServers } = useMemo(() => {
     if (!isHierarchicalView) {
-      return { organizedServers: servers, childrenMap: new Map() };
+      // Group servers by ServerGroup
+      const onPremiseServers = servers.filter(s => s.group === 'OnPremise');
+      const remoteServers = servers.filter(s => s.group === 'Remote');
+
+      return {
+        organizedServers: servers,
+        childrenMap: new Map(),
+        groupedServers: {
+          onPremise: onPremiseServers,
+          remote: remoteServers
+        }
+      };
     }
 
     // Separate parent servers (those without a parent) and child servers
@@ -215,7 +226,14 @@ export const ServerManagement: React.FC<ServerManagementProps> = ({ darkMode = t
       }
     });
 
-    return { organizedServers: result, childrenMap };
+    return {
+      organizedServers: result,
+      childrenMap,
+      groupedServers: {
+        onPremise: [],
+        remote: []
+      }
+    };
   }, [servers, isHierarchicalView, collapsedParents]);
 
   const toggleParentCollapse = (parentId: number) => {
@@ -541,86 +559,135 @@ export const ServerManagement: React.FC<ServerManagementProps> = ({ darkMode = t
         </div>
       </div>
 
-      {/* Servers Grid */}
-      <div className={isHierarchicalView ? 'space-y-2' : 'grid gap-6 md:grid-cols-2 lg:grid-cols-3'}>
-        {organizedServers.map((server: ManagedServer & { isChild?: boolean; isLastChild?: boolean; parentId?: number }) => {
-          const children = childrenMap.get(server.id) || [];
-          const hasChildren = children.length > 0;
-          const isParent = !server.isChild && hasChildren;
-          const isCollapsed = collapsedParents.has(server.id);
+      {/* Servers Grid or Grouped View */}
+      {isHierarchicalView ? (
+        <div className="space-y-2">
+          {organizedServers.map((server: ManagedServer & { isChild?: boolean; isLastChild?: boolean; parentId?: number }) => {
+            const children = childrenMap.get(server.id) || [];
+            const hasChildren = children.length > 0;
+            const isParent = !server.isChild && hasChildren;
+            const isCollapsed = collapsedParents.has(server.id);
 
-          return (
-            <div key={server.id}>
-              {/* Parent Server Header with Child Count */}
-              {isHierarchicalView && isParent && (
-                <div
-                  className={`mb-2 p-3 rounded-lg border cursor-pointer transition-all ${
-                    darkMode
-                      ? 'bg-gradient-to-r from-blue-900/30 to-purple-900/30 border-blue-700/50 hover:border-blue-600/70'
-                      : 'bg-gradient-to-r from-blue-50/50 to-purple-50/50 border-blue-200/50 hover:border-blue-300/70'
-                  }`}
-                  onClick={() => toggleParentCollapse(server.id)}
-                >
-                  <div className="flex items-center justify-between">
-                    <div className="flex items-center space-x-3">
-                      {isCollapsed ? (
-                        <ChevronRight className={`w-5 h-5 ${darkMode ? 'text-blue-400' : 'text-blue-600'}`} />
-                      ) : (
-                        <ChevronDown className={`w-5 h-5 ${darkMode ? 'text-blue-400' : 'text-blue-600'}`} />
-                      )}
-                      <Server className={`w-5 h-5 ${darkMode ? 'text-blue-400' : 'text-blue-600'}`} />
-                      <div>
-                        <h3 className={`font-semibold ${darkMode ? 'text-white' : 'text-gray-900'}`}>
-                          {server.name}
-                        </h3>
-                        <p className={`text-xs ${darkMode ? 'text-gray-400' : 'text-gray-600'}`}>
-                          {server.hostAddress}
-                        </p>
+            return (
+              <div key={server.id}>
+                {/* Parent Server Header with Child Count */}
+                {isParent && (
+                  <div
+                    className={`mb-2 p-3 rounded-lg border cursor-pointer transition-all ${
+                      darkMode
+                        ? 'bg-gradient-to-r from-blue-900/30 to-purple-900/30 border-blue-700/50 hover:border-blue-600/70'
+                        : 'bg-gradient-to-r from-blue-50/50 to-purple-50/50 border-blue-200/50 hover:border-blue-300/70'
+                    }`}
+                    onClick={() => toggleParentCollapse(server.id)}
+                  >
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center space-x-3">
+                        {isCollapsed ? (
+                          <ChevronRight className={`w-5 h-5 ${darkMode ? 'text-blue-400' : 'text-blue-600'}`} />
+                        ) : (
+                          <ChevronDown className={`w-5 h-5 ${darkMode ? 'text-blue-400' : 'text-blue-600'}`} />
+                        )}
+                        <Server className={`w-5 h-5 ${darkMode ? 'text-blue-400' : 'text-blue-600'}`} />
+                        <div>
+                          <h3 className={`font-semibold ${darkMode ? 'text-white' : 'text-gray-900'}`}>
+                            {server.name}
+                          </h3>
+                          <p className={`text-xs ${darkMode ? 'text-gray-400' : 'text-gray-600'}`}>
+                            {server.hostAddress}
+                          </p>
+                        </div>
                       </div>
-                    </div>
-                    <div className="flex items-center space-x-2">
-                      <div className={`px-3 py-1 rounded-full text-xs font-medium ${
-                        darkMode ? 'bg-blue-900/50 text-blue-300' : 'bg-blue-100 text-blue-700'
-                      }`}>
-                        {children.length} {children.length === 1 ? 'VM' : 'VMs'}
+                      <div className="flex items-center space-x-2">
+                        <div className={`px-3 py-1 rounded-full text-xs font-medium ${
+                          darkMode ? 'bg-blue-900/50 text-blue-300' : 'bg-blue-100 text-blue-700'
+                        }`}>
+                          {children.length} {children.length === 1 ? 'VM' : 'VMs'}
+                        </div>
+                        {getStatusIcon(server.status)}
                       </div>
-                      {getStatusIcon(server.status)}
-                    </div>
-                  </div>
-                </div>
-              )}
-
-              {/* Server Card Container */}
-              <div className={isHierarchicalView && server.isChild ? 'ml-12 relative' : ''}>
-                {/* Hierarchical visual indicators for child servers */}
-                {isHierarchicalView && server.isChild && (
-                  <div className={`absolute -left-12 top-0 bottom-0 w-12 flex items-center ${
-                    darkMode ? 'text-gray-600' : 'text-gray-400'
-                  }`}>
-                    <div className="relative w-full h-full">
-                      {/* Vertical line */}
-                      {!server.isLastChild && (
-                        <div className={`absolute left-6 top-0 bottom-0 w-px ${
-                          darkMode ? 'bg-gray-700' : 'bg-gray-300'
-                        }`} />
-                      )}
-                      {/* Horizontal line */}
-                      <div className={`absolute left-6 top-1/2 w-6 h-px ${
-                        darkMode ? 'bg-gray-700' : 'bg-gray-300'
-                      }`} />
-                      {/* Corner for last child */}
-                      {server.isLastChild && (
-                        <div className={`absolute left-6 top-0 w-px h-1/2 ${
-                          darkMode ? 'bg-gray-700' : 'bg-gray-300'
-                        }`} />
-                      )}
                     </div>
                   </div>
                 )}
 
-                {/* Only show card if not a parent with children in hierarchical view, or if it's a child */}
-                {(!isHierarchicalView || !isParent || server.isChild) && (
+                {/* Server Card Container */}
+                <div className={server.isChild ? 'ml-12 relative' : ''}>
+                  {/* Hierarchical visual indicators for child servers */}
+                  {server.isChild && (
+                    <div className={`absolute -left-12 top-0 bottom-0 w-12 flex items-center ${
+                      darkMode ? 'text-gray-600' : 'text-gray-400'
+                    }`}>
+                      <div className="relative w-full h-full">
+                        {/* Vertical line */}
+                        {!server.isLastChild && (
+                          <div className={`absolute left-6 top-0 bottom-0 w-px ${
+                            darkMode ? 'bg-gray-700' : 'bg-gray-300'
+                          }`} />
+                        )}
+                        {/* Horizontal line */}
+                        <div className={`absolute left-6 top-1/2 w-6 h-px ${
+                          darkMode ? 'bg-gray-700' : 'bg-gray-300'
+                        }`} />
+                        {/* Corner for last child */}
+                        {server.isLastChild && (
+                          <div className={`absolute left-6 top-0 w-px h-1/2 ${
+                            darkMode ? 'bg-gray-700' : 'bg-gray-300'
+                          }`} />
+                        )}
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Only show card if not a parent with children, or if it's a child */}
+                  {(!isParent || server.isChild) && (
+                    <ServerCard
+                      server={server}
+                      darkMode={darkMode}
+                      onSelect={(server) => {
+                        if (isSelectionMode) {
+                          toggleServerSelection(server.id);
+                        } else {
+                          setSelectedServerForDetails(server);
+                        }
+                      }}
+                      getStatusIcon={getStatusIcon}
+                      getServerTypeIcon={getServerTypeIcon}
+                      isSelectionMode={isSelectionMode}
+                      isSelected={selectedServerIds.has(server.id)}
+                      onToggleSelection={() => toggleServerSelection(server.id)}
+                    />
+                  )}
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      ) : (
+        <div className="space-y-6">
+          {/* On-Premise Servers Group */}
+          {groupedServers.onPremise.length > 0 && (
+            <div>
+              <div className={`mb-4 p-3 rounded-lg border ${
+                darkMode
+                  ? 'bg-gradient-to-r from-orange-900/30 to-yellow-900/30 border-orange-700/50'
+                  : 'bg-gradient-to-r from-orange-50/50 to-yellow-50/50 border-orange-200/50'
+              }`}>
+                <div className="flex items-center space-x-3">
+                  <div className="text-2xl">🏢</div>
+                  <div>
+                    <h3 className={`font-semibold ${darkMode ? 'text-white' : 'text-gray-900'}`}>
+                      On-Premise Servers
+                    </h3>
+                    <p className={`text-xs ${darkMode ? 'text-gray-400' : 'text-gray-600'}`}>
+                      {groupedServers.onPremise.length} {groupedServers.onPremise.length === 1 ? 'server' : 'servers'}
+                    </p>
+                  </div>
+                </div>
+              </div>
+
+              <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
+                {groupedServers.onPremise.map((server: ManagedServer) => (
                   <ServerCard
+                    key={server.id}
                     server={server}
                     darkMode={darkMode}
                     onSelect={(server) => {
@@ -636,12 +703,57 @@ export const ServerManagement: React.FC<ServerManagementProps> = ({ darkMode = t
                     isSelected={selectedServerIds.has(server.id)}
                     onToggleSelection={() => toggleServerSelection(server.id)}
                   />
-                )}
+                ))}
               </div>
             </div>
-          );
-        })}
-      </div>
+          )}
+
+          {/* Remote Servers Group */}
+          {groupedServers.remote.length > 0 && (
+            <div>
+              <div className={`mb-4 p-3 rounded-lg border ${
+                darkMode
+                  ? 'bg-gradient-to-r from-blue-900/30 to-purple-900/30 border-blue-700/50'
+                  : 'bg-gradient-to-r from-blue-50/50 to-purple-50/50 border-blue-200/50'
+              }`}>
+                <div className="flex items-center space-x-3">
+                  <div className="text-2xl">🌐</div>
+                  <div>
+                    <h3 className={`font-semibold ${darkMode ? 'text-white' : 'text-gray-900'}`}>
+                      Remote Servers
+                    </h3>
+                    <p className={`text-xs ${darkMode ? 'text-gray-400' : 'text-gray-600'}`}>
+                      {groupedServers.remote.length} {groupedServers.remote.length === 1 ? 'server' : 'servers'}
+                    </p>
+                  </div>
+                </div>
+              </div>
+
+              <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
+                {groupedServers.remote.map((server: ManagedServer) => (
+                  <ServerCard
+                    key={server.id}
+                    server={server}
+                    darkMode={darkMode}
+                    onSelect={(server) => {
+                      if (isSelectionMode) {
+                        toggleServerSelection(server.id);
+                      } else {
+                        setSelectedServerForDetails(server);
+                      }
+                    }}
+                    getStatusIcon={getStatusIcon}
+                    getServerTypeIcon={getServerTypeIcon}
+                    isSelectionMode={isSelectionMode}
+                    isSelected={selectedServerIds.has(server.id)}
+                    onToggleSelection={() => toggleServerSelection(server.id)}
+                  />
+                ))}
+              </div>
+            </div>
+          )}
+        </div>
+      )}
 
       {/* Empty state */}
       {servers.length === 0 && !isLoading && !isError && (

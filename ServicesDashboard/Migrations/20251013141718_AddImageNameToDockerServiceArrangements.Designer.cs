@@ -2,6 +2,7 @@
 using System;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 using ServicesDashboard.Data;
@@ -11,13 +12,15 @@ using ServicesDashboard.Data;
 namespace ServicesDashboard.Migrations
 {
     [DbContext(typeof(ServicesDashboardContext))]
-    partial class ServicesDashboardContextModelSnapshot : ModelSnapshot
+    [Migration("20251013141718_AddImageNameToDockerServiceArrangements")]
+    partial class AddImageNameToDockerServiceArrangements
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
-                .HasAnnotation("ProductVersion", "9.0.9")
+                .HasAnnotation("ProductVersion", "9.0.7")
                 .HasAnnotation("Relational:MaxIdentifierLength", 63);
 
             NpgsqlModelBuilderExtensions.UseIdentityByDefaultColumns(modelBuilder);
@@ -498,9 +501,6 @@ namespace ServicesDashboard.Migrations
 
                     b.Property<string>("EncryptedPassword")
                         .HasColumnType("text");
-
-                    b.Property<int>("Group")
-                        .HasColumnType("integer");
 
                     b.Property<string>("HostAddress")
                         .IsRequired()

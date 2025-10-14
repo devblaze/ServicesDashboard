@@ -120,7 +120,8 @@ export function DockerServices({ darkMode }: DockerServicesProps) {
       iconUrl,
       iconData,
       removeBackground,
-      downloadFromUrl
+      downloadFromUrl,
+      imageName
     }: {
       serverId: number;
       containerId: string;
@@ -128,8 +129,9 @@ export function DockerServices({ darkMode }: DockerServicesProps) {
       iconData?: string;
       removeBackground?: boolean;
       downloadFromUrl?: boolean;
+      imageName?: string;
     }) =>
-      dockerServicesApi.updateServiceIcon(serverId, containerId, iconUrl, iconData, removeBackground, downloadFromUrl),
+      dockerServicesApi.updateServiceIcon(serverId, containerId, iconUrl, iconData, removeBackground, downloadFromUrl, imageName),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['docker-services'] });
       setUploadError(null);
@@ -255,7 +257,8 @@ export function DockerServices({ darkMode }: DockerServicesProps) {
           serverId: selectedService.serverId,
           containerId: selectedService.containerId,
           iconData: base64String,
-          removeBackground: removeBackground
+          removeBackground: removeBackground,
+          imageName: selectedService.image
         });
       }
     };
@@ -269,7 +272,8 @@ export function DockerServices({ darkMode }: DockerServicesProps) {
         containerId: selectedService.containerId,
         iconUrl: iconUrl.trim(),
         removeBackground: removeBackground,
-        downloadFromUrl: downloadFromUrl
+        downloadFromUrl: downloadFromUrl,
+        imageName: selectedService.image
       });
     }
   };
