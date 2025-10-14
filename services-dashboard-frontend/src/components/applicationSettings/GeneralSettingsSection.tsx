@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Settings, Palette, RefreshCw, Network, Check, Loader2 } from 'lucide-react';
+import { Settings, Palette, RefreshCw, Network, Check, Loader2, CheckCircle2, XCircle } from 'lucide-react';
 import { useGeneralSettings, useUpdateGeneralSettings } from '../../hooks/SettingsHooks.ts';
 import type { GeneralSettings } from '../../types/SettingsInterfaces';
 
@@ -9,6 +9,7 @@ interface GeneralSettingsSectionProps {
 
 export const GeneralSettingsSection: React.FC<GeneralSettingsSectionProps> = ({ darkMode = true }) => {
   const [formData, setFormData] = useState<GeneralSettings | null>(null);
+  const [showSuccessMessage, setShowSuccessMessage] = useState(false);
 
   const { data: settings, isLoading } = useGeneralSettings();
   const updateMutation = useUpdateGeneralSettings();
@@ -19,13 +20,23 @@ export const GeneralSettingsSection: React.FC<GeneralSettingsSectionProps> = ({ 
     }
   }, [settings]);
 
+  useEffect(() => {
+    if (updateMutation.isSuccess) {
+      setShowSuccessMessage(true);
+      const timer = setTimeout(() => {
+        setShowSuccessMessage(false);
+      }, 3000);
+      return () => clearTimeout(timer);
+    }
+  }, [updateMutation.isSuccess]);
+
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
     const { name, value, type } = e.target;
     const checked = (e.target as HTMLInputElement).checked;
-    
+
     setFormData(prev => prev ? {
       ...prev,
-      [name]: type === 'checkbox' ? checked : 
+      [name]: type === 'checkbox' ? checked :
               type === 'number' ? parseInt(value) || 0 : value
     } : null);
   };
@@ -210,7 +221,38 @@ export const GeneralSettingsSection: React.FC<GeneralSettingsSectionProps> = ({ 
         </div>
 
         {/* Save Button */}
-        <div className="pt-4">
+        <div className="pt-4 space-y-3">
+          {/* Success Message */}
+          {showSuccessMessage && (
+            <div className={`flex items-center space-x-2 p-3 rounded-lg border ${
+              darkMode
+                ? 'bg-green-900/20 border-green-600/50 text-green-400'
+                : 'bg-green-50 border-green-200 text-green-700'
+            }`}>
+              <CheckCircle2 className="w-5 h-5 flex-shrink-0" />
+              <span className="text-sm font-medium">Settings saved successfully!</span>
+            </div>
+          )}
+
+          {/* Error Message */}
+          {updateMutation.isError && (
+            <div className={`flex items-center space-x-2 p-3 rounded-lg border ${
+              darkMode
+                ? 'bg-red-900/20 border-red-600/50 text-red-400'
+                : 'bg-red-50 border-red-200 text-red-700'
+            }`}>
+              <XCircle className="w-5 h-5 flex-shrink-0" />
+              <div className="flex-1">
+                <span className="text-sm font-medium">Failed to save settings</span>
+                {updateMutation.error && (
+                  <p className="text-xs mt-1 opacity-75">
+                    {updateMutation.error instanceof Error ? updateMutation.error.message : 'Unknown error'}
+                  </p>
+                )}
+              </div>
+            </div>
+          )}
+
           <button
             type="submit"
             disabled={updateMutation.isPending}

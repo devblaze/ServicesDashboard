@@ -1,12 +1,13 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { settingsApiClient } from '../services/SettingsApiClient.ts';
-import type { AISettings, NotificationSettings, GeneralSettings } from '../types/SettingsInterfaces';
+import type { AISettings, NotificationSettings, GeneralSettings, ServerMonitoringSettings } from '../types/SettingsInterfaces';
 
 export const settingsKeys = {
   all: ['settings'] as const,
   ai: ['settings', 'ai'] as const,
   notifications: ['settings', 'notifications'] as const,
   general: ['settings', 'general'] as const,
+  serverMonitoring: ['settings', 'server-monitoring'] as const,
   models: ['settings', 'ai', 'models'] as const,
 };
 
@@ -73,11 +74,30 @@ export function useGeneralSettings() {
 
 export function useUpdateGeneralSettings() {
   const queryClient = useQueryClient();
-  
+
   return useMutation({
     mutationFn: (settings: GeneralSettings) => settingsApiClient.updateGeneralSettings(settings),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: settingsKeys.general });
+    }
+  });
+}
+
+// Server Monitoring Settings hooks
+export function useServerMonitoringSettings() {
+  return useQuery({
+    queryKey: settingsKeys.serverMonitoring,
+    queryFn: () => settingsApiClient.getServerMonitoringSettings()
+  });
+}
+
+export function useUpdateServerMonitoringSettings() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: (settings: ServerMonitoringSettings) => settingsApiClient.updateServerMonitoringSettings(settings),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: settingsKeys.serverMonitoring });
     }
   });
 }

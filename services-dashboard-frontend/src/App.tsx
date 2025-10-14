@@ -3,6 +3,7 @@ import { QueryProvider } from './providers/QueryProvider';
 import { MonitoringProvider } from './providers/MonitoringProvider';
 import { LoadingSpinner } from './components/ui/LoadingSpinner';
 import { ScanNotifications } from './components/ScanNotifications';
+import { MonitoringStatusIndicator } from './components/ui/MonitoringStatusIndicator';
 
 // Lazy load page components for better code splitting
 const ServicesList = lazy(() => import('./components/pages/ServicesList.tsx').then(module => ({ default: module.ServicesList })));
@@ -121,14 +122,7 @@ function App() {
 
                 <div className="flex items-center space-x-4">
                   {/* Monitoring Status Indicator */}
-                  <div className={`flex items-center space-x-2 px-3 py-1 rounded-full text-xs font-medium ${
-                    darkMode 
-                      ? 'bg-green-900/30 text-green-400 border border-green-600/30'
-                      : 'bg-green-100 text-green-700 border border-green-200'
-                  }`}>
-                    <div className="w-2 h-2 bg-green-400 rounded-full animate-pulse" />
-                    <span>Auto-monitoring enabled</span>
-                  </div>
+                  <MonitoringStatusIndicator darkMode={darkMode} />
 
                   <button
                     onClick={() => setDarkMode(!darkMode)}

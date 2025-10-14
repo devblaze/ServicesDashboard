@@ -238,6 +238,7 @@ public class DatabaseSettingsService : ISettingsService
         await InitializeAISettingsAsync();
         await InitializeNotificationSettingsAsync();
         await InitializeGeneralSettingsAsync();
+        await InitializeServerMonitoringSettingsAsync();
     }
 
     private async Task InitializeAISettingsAsync()
@@ -292,6 +293,22 @@ public class DatabaseSettingsService : ISettingsService
         await InitializeCategoryDefaults("General", defaults);
     }
 
+    private async Task InitializeServerMonitoringSettingsAsync()
+    {
+        var defaults = new Dictionary<string, (object value, string description, bool encrypted)>
+        {
+            ["EnableAutoMonitoring"] = (false, "Enable automatic server monitoring", false),
+            ["MonitoringIntervalMinutes"] = (5, "Monitoring interval in minutes (1, 5, 10, 15, 30, 60)", false),
+            ["EnableHealthChecks"] = (true, "Include health checks in monitoring", false),
+            ["EnableUpdateChecks"] = (true, "Include update checks in monitoring", false),
+            ["NotifyOnHealthCheckFailure"] = (true, "Send notification when health check fails", false),
+            ["NotifyOnCriticalStatus"] = (true, "Send notification for critical server status", false),
+            ["NotifyOnSecurityUpdates"] = (true, "Send notification when security updates are available", false)
+        };
+
+        await InitializeCategoryDefaults("ServerMonitoring", defaults);
+    }
+
     private async Task InitializeCategoryDefaults(string category, Dictionary<string, (object value, string description, bool encrypted)> defaults)
     {
         foreach (var (key, (value, description, encrypted)) in defaults)
@@ -311,8 +328,9 @@ public class DatabaseSettingsService : ISettingsService
         return typeof(T).Name switch
         {
             nameof(AISettings) => "AI",
-            nameof(NotificationSettings) => "Notifications", 
+            nameof(NotificationSettings) => "Notifications",
             nameof(GeneralSettings) => "General",
+            nameof(ServerMonitoringSettings) => "ServerMonitoring",
             _ => "General"
         };
     }
@@ -324,6 +342,7 @@ public class DatabaseSettingsService : ISettingsService
             "AI" => "Artificial Intelligence",
             "Notifications" => "Notifications",
             "General" => "General Settings",
+            "ServerMonitoring" => "Server Monitoring",
             _ => category
         };
     }
@@ -335,6 +354,7 @@ public class DatabaseSettingsService : ISettingsService
             "AI" => "Configure AI providers for service recognition",
             "Notifications" => "Set up notification channels",
             "General" => "General application settings",
+            "ServerMonitoring" => "Automated server health and update monitoring",
             _ => ""
         };
     }
@@ -346,6 +366,7 @@ public class DatabaseSettingsService : ISettingsService
             "AI" => "bot",
             "Notifications" => "bell",
             "General" => "settings",
+            "ServerMonitoring" => "activity",
             _ => "settings"
         };
     }

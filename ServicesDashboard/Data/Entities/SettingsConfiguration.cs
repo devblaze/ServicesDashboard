@@ -83,3 +83,14 @@ public class GeneralSettings
     public string DefaultScanPorts { get; set; } = "common"; // common, extended, custom
     public string? CustomPorts { get; set; } // comma-separated port list
 }
+
+public class ServerMonitoringSettings
+{
+    public bool EnableAutoMonitoring { get; set; } = false;
+    public int MonitoringIntervalMinutes { get; set; } = 5; // 1, 5, 10, 15, 30, 60
+    public bool EnableHealthChecks { get; set; } = true;
+    public bool EnableUpdateChecks { get; set; } = true;
+    public bool NotifyOnHealthCheckFailure { get; set; } = true;
+    public bool NotifyOnCriticalStatus { get; set; } = true;
+    public bool NotifyOnSecurityUpdates { get; set; } = true;
+}
