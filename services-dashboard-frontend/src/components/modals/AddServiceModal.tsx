@@ -32,6 +32,9 @@ export const AddServiceModal: React.FC<AddServiceModalProps> = ({
   isLoading = false,
   darkMode = true
 }) => {
+  // Handle ESC key to close modal - must be called before any conditional returns
+  useEscapeKey(onClose, isOpen && !isLoading);
+
   if (!isOpen) return null;
 
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>) => {
@@ -73,9 +76,6 @@ export const AddServiceModal: React.FC<AddServiceModalProps> = ({
   const isFormValid = formData.name &&
     (formData.serviceType === 'external' ||
      (formData.serviceType === 'docker' && formData.dockerImage));
-
-  // Handle ESC key to close modal
-  useEscapeKey(onClose, isOpen && !isLoading);
 
   return (
     <div 

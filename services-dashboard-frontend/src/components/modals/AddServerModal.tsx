@@ -240,7 +240,7 @@ export const AddServerModal: React.FC<AddServerModalProps> = ({
 
     // Get credentials if using saved ones
     let username = formData.username.trim();
-    let password = formData.password;
+    const password = formData.password;
 
     if (formData.useCredential && formData.credentialId) {
       const selectedCred = credentials.find(c => c.id === formData.credentialId);
@@ -274,7 +274,7 @@ export const AddServerModal: React.FC<AddServerModalProps> = ({
 
     // Get credentials if using saved ones
     let username = formData.username.trim();
-    let password = formData.password;
+    const password = formData.password;
 
     if (formData.useCredential && formData.credentialId) {
       const selectedCred = credentials.find(c => c.id === formData.credentialId);

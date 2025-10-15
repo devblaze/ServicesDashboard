@@ -58,7 +58,7 @@ export const CreateScheduledTaskModal: React.FC<CreateScheduledTaskModalProps> =
             isValid: result.isValid,
             nextExecution: result.nextExecution
           });
-        } catch (err) {
+        } catch {
           setCronValidation({
             isValid: false,
             error: 'Invalid cron expression'
@@ -92,6 +92,7 @@ export const CreateScheduledTaskModal: React.FC<CreateScheduledTaskModalProps> =
       onSuccess();
       onClose();
       resetForm();
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
     } catch (err: any) {
       setError(err.response?.data?.error || err.message || 'Failed to create task');
     } finally {
