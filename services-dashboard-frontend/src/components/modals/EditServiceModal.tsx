@@ -49,6 +49,9 @@ export const EditServiceModal: React.FC<EditServiceModalProps> = ({
   const [recommendations, setRecommendations] = useState<ServerRecommendation[]>([]);
   const [showRecommendations, setShowRecommendations] = useState(false);
 
+  // Handle ESC key to close modal - must be called before any conditional returns
+  useEscapeKey(onClose, isOpen && !isLoading);
+
   // Get available servers for recommendations
   const { data: servers = [] } = useQuery({
     queryKey: ['servers-for-services'],
@@ -189,9 +192,6 @@ export const EditServiceModal: React.FC<EditServiceModalProps> = ({
         return <Lightbulb className="w-4 h-4" />;
     }
   };
-
-  // Handle ESC key to close modal
-  useEscapeKey(onClose, isOpen && !isLoading);
 
   return (
     <div 

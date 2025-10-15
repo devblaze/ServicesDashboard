@@ -104,6 +104,7 @@ class BaseApiClient {
   private setupInterceptors(): void {
     // Request interceptor
     this.client.interceptors.request.use(
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       (config: any) => {
         if (import.meta.env.DEV) {
           console.log(`🚀 ${this.serviceName}: ${config.method?.toUpperCase()} ${config.url}`);
@@ -114,6 +115,7 @@ class BaseApiClient {
         }
         return config;
       },
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       (error: any) => {
         console.error(`${this.serviceName} Request Error:`, error);
         return Promise.reject(error);
@@ -122,6 +124,7 @@ class BaseApiClient {
 
     // Response interceptor
     this.client.interceptors.response.use(
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       (response: any) => {
         if (import.meta.env.DEV) {
           console.log(`✅ ${this.serviceName}: ${response.status} ${response.config.url}`);
@@ -180,6 +183,7 @@ class BaseApiClient {
     customTimeout?: number
   ): Promise<T> {
     try {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const config: any = {
         method,
         url,
