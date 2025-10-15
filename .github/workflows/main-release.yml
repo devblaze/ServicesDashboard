@@ -39,15 +39,12 @@ jobs:
         run: yarn build
 
       - name: Restore backend dependencies
-        working-directory: ./ServicesDashboard
         run: dotnet restore
 
       - name: Build backend
-        working-directory: ./ServicesDashboard
         run: dotnet build --configuration Release --no-restore
 
       - name: Run backend tests
-        working-directory: ./ServicesDashboard.Tests
         run: dotnet test --configuration Release --no-restore --verbosity normal || true  # Don't fail on test errors for now
 
   docker:
@@ -454,6 +451,32 @@ jobs:
 
       - name: Display structure of downloaded files
         run: ls -R
+
+      - name: Delete existing release if it exists
+        continue-on-error: true
+        run: |
+          TAG=${{ steps.version.outputs.tag }}
+          echo "Checking for existing release with tag: $TAG"
+
+          # Check if release exists
+          if gh release view $TAG > /dev/null 2>&1; then
+            echo "Release $TAG exists, deleting..."
+            gh release delete $TAG --yes
+            echo "Release deleted successfully"
+          else
+            echo "No existing release found for $TAG"
+          fi
+
+          # Delete tag if it exists
+          if git rev-parse $TAG > /dev/null 2>&1; then
+            echo "Tag $TAG exists locally, deleting..."
+            git tag -d $TAG || true
+          fi
+
+          # Delete remote tag if it exists
+          git push origin :refs/tags/$TAG 2>/dev/null || echo "Remote tag $TAG doesn't exist or already deleted"
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Create Release
         uses: softprops/action-gh-release@v1
