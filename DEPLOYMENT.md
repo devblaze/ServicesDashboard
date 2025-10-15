@@ -108,6 +108,227 @@ Open `http://localhost:5050` in your browser
 
 ---
 
+### 2b. Production Deployment with Docker Hub Images
+
+**Hardware Requirements:**
+- 2GB RAM minimum
+- 20GB disk space
+- Docker and Docker Compose installed
+
+This deployment uses pre-built Docker images from Docker Hub for easier deployment.
+
+#### Step 1: Configure Environment
+
+```bash
+# Copy environment template
+cp .env.production.example .env
+
+# Edit environment file
+nano .env
+```
+
+Set the following variables:
+```env
+# Your Docker Hub username (where images are published)
+DOCKER_USERNAME=yourusername
+
+# Version to deploy (e.g., 0.0.3, latest)
+VERSION=latest
+
+# Database credentials (CHANGE THESE!)
+DB_USER=admin
+DB_PASSWORD=your_secure_password_here
+
+# Application port
+APP_PORT=5050
+
+# Ollama URL (optional, for AI features)
+OLLAMA_URL=http://host.docker.internal:11434
+```
+
+#### Step 2: Deploy with Docker Compose
+
+```bash
+# Start all services
+docker compose -f compose.prod.yaml up -d
+
+# View logs
+docker compose -f compose.prod.yaml logs -f
+
+# Check status
+docker compose -f compose.prod.yaml ps
+```
+
+#### Step 3: Access the Application
+
+Open `http://your-server-ip:5050` in your browser
+
+#### Deployment with Portainer
+
+**Method 1: Using Portainer Stacks (Recommended)**
+
+1. Log in to your Portainer instance
+2. Navigate to **Stacks** → **Add stack**
+3. Choose **Web editor** and paste the contents of `compose.prod.yaml`
+4. Scroll down to **Environment variables** and add:
+   ```
+   DOCKER_USERNAME=yourusername
+   VERSION=latest
+   DB_USER=admin
+   DB_PASSWORD=your_secure_password
+   APP_PORT=5050
+   OLLAMA_URL=http://host.docker.internal:11434
+   ```
+5. Click **Deploy the stack**
+
+**Method 2: Using Git Repository**
+
+1. Navigate to **Stacks** → **Add stack**
+2. Choose **Repository**
+3. Enter your repository URL
+4. Set **Compose path** to: `compose.prod.yaml`
+5. Add environment variables as shown above
+6. Enable **Automatic updates** (optional) - Portainer will automatically pull new images
+7. Click **Deploy the stack**
+
+**Method 3: Upload Compose File**
+
+1. Navigate to **Stacks** → **Add stack**
+2. Choose **Upload**
+3. Upload the `compose.prod.yaml` file
+4. Add environment variables
+5. Click **Deploy the stack**
+
+#### Architecture
+
+The deployment consists of three services:
+
+- **database**: PostgreSQL 16 database with persistent storage
+- **servicesdashboard**: .NET 9 backend API (internal port 8080)
+- **frontend**: React/Nginx frontend (internal port 80, exposed as APP_PORT)
+
+All services communicate through a dedicated Docker network (`app_network`) and include health checks for automatic recovery.
+
+#### Updating
+
+**Manual Update:**
+```bash
+# Pull latest images
+docker compose -f compose.prod.yaml pull
+
+# Restart with new images
+docker compose -f compose.prod.yaml up -d
+
+# Clean up old images
+docker image prune -f
+```
+
+**Automatic Update with Portainer:**
+- Enable "Automatic updates" when creating the stack
+- Portainer will periodically check for new images and update automatically
+
+**Version Pinning:**
+To pin to a specific version instead of `latest`, set in `.env`:
+```env
+VERSION=0.0.3
+```
+
+#### Reverse Proxy Configuration
+
+**Nginx:**
+```nginx
+server {
+    listen 80;
+    server_name dashboard.example.com;
+
+    location / {
+        proxy_pass http://localhost:5050;
+        proxy_http_version 1.1;
+        proxy_set_header Upgrade $http_upgrade;
+        proxy_set_header Connection 'upgrade';
+        proxy_set_header Host $host;
+        proxy_cache_bypass $http_upgrade;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+    }
+}
+```
+
+**Traefik (add labels to compose.prod.yaml):**
+```yaml
+  frontend:
+    image: ${DOCKER_USERNAME}/servicesdashboard-frontend:${VERSION}
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.dashboard.rule=Host(`dashboard.example.com`)"
+      - "traefik.http.services.dashboard.loadbalancer.server.port=80"
+    # ... rest of config
+```
+
+#### Maintenance
+
+**View Logs:**
+```bash
+# All services
+docker compose -f compose.prod.yaml logs -f
+
+# Specific service
+docker compose -f compose.prod.yaml logs -f servicesdashboard
+```
+
+**Backup Database:**
+```bash
+# Create backup
+docker compose -f compose.prod.yaml exec database pg_dump -U admin servicesdashboard > backup.sql
+
+# Restore backup
+cat backup.sql | docker compose -f compose.prod.yaml exec -T database psql -U admin servicesdashboard
+```
+
+**Restart Services:**
+```bash
+# Restart all
+docker compose -f compose.prod.yaml restart
+
+# Restart specific service
+docker compose -f compose.prod.yaml restart servicesdashboard
+```
+
+#### Troubleshooting
+
+**Service Not Starting:**
+```bash
+# Check logs
+docker compose -f compose.prod.yaml logs servicesdashboard
+
+# Check service status
+docker compose -f compose.prod.yaml ps
+```
+
+**Database Connection Issues:**
+```bash
+# Verify database health
+docker compose -f compose.prod.yaml ps database
+
+# Check database logs
+docker compose -f compose.prod.yaml logs database
+
+# Test connection from backend
+docker compose -f compose.prod.yaml exec servicesdashboard curl http://localhost:8080/health
+```
+
+**Can't Pull Images:**
+
+If images are private or you need authentication:
+```bash
+docker login
+# Enter Docker Hub credentials
+docker compose -f compose.prod.yaml pull
+```
+
+---
+
 ### 3. Production Server (Native Deployment)
 
 **Hardware Requirements:**
