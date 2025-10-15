@@ -149,6 +149,7 @@ export function DockerServices({ darkMode }: DockerServicesProps) {
         setUploadSuccess(false);
       }, 1500);
     },
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     onError: (error: any) => {
       const errorMessage = error?.response?.data?.error || error?.message || 'Failed to update icon';
       setUploadError(errorMessage);

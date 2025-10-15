@@ -206,6 +206,7 @@ export const AISettingsSection: React.FC<AISettingsSectionProps> = ({ darkMode =
         onSuccess: () => {
           setTestResult({ success: true, message: 'AI settings saved successfully!' });
         },
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
         onError: (error: any) => {
           setTestResult({ success: false, message: error.message || 'Failed to save settings' });
         }
@@ -225,6 +226,7 @@ export const AISettingsSection: React.FC<AISettingsSectionProps> = ({ darkMode =
           refetchModels();
         }
       },
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       onError: (error: any) => {
         setTestResult({ success: false, message: error.message || 'Connection test failed' });
       }

@@ -88,6 +88,7 @@ export const EditGitProviderModal: React.FC<EditGitProviderModalProps> = ({
   const testConnectionMutation = useMutation({
     mutationFn: async (data: { providerType: string; baseUrl: string; accessToken: string }) => {
       return await gitProvidersApi.testConnection({
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
         providerType: data.providerType as any,
         baseUrl: data.baseUrl,
         accessToken: data.accessToken,

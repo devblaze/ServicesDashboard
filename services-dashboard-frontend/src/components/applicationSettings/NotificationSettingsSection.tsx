@@ -75,6 +75,7 @@ export const NotificationSettingsSection: React.FC<NotificationSettingsSectionPr
             <button
               key={key}
               type="button"
+              // eslint-disable-next-line @typescript-eslint/no-explicit-any
               onClick={() => setActiveTab(key as any)}
               className={`flex-1 flex items-center justify-center space-x-2 px-3 py-2 rounded-md transition-colors ${
                 activeTab === key

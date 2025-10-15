@@ -61,5 +61,6 @@ export interface ServiceLog {
   level: 'error' | 'warn' | 'info' | 'debug';
   message: string;
   timestamp: string;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   metadata?: Record<string, any>;
 }
