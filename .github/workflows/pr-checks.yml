@@ -39,15 +39,12 @@ jobs:
         run: yarn build
 
       - name: Restore backend dependencies
-        working-directory: ./ServicesDashboard
         run: dotnet restore
 
       - name: Build backend
-        working-directory: ./ServicesDashboard
         run: dotnet build --configuration Release --no-restore
 
       - name: Run backend tests
-        working-directory: ./ServicesDashboard.Tests
         run: dotnet test --configuration Release --no-restore --verbosity normal
 
   docker-build:
