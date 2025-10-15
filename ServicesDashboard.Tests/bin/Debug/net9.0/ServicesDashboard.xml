@@ -112,5 +112,53 @@
         <member name="M:ServicesDashboard.Migrations.AddServerParentChildRelationship.BuildTargetModel(Microsoft.EntityFrameworkCore.ModelBuilder)">
             <inheritdoc />
         </member>
+        <member name="T:ServicesDashboard.Migrations.AddDockerServiceIcons">
+            <inheritdoc />
+        </member>
+        <member name="M:ServicesDashboard.Migrations.AddDockerServiceIcons.Up(Microsoft.EntityFrameworkCore.Migrations.MigrationBuilder)">
+            <inheritdoc />
+        </member>
+        <member name="M:ServicesDashboard.Migrations.AddDockerServiceIcons.Down(Microsoft.EntityFrameworkCore.Migrations.MigrationBuilder)">
+            <inheritdoc />
+        </member>
+        <member name="M:ServicesDashboard.Migrations.AddDockerServiceIcons.BuildTargetModel(Microsoft.EntityFrameworkCore.ModelBuilder)">
+            <inheritdoc />
+        </member>
+        <member name="T:ServicesDashboard.Migrations.AddDeploymentManagement">
+            <inheritdoc />
+        </member>
+        <member name="M:ServicesDashboard.Migrations.AddDeploymentManagement.Up(Microsoft.EntityFrameworkCore.Migrations.MigrationBuilder)">
+            <inheritdoc />
+        </member>
+        <member name="M:ServicesDashboard.Migrations.AddDeploymentManagement.Down(Microsoft.EntityFrameworkCore.Migrations.MigrationBuilder)">
+            <inheritdoc />
+        </member>
+        <member name="M:ServicesDashboard.Migrations.AddDeploymentManagement.BuildTargetModel(Microsoft.EntityFrameworkCore.ModelBuilder)">
+            <inheritdoc />
+        </member>
+        <member name="T:ServicesDashboard.Migrations.AddImageNameToDockerServiceArrangements">
+            <inheritdoc />
+        </member>
+        <member name="M:ServicesDashboard.Migrations.AddImageNameToDockerServiceArrangements.Up(Microsoft.EntityFrameworkCore.Migrations.MigrationBuilder)">
+            <inheritdoc />
+        </member>
+        <member name="M:ServicesDashboard.Migrations.AddImageNameToDockerServiceArrangements.Down(Microsoft.EntityFrameworkCore.Migrations.MigrationBuilder)">
+            <inheritdoc />
+        </member>
+        <member name="M:ServicesDashboard.Migrations.AddImageNameToDockerServiceArrangements.BuildTargetModel(Microsoft.EntityFrameworkCore.ModelBuilder)">
+            <inheritdoc />
+        </member>
+        <member name="T:ServicesDashboard.Migrations.AddServerGrouping">
+            <inheritdoc />
+        </member>
+        <member name="M:ServicesDashboard.Migrations.AddServerGrouping.Up(Microsoft.EntityFrameworkCore.Migrations.MigrationBuilder)">
+            <inheritdoc />
+        </member>
+        <member name="M:ServicesDashboard.Migrations.AddServerGrouping.Down(Microsoft.EntityFrameworkCore.Migrations.MigrationBuilder)">
+            <inheritdoc />
+        </member>
+        <member name="M:ServicesDashboard.Migrations.AddServerGrouping.BuildTargetModel(Microsoft.EntityFrameworkCore.ModelBuilder)">
+            <inheritdoc />
+        </member>
     </members>
 </doc>

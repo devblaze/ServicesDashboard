@@ -17,9 +17,7 @@ services:
       retries: 3
 
   servicesdashboard:
-    build:
-      context: ./ServicesDashboard
-      dockerfile: Dockerfile
+    image: ${DOCKER_USERNAME:-yourusername}/servicesdashboard-backend:${VERSION:-latest}
     environment:
       - ASPNETCORE_ENVIRONMENT=Production
       - ASPNETCORE_URLS=http://+:8080
@@ -38,9 +36,7 @@ services:
       retries: 3
 
   frontend:
-    build:
-      context: ./services-dashboard-frontend
-      dockerfile: Dockerfile.prod
+    image: ${DOCKER_USERNAME:-yourusername}/servicesdashboard-frontend:${VERSION:-latest}
     ports:
       - "${APP_PORT:-5050}:80"
     networks:
