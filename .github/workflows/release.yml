@@ -71,7 +71,7 @@ jobs:
         with:
           context: ./ServicesDashboard
           file: ./ServicesDashboard/Dockerfile
-          platforms: linux/amd64,linux/arm64,linux/arm/v7
+          platforms: linux/amd64,linux/arm64
           push: true
           tags: |
             ${{ secrets.DOCKER_USERNAME }}/servicesdashboard-backend:${{ steps.version.outputs.version_number }}
@@ -84,7 +84,7 @@ jobs:
         with:
           context: ./services-dashboard-frontend
           file: ./services-dashboard-frontend/Dockerfile.prod
-          platforms: linux/amd64,linux/arm64,linux/arm/v7
+          platforms: linux/amd64,linux/arm64
           push: true
           tags: |
             ${{ secrets.DOCKER_USERNAME }}/servicesdashboard-frontend:${{ steps.version.outputs.version_number }}
@@ -385,7 +385,7 @@ jobs:
             docker compose -f compose.prod.yaml up -d
             ```
 
-            Supported platforms: `linux/amd64`, `linux/arm64`, `linux/arm/v7`
+            Supported platforms: `linux/amd64`, `linux/arm64`
 
             ### 📝 Installation
 
