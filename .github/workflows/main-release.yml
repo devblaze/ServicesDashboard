@@ -50,9 +50,110 @@ jobs:
         working-directory: ./ServicesDashboard.Tests
         run: dotnet test --configuration Release --no-restore --verbosity normal || true  # Don't fail on test errors for now
 
+  docker:
+    name: Build and Push Docker Images
+    needs: test
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+    outputs:
+      version: ${{ steps.version.outputs.version_number }}
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Generate version number
+        id: version
+        run: |
+          # Get the latest tag
+          LATEST_TAG=$(git describe --tags --abbrev=0 2>/dev/null || echo "v0.0.0")
+          echo "Latest tag: $LATEST_TAG"
+
+          # Extract version numbers
+          VERSION=${LATEST_TAG#v}
+          MAJOR=$(echo $VERSION | cut -d. -f1)
+          MINOR=$(echo $VERSION | cut -d. -f2)
+          PATCH=$(echo $VERSION | cut -d. -f3)
+
+          # Increment patch version
+          PATCH=$((PATCH + 1))
+
+          # Create new version
+          NEW_VERSION="v${MAJOR}.${MINOR}.${PATCH}"
+          VERSION_NUMBER="${MAJOR}.${MINOR}.${PATCH}"
+
+          echo "New version: $NEW_VERSION"
+          echo "version=$NEW_VERSION" >> $GITHUB_OUTPUT
+          echo "version_number=$VERSION_NUMBER" >> $GITHUB_OUTPUT
+
+      - name: Set up QEMU
+        uses: docker/setup-qemu-action@v3
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Log in to Docker Hub
+        if: github.event_name != 'pull_request'
+        uses: docker/login-action@v3
+        with:
+          username: ${{ secrets.DOCKER_USERNAME }}
+          password: ${{ secrets.DOCKER_PASSWORD }}
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Enable Corepack
+        run: corepack enable
+
+      - name: Install frontend dependencies
+        working-directory: ./services-dashboard-frontend
+        run: yarn install --frozen-lockfile
+
+      - name: Build frontend
+        working-directory: ./services-dashboard-frontend
+        run: yarn build
+
+      - name: Build and push backend image
+        uses: docker/build-push-action@v5
+        with:
+          context: ./ServicesDashboard
+          file: ./ServicesDashboard/Dockerfile
+          platforms: linux/amd64,linux/arm64,linux/arm/v7
+          push: ${{ github.event_name != 'pull_request' }}
+          tags: |
+            ${{ secrets.DOCKER_USERNAME }}/servicesdashboard-backend:${{ steps.version.outputs.version_number }}
+            ${{ secrets.DOCKER_USERNAME }}/servicesdashboard-backend:latest
+          cache-from: type=registry,ref=${{ secrets.DOCKER_USERNAME }}/servicesdashboard-backend:buildcache
+          cache-to: type=registry,ref=${{ secrets.DOCKER_USERNAME }}/servicesdashboard-backend:buildcache,mode=max
+
+      - name: Build and push frontend image
+        uses: docker/build-push-action@v5
+        with:
+          context: ./services-dashboard-frontend
+          file: ./services-dashboard-frontend/Dockerfile.prod
+          platforms: linux/amd64,linux/arm64,linux/arm/v7
+          push: ${{ github.event_name != 'pull_request' }}
+          tags: |
+            ${{ secrets.DOCKER_USERNAME }}/servicesdashboard-frontend:${{ steps.version.outputs.version_number }}
+            ${{ secrets.DOCKER_USERNAME }}/servicesdashboard-frontend:latest
+          cache-from: type=registry,ref=${{ secrets.DOCKER_USERNAME }}/servicesdashboard-frontend:buildcache
+          cache-to: type=registry,ref=${{ secrets.DOCKER_USERNAME }}/servicesdashboard-frontend:buildcache,mode=max
+
+      - name: Image digest
+        run: |
+          echo "✅ Docker images pushed successfully!"
+          echo "Backend: ${{ secrets.DOCKER_USERNAME }}/servicesdashboard-backend:${{ steps.version.outputs.version_number }}"
+          echo "Frontend: ${{ secrets.DOCKER_USERNAME }}/servicesdashboard-frontend:${{ steps.version.outputs.version_number }}"
+
   build:
     name: Build for ${{ matrix.name }}
-    needs: test
+    needs: [test, docker]
     runs-on: ubuntu-latest
     strategy:
       matrix:
@@ -306,7 +407,7 @@ jobs:
 
   release:
     name: Create Release
-    needs: build
+    needs: [build, docker]
     runs-on: ubuntu-latest
     permissions:
       contents: write
@@ -368,12 +469,29 @@ jobs:
 
             ### 📦 Available Downloads
 
+            #### Standalone Binaries
             - **Raspberry Pi 3/4 (32-bit ARM)**: `servicesdashboard-pi-linux-arm.tar.gz`
             - **Raspberry Pi 4/5 (64-bit ARM64)**: `servicesdashboard-pi-linux-arm64.tar.gz`
             - **Linux x64**: `servicesdashboard-linux-x64.tar.gz`
             - **macOS x64 (Intel)**: `servicesdashboard-macos-x64.tar.gz`
             - **macOS ARM64 (Apple Silicon)**: `servicesdashboard-macos-arm64.tar.gz`
             - **Windows x64**: `servicesdashboard-windows-x64.zip`
+
+            #### Docker Images (Multi-platform)
+            ```bash
+            # Backend
+            docker pull ${{ secrets.DOCKER_USERNAME }}/servicesdashboard-backend:${{ needs.docker.outputs.version }}
+            docker pull ${{ secrets.DOCKER_USERNAME }}/servicesdashboard-backend:latest
+
+            # Frontend
+            docker pull ${{ secrets.DOCKER_USERNAME }}/servicesdashboard-frontend:${{ needs.docker.outputs.version }}
+            docker pull ${{ secrets.DOCKER_USERNAME }}/servicesdashboard-frontend:latest
+
+            # Deploy with Docker Compose
+            docker compose -f compose.prod.yaml up -d
+            ```
+
+            Supported platforms: `linux/amd64`, `linux/arm64`, `linux/arm/v7`
 
             > **⚠️ Note:** Raspberry Pi Zero / Pi 1 are NOT supported due to ARMv6 architecture limitations in .NET 9.0
 

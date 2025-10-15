@@ -174,7 +174,7 @@ Download the latest release from [GitHub Releases](https://github.com/nickantoni
 
 1. **Clone and setup:**
    ```bash
-   git clone https://github.com/yourusername/ServicesDashboard.git
+   git clone https://github.com/devblaze/ServicesDashboard.git
    cd ServicesDashboard
    ```
 
@@ -461,7 +461,7 @@ The easiest way to deploy Services Dashboard is using Docker Compose. This metho
 
 #### Step 1: Clone the Repository
 ```bash
-git clone https://github.com/yourusername/ServicesDashboard.git
+git clone https://github.com/devblaze/ServicesDashboard.git
 cd ServicesDashboard
 ```
 
@@ -602,8 +602,8 @@ If you prefer using pre-built images, you can pull them from Docker Hub:
 
 ```bash
 # Pull images
-docker pull yourusername/servicesdashboard-backend:latest
-docker pull yourusername/servicesdashboard-frontend:latest
+docker pull devblaze/servicesdashboard-backend:latest
+docker pull devblaze/servicesdashboard-frontend:latest
 
 # Run with docker run
 docker network create app_network
@@ -621,13 +621,13 @@ docker run -d \
   --name servicesdashboard \
   --network app_network \
   -e ConnectionStrings__DefaultConnection="Host=database;Database=servicesdashboard;Username=admin;Password=your_password" \
-  yourusername/servicesdashboard-backend:latest
+  devblaze/servicesdashboard-backend:latest
 
 docker run -d \
   --name frontend \
   --network app_network \
   -p 5050:80 \
-  yourusername/servicesdashboard-frontend:latest
+  devblaze/servicesdashboard-frontend:latest
 ```
 
 ## 🔒 Security Best Practices
@@ -766,7 +766,7 @@ LOG_LEVEL=Information
 1. **Fork the repository** on GitHub
 2. **Clone your fork:**
 ```bash
-   git clone https://github.com/yourusername/ServicesDashboard.git
+   git clone https://github.com/devblaze/ServicesDashboard.git
    cd ServicesDashboard
 ```
 1. **Create a feature branch:**
@@ -808,10 +808,10 @@ LOG_LEVEL=Information
 
 ## 🙋‍♂️ Support & Community
 ### Getting Help
-- **📚 Documentation**: Comprehensive guides in the [wiki](https://github.com/yourusername/ServicesDashboard/wiki)
-- **🐛 Bug Reports**: Open an [issue](https://github.com/yourusername/ServicesDashboard/issues) for bugs
-- **💡 Feature Requests**: Suggest new features via [issues](https://github.com/yourusername/ServicesDashboard/issues)
-- **💬 Discussions**: Ask questions in [GitHub Discussions](https://github.com/yourusername/ServicesDashboard/discussions)
+- **📚 Documentation**: Comprehensive guides in the [wiki](https://github.com/devblaze/ServicesDashboard/wiki)
+- **🐛 Bug Reports**: Open an [issue](https://github.com/devblaze/ServicesDashboard/issues) for bugs
+- **💡 Feature Requests**: Suggest new features via [issues](https://github.com/devblaze/ServicesDashboard/issues)
+- **💬 Discussions**: Ask questions in [GitHub Discussions](https://github.com/devblaze/ServicesDashboard/discussions)
 
 ### Community Guidelines
 - Be respectful and constructive
