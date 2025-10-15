@@ -47,5 +47,6 @@ export interface SettingsGroup {
   displayName: string;
   description: string;
   icon: string;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   settings: Record<string, any>;
 }

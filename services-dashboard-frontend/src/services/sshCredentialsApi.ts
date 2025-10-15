@@ -58,6 +58,7 @@ class SshCredentialsApi extends BaseApiClient {
     try {
       const response = await this.client.get<SshCredential>('/sshcredentials/default');
       return response.data;
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     } catch (error: any) {
       if (error.response?.status === 404) {
         return null; // No default credential set

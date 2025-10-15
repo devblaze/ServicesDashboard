@@ -134,6 +134,7 @@ export function useEditServiceForm() {
       serverId: undefined, // This might not be available in HostedService
       hostAddress: service.hostAddress || '',
       // Safe access to isDockerContainer property
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
       isDockerContainer: (service as any).isDockerContainer || false,
     });
   };

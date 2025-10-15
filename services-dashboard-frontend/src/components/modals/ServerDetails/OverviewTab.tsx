@@ -74,6 +74,7 @@ export const OverviewTab: React.FC<OverviewTabProps> = ({
 }) => {
   const systemInfo = getSystemInfo(server.systemInfo);
 
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const parseRawData = (rawData: string | undefined): any => {
     if (!rawData) return null;
     try {

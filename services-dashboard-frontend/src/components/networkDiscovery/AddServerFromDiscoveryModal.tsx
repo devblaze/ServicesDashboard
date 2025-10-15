@@ -111,6 +111,7 @@ export const AddServerFromDiscoveryModal: React.FC<AddServerFromDiscoveryModalPr
       }
 
       setConnectionTestResult(result);
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
     } catch (error: any) {
       setConnectionTestResult({
         success: false,

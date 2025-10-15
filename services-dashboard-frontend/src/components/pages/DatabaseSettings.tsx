@@ -42,6 +42,7 @@ export function DatabaseSettings({ darkMode }: DatabaseSettingsProps) {
     onSuccess: (data) => {
       setTestResult(data);
     },
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     onError: (error: any) => {
       setTestResult({
         success: false,
@@ -59,6 +60,7 @@ export function DatabaseSettings({ darkMode }: DatabaseSettingsProps) {
       setShowMigrationConfirm(false);
       alert('Database migration completed successfully! Please restart the application to use PostgreSQL.');
     },
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     onError: (error: any) => {
       alert(`Migration failed: ${error?.message || 'Unknown error'}`);
     }
