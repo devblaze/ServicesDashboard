@@ -379,7 +379,7 @@ Features:
   - Environment-specific configuration
   - Health check endpoints
 ```
-```
+
 #### `frontend` (React + Vite)
 ```yaml
 Features:
