@@ -8,7 +8,14 @@
     "dev": "vite",
     "build": "tsc -b && vite build",
     "lint": "eslint .",
-    "preview": "vite preview"
+    "preview": "vite preview",
+    "test:e2e": "playwright test",
+    "test:e2e:ui": "playwright test --ui",
+    "test:e2e:headed": "playwright test --headed",
+    "demo": "playwright test --headed demo.spec.ts",
+    "demo:record": "playwright test demo.spec.ts --project=chromium",
+    "playwright:install": "playwright install --with-deps",
+    "playwright:show-report": "playwright show-report"
   },
   "dependencies": {
     "@hello-pangea/dnd": "^18.0.1",
@@ -22,6 +29,7 @@
   },
   "devDependencies": {
     "@eslint/js": "^9.25.0",
+    "@playwright/test": "^1.48.2",
     "@tailwindcss/vite": "^4.1.11",
     "@types/react": "^19.1.2",
     "@types/react-dom": "^19.1.2",
