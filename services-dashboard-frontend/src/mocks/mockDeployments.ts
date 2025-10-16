@@ -1,4 +1,4 @@
-import type { Deployment, DeploymentEnvironment, PortAllocation } from '../types/Deployment';
+import type { Deployment } from '../types/Deployment';
 
 export const mockDeployments: Deployment[] = [
   {

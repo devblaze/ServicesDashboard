@@ -139,7 +139,8 @@ export const ServerManagement: React.FC<ServerManagementProps> = ({ darkMode = t
         bulkHealthCheckMutation.mutate(unknownServerIds);
       }
     }
-  }, [isLoading, servers.length]); // Only run when loading completes or server count changes
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isLoading, servers.length]); // Only run when loading completes or server count changes, not when mutation changes
 
   const toggleServerSelection = (serverId: number) => {
     const newSelection = new Set(selectedServerIds);

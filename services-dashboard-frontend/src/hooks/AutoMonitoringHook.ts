@@ -281,13 +281,14 @@ export const useAutoMonitoring = (config: Partial<AutoMonitoringConfig> = {}) =>
                 clearInterval(healthIntervalRef.current);
             }
         };
+        // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [
         finalConfig.enableServerConnectivityCheck,
         finalConfig.enableServerHealthCheck,
         finalConfig.enableServiceHealthCheck,
         finalConfig.connectivityCheckInterval,
         finalConfig.healthCheckInterval
-    ]);
+    ]); // performConnectivityChecks and performHealthChecks intentionally not in deps to avoid recreating intervals
 
     // Manual trigger functions
     const triggerConnectivityCheck = () => {
