@@ -365,33 +365,29 @@ jobs:
       - name: Download all artifacts
         uses: actions/download-artifact@v4
 
-      - name: Delete existing release if it exists
-        continue-on-error: true
+      - name: Delete existing release and tag if they exist
         run: |
-          TAG=${{ needs.docker.outputs.version }}
-          echo "Checking for existing release with tag: v$TAG"
+          TAG="v${{ needs.docker.outputs.version }}"
+          echo "Checking for existing release/tag: $TAG"
 
-          # Check if release exists
-          if gh release view "v$TAG" > /dev/null 2>&1; then
-            echo "Release v$TAG exists, deleting..."
-            gh release delete "v$TAG" --yes
-            echo "Release deleted successfully"
+          # Delete release if it exists (--cleanup-tag also removes the tag)
+          if gh release view "$TAG" >/dev/null 2>&1; then
+            echo "Release $TAG exists, deleting..."
+            gh release delete "$TAG" --yes --cleanup-tag || true
+            echo "Release and tag deleted"
           else
-            echo "No existing release found for v$TAG"
+            echo "No existing release found"
           fi
 
-          # Delete tag if it exists
-          if git rev-parse "v$TAG" > /dev/null 2>&1; then
-            echo "Tag v$TAG exists locally, deleting..."
-            git tag -d "v$TAG" || true
-          fi
+          # Extra safety: ensure tag is deleted from remote
+          git push origin ":refs/tags/$TAG" 2>/dev/null || echo "Tag already removed or doesn't exist"
 
-          # Delete remote tag if it exists
-          git push origin :refs/tags/v$TAG 2>/dev/null || echo "Remote tag v$TAG doesn't exist or already deleted"
+          # Small delay to ensure GitHub processes the deletion
+          sleep 2
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Create Release
+      - name: Create Draft Release
         uses: softprops/action-gh-release@v1
         with:
           body: |
@@ -432,8 +428,17 @@ jobs:
           files: |
             **/*.tar.gz
             **/*.zip
-          draft: false
+          draft: true
           prerelease: false
           generate_release_notes: true
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Publish Release
+        run: |
+          TAG="v${{ needs.docker.outputs.version }}"
+          echo "Publishing release $TAG..."
+          gh release edit "$TAG" --draft=false
+          echo "✅ Release $TAG published successfully!"
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
