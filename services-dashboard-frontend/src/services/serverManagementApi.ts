@@ -10,6 +10,10 @@ import type {
   AlertType,
   AlertSeverity,
 } from '../types/ServerManagement';
+import { mockServers } from '../mocks/mockServers';
+import { generateMockServerLogs, generateMockLogAnalysis } from '../mocks/mockServerLogs';
+
+const isDemoMode = () => import.meta.env.VITE_DEMO_MODE === 'true';
 
 export type UpdateStatus = 
   | 'Pending'
@@ -342,6 +346,11 @@ class ServerManagementApiClient extends BaseApiClient {
   }
 
   async getServers(): Promise<ManagedServer[]> {
+    if (isDemoMode()) {
+      await new Promise(resolve => setTimeout(resolve, 400));
+      return mockServers;
+    }
+
     return this.handleRequest(
       async () => {
         const rawServers = await this.request<RawManagedServer[]>('get', '/servermanagement');
@@ -353,25 +362,83 @@ class ServerManagementApiClient extends BaseApiClient {
   }
 
   async getServer(id: number): Promise<ManagedServer> {
+    if (isDemoMode()) {
+      await new Promise(resolve => setTimeout(resolve, 300));
+      const server = mockServers.find(s => s.id === id);
+      if (!server) {
+        throw new Error('Server not found');
+      }
+      return server;
+    }
+
     const rawServer = await this.request<RawManagedServer>('get', `/servermanagement/${id}`);
     return this.transformServer(rawServer);
   }
 
   async addServer(server: CreateServerDto): Promise<ManagedServer> {
+    if (isDemoMode()) {
+      await new Promise(resolve => setTimeout(resolve, 600));
+      const newServer: ManagedServer = {
+        id: Math.max(...mockServers.map(s => s.id)) + 1,
+        name: server.name,
+        hostAddress: server.hostAddress,
+        sshPort: server.sshPort,
+        username: server.username,
+        type: server.type,
+        status: 'Unknown',
+        group: server.group,
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
+        tags: server.tags || undefined,
+        parentServerId: server.parentServerId || null,
+        parentServerName: null,
+        childServerCount: 0,
+        isDashboardServer: false,
+        healthChecks: [],
+        updateReports: [],
+        alerts: [],
+      };
+      return newServer;
+    }
+
     const rawServer = await this.request<RawManagedServer>('post', '/servermanagement', server);
     return this.transformServer(rawServer);
   }
 
   async updateServer(id: number, server: Partial<CreateServerDto>): Promise<ManagedServer> {
+    if (isDemoMode()) {
+      await new Promise(resolve => setTimeout(resolve, 400));
+      const existingServer = mockServers.find(s => s.id === id);
+      if (!existingServer) {
+        throw new Error('Server not found');
+      }
+      return {
+        ...existingServer,
+        ...server,
+        updatedAt: new Date().toISOString(),
+      };
+    }
+
     const rawServer = await this.request<RawManagedServer>('put', `/servermanagement/${id}`, server);
     return this.transformServer(rawServer);
   }
 
   async deleteServer(id: number): Promise<void> {
+    if (isDemoMode()) {
+      await new Promise(resolve => setTimeout(resolve, 400));
+      console.log('Demo mode: simulating server deletion', id);
+      return;
+    }
+
     return this.request<void>('delete', `/servermanagement/${id}`);
   }
 
   async getAlerts(): Promise<ServerAlert[]> {
+    if (isDemoMode()) {
+      await new Promise(resolve => setTimeout(resolve, 300));
+      return mockServers.flatMap(server => server.alerts || []);
+    }
+
     return this.handleRequest(
       async () => {
         const rawAlerts = await this.request<RawServerAlert[]>('get', '/servermanagement/alerts');
@@ -396,31 +463,104 @@ class ServerManagementApiClient extends BaseApiClient {
   }
 
   async performHealthCheck(serverId: number): Promise<ServerHealthCheck> {
+    if (isDemoMode()) {
+      await new Promise(resolve => setTimeout(resolve, 1000));
+      const healthCheck: ServerHealthCheck = {
+        id: Date.now(),
+        serverId,
+        checkTime: new Date().toISOString(),
+        isHealthy: true,
+        cpuUsage: 20 + Math.random() * 40,
+        memoryUsage: 30 + Math.random() * 40,
+        diskUsage: 40 + Math.random() * 30,
+        loadAverage: 0.5 + Math.random() * 2,
+        runningProcesses: 100 + Math.floor(Math.random() * 150),
+      };
+      console.log('Demo mode: simulating health check', healthCheck);
+      return healthCheck;
+    }
+
     return this.request<ServerHealthCheck>('post', `/servermanagement/${serverId}/health-check`, {});
   }
 
   async checkUpdates(serverId: number): Promise<UpdateReport> {
+    if (isDemoMode()) {
+      await new Promise(resolve => setTimeout(resolve, 1500));
+      const availableUpdates = Math.floor(Math.random() * 10);
+      const securityUpdates = Math.floor(availableUpdates * 0.3);
+      const updateReport: UpdateReport = {
+        id: Date.now(),
+        serverId,
+        scanTime: new Date().toISOString(),
+        availableUpdates,
+        securityUpdates,
+        packageDetails: availableUpdates > 0
+          ? `${availableUpdates} packages available for update including ${securityUpdates} security updates`
+          : 'System is up to date',
+        status: availableUpdates > 0 ? 'Pending' : 'Completed',
+        aiRecommendation: securityUpdates > 0
+          ? 'Security updates available. Recommend updating within 24 hours.'
+          : 'System is stable. Regular maintenance recommended.',
+        aiConfidence: 0.85 + Math.random() * 0.1,
+      };
+      console.log('Demo mode: simulating update check', updateReport);
+      return updateReport;
+    }
+
     return this.request<UpdateReport>('post', `/servermanagement/${serverId}/check-updates`, {});
   }
 
   async testServerConnection(server: ManagedServer): Promise<boolean> {
+    if (isDemoMode()) {
+      await new Promise(resolve => setTimeout(resolve, 800));
+      console.log('Demo mode: simulating connection test', server.name);
+      return server.status !== 'Offline';
+    }
+
     return this.request<boolean>('post', `/servermanagement/${server.id}/test-connection`, server);
   }
 
   async testNewServerConnection(server: CreateServerDto): Promise<boolean> {
+    if (isDemoMode()) {
+      await new Promise(resolve => setTimeout(resolve, 1200));
+      console.log('Demo mode: simulating new server connection test', server.name);
+      return true;
+    }
+
     return this.request<boolean>('post', '/servermanagement/test-new-connection', server);
   }
 
   async getServerLogs(id: number, lines: number = 100): Promise<string> {
+    if (isDemoMode()) {
+      await new Promise(resolve => setTimeout(resolve, 800));
+      return generateMockServerLogs(id, lines);
+    }
+
     const response = await this.request<{ logs: string }>('get', `/servermanagement/${id}/logs?lines=${lines}`);
     return response.logs;
   }
 
   async analyzeServerLogs(id: number, lines: number = 500): Promise<LogAnalysisResult> {
+    if (isDemoMode()) {
+      await new Promise(resolve => setTimeout(resolve, 2500));
+      return generateMockLogAnalysis(id);
+    }
+
     return this.request<LogAnalysisResult>('post', `/servermanagement/${id}/analyze-logs?lines=${lines}`);
   }
 
   async executeCommand(id: number, command: string): Promise<CommandResult> {
+    if (isDemoMode()) {
+      await new Promise(resolve => setTimeout(resolve, 500));
+      const mockResult: CommandResult = {
+        output: `Demo mode: Simulated execution of command '${command}'`,
+        error: '',
+        exitCode: 0,
+        executedAt: new Date().toISOString(),
+      };
+      return mockResult;
+    }
+
     return this.request<CommandResult>('post', `/servermanagement/${id}/execute-command`, { command });
   }
 

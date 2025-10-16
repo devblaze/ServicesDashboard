@@ -1,4 +1,7 @@
 import { BaseApiClient } from './BaseApiClient';
+import { mockDockerServices } from '../mocks/mockDockerServices';
+
+const isDemoMode = () => import.meta.env.VITE_DEMO_MODE === 'true';
 
 export interface DockerService {
   containerId: string;
@@ -47,14 +50,22 @@ class DockerServicesApi extends BaseApiClient {
     console.log('this context:', this);
     console.log('this.request type:', typeof this.request);
     console.log('this.constructor.name:', this.constructor.name);
-    
+
+    // Check if demo mode is enabled
+    if (isDemoMode()) {
+      console.log('Demo mode enabled - returning mock data');
+      // Simulate network delay for realism
+      await new Promise(resolve => setTimeout(resolve, 400));
+      return mockDockerServices;
+    }
+
     if (typeof this.request !== 'function') {
       console.error('this.request is not a function');
       console.error('Available properties on this:', Object.keys(this));
       console.error('Prototype properties:', Object.getOwnPropertyNames(Object.getPrototypeOf(this)));
       throw new Error('request method is not available on this instance');
     }
-    
+
     try {
       return await this.request<DockerService[]>('get', '/dockerservices');
     } catch (error) {
@@ -64,18 +75,38 @@ class DockerServicesApi extends BaseApiClient {
   }
 
   async updateArrangements(arrangements: DockerServiceArrangementDto[]): Promise<void> {
+    if (isDemoMode()) {
+      await new Promise(resolve => setTimeout(resolve, 300));
+      console.log('Demo mode: simulating arrangement update', arrangements);
+      return;
+    }
     return await this.request<void>('post', '/dockerservices/arrange', arrangements);
   }
 
   async startContainer(serverId: number, containerId: string): Promise<void> {
+    if (isDemoMode()) {
+      await new Promise(resolve => setTimeout(resolve, 800));
+      console.log('Demo mode: simulating container start', { serverId, containerId });
+      return;
+    }
     return await this.request<void>('post', `/dockerservices/${serverId}/containers/${containerId}/start`);
   }
 
   async stopContainer(serverId: number, containerId: string): Promise<void> {
+    if (isDemoMode()) {
+      await new Promise(resolve => setTimeout(resolve, 600));
+      console.log('Demo mode: simulating container stop', { serverId, containerId });
+      return;
+    }
     return await this.request<void>('post', `/dockerservices/${serverId}/containers/${containerId}/stop`);
   }
 
   async restartContainer(serverId: number, containerId: string): Promise<void> {
+    if (isDemoMode()) {
+      await new Promise(resolve => setTimeout(resolve, 1000));
+      console.log('Demo mode: simulating container restart', { serverId, containerId });
+      return;
+    }
     return await this.request<void>('post', `/dockerservices/${serverId}/containers/${containerId}/restart`);
   }
 
@@ -88,6 +119,11 @@ class DockerServicesApi extends BaseApiClient {
     downloadFromUrl?: boolean,
     imageName?: string
   ): Promise<void> {
+    if (isDemoMode()) {
+      await new Promise(resolve => setTimeout(resolve, 500));
+      console.log('Demo mode: simulating icon update', { serverId, containerId, iconUrl, removeBackground, downloadFromUrl });
+      return;
+    }
     return await this.request<void>('put', '/dockerservices/icon', {
       serverId,
       containerId,
