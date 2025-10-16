@@ -415,6 +415,7 @@ class ServerManagementApiClient extends BaseApiClient {
       return {
         ...existingServer,
         ...server,
+        tags: server.tags === null ? undefined : server.tags ?? existingServer.tags,
         updatedAt: new Date().toISOString(),
       };
     }

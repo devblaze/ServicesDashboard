@@ -1,5 +1,6 @@
 import { BaseApiClient } from './BaseApiClient';
 import type { HostedService, CreateServiceDto } from '../types/Service.ts';
+import { ServiceStatus } from '../types/ServiceStatus';
 import { mockServices } from '../mocks/mockServices';
 
 export interface ServerSummary {
@@ -48,7 +49,7 @@ class ServicesApiClient extends BaseApiClient {
         name: service.name,
         description: service.description,
         port: service.port,
-        status: 'healthy',
+        status: ServiceStatus.Running,
         dockerImage: service.dockerImage,
         healthCheckUrl: service.healthCheckUrl,
         hostAddress: service.hostAddress,
