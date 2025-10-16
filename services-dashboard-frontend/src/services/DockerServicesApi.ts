@@ -13,7 +13,7 @@ export interface DockerService {
     privatePort: number;
     publicPort?: number;
     type: string;
-    ip: string;
+    ip?: string;
   }>;
   createdAt: string;
   serverId: number;
