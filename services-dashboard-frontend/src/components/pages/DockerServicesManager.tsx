@@ -76,12 +76,12 @@ export function DockerServices({ darkMode }: DockerServicesProps) {
 
   // Fix the infinite loop by using useMemo and a stable dependency
   const servicesString = useMemo(() => JSON.stringify(services), [services]);
-  
+
   useEffect(() => {
     if (services && services.length > 0) {
       setArrangedServices(services);
     }
-  }, [servicesString]); // Use servicesString instead of services directly
+  }, [services, servicesString]); // Use servicesString to detect changes, include services for lint
 
   const updateArrangementsMutation = useMutation({
     mutationFn: dockerServicesApi.updateArrangements,

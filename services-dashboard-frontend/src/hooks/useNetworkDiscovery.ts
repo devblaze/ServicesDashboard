@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect, useMemo, useCallback } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { networkDiscoveryApi } from '../services/networkDiscoveryApi';
 import { signalRService } from '../services/signalr.service';
@@ -231,26 +231,15 @@ export const useNetworkDiscovery = () => {
     }
   });
 
-  // Load scan results when scan completes
-  useEffect(() => {
-    if (scanProgress?.status === 'completed' && currentScanId) {
-      loadScanResults(currentScanId);
-    } else if (scanProgress?.status === 'failed' && currentScanId) {
-      // Clear failed scans
-      setCurrentScanId(null);
-    }
-  }, [scanProgress?.status, currentScanId]);
+  const resetFilters = useCallback(() => {
+    setSearchFilter('');
+    setServiceTypeFilter('');
+    setPortFilter('');
+    setShowOnlyAdded(false);
+    setShowOnlyActive(false);
+  }, []);
 
-  // Load latest results for current target when component mounts
-  useEffect(() => {
-    const target = scanType === 'network' ? networkRange : hostAddress;
-    if (target && target !== currentTarget && !currentScanId) {
-      setCurrentTarget(target);
-      loadLatestResults(target);
-    }
-  }, [networkRange, hostAddress, scanType, currentTarget, currentScanId]);
-
-  const loadScanResults = async (scanId: string) => {
+  const loadScanResults = useCallback(async (scanId: string) => {
     try {
       const results = await networkDiscoveryApi.getScanResults(scanId);
       setDiscoveredServices(results);
@@ -261,9 +250,9 @@ export const useNetworkDiscovery = () => {
       console.error('Failed to load scan results:', error);
       setCurrentScanId(null); // Clear if results can't be loaded
     }
-  };
+  }, [resetFilters]);
 
-  const loadLatestResults = async (target: string) => {
+  const loadLatestResults = useCallback(async (target: string) => {
     try {
       const results = await networkDiscoveryApi.getLatestResults(target);
       if (results.length > 0) {
@@ -274,15 +263,26 @@ export const useNetworkDiscovery = () => {
       // Silently handle errors for latest results since this is not critical
       console.warn('Failed to load latest results (this is normal for first-time scans):', error);
     }
-  };
+  }, [resetFilters]);
 
-  const resetFilters = () => {
-    setSearchFilter('');
-    setServiceTypeFilter('');
-    setPortFilter('');
-    setShowOnlyAdded(false);
-    setShowOnlyActive(false);
-  };
+  // Load scan results when scan completes
+  useEffect(() => {
+    if (scanProgress?.status === 'completed' && currentScanId) {
+      loadScanResults(currentScanId);
+    } else if (scanProgress?.status === 'failed' && currentScanId) {
+      // Clear failed scans
+      setCurrentScanId(null);
+    }
+  }, [scanProgress?.status, currentScanId, loadScanResults]);
+
+  // Load latest results for current target when component mounts
+  useEffect(() => {
+    const target = scanType === 'network' ? networkRange : hostAddress;
+    if (target && target !== currentTarget && !currentScanId) {
+      setCurrentTarget(target);
+      loadLatestResults(target);
+    }
+  }, [networkRange, hostAddress, scanType, currentTarget, currentScanId, loadLatestResults]);
 
   // Get unique service types for filter dropdown
   const uniqueServiceTypes = useMemo(() => {
