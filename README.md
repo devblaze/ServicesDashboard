@@ -101,9 +101,6 @@ Download the latest release from [GitHub Releases](https://github.com/nickantoni
 - **Smooth Animations**: Polished UI transitions and micro-interactions
 - **Accessibility**: WCAG compliant interface design
 
-![Dashboard UI](./docs/images/services-dashboard.png)
-
-
 ### 🖥️ Live Server Management and Problem Resolution
 
 Comprehensive server infrastructure management with real-time monitoring and intelligent problem detection:
