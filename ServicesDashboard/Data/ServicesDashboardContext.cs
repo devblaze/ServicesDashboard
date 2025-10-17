@@ -30,6 +30,13 @@ public class ServicesDashboardContext : DbContext
     public DbSet<DeploymentEnvironment> DeploymentEnvironments { get; set; }
     public DbSet<PortAllocation> PortAllocations { get; set; }
 
+    // IP Management
+    public DbSet<Subnet> Subnets { get; set; }
+    public DbSet<NetworkDevice> NetworkDevices { get; set; }
+    public DbSet<DeviceHistory> DeviceHistories { get; set; }
+    public DbSet<IpReservation> IpReservations { get; set; }
+    public DbSet<OmadaController> OmadaControllers { get; set; }
+
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
         base.OnModelCreating(modelBuilder);
@@ -312,6 +319,87 @@ public class ServicesDashboardContext : DbContext
                   .OnDelete(DeleteBehavior.Cascade);
             entity.Property(e => e.AllocatedAt).HasDefaultValueSql("CURRENT_TIMESTAMP");
             entity.HasIndex(e => new { e.ServerId, e.Port }).IsUnique();
+        });
+
+        // Configure Subnet
+        modelBuilder.Entity<Subnet>(entity =>
+        {
+            entity.HasKey(e => e.Id);
+            entity.Property(e => e.Network).IsRequired().HasMaxLength(50);
+            entity.Property(e => e.Gateway).IsRequired().HasMaxLength(45);
+            entity.Property(e => e.CreatedAt).HasDefaultValueSql("CURRENT_TIMESTAMP");
+            entity.Property(e => e.UpdatedAt).HasDefaultValueSql("CURRENT_TIMESTAMP");
+            entity.HasIndex(e => e.Network).IsUnique();
+        });
+
+        // Configure NetworkDevice
+        modelBuilder.Entity<NetworkDevice>(entity =>
+        {
+            entity.HasKey(e => e.Id);
+            entity.Property(e => e.IpAddress).IsRequired().HasMaxLength(45);
+            entity.Property(e => e.DeviceType).HasConversion<string>();
+            entity.Property(e => e.Status).HasConversion<string>();
+            entity.Property(e => e.Source).HasConversion<string>();
+            entity.Property(e => e.CreatedAt).HasDefaultValueSql("CURRENT_TIMESTAMP");
+            entity.Property(e => e.UpdatedAt).HasDefaultValueSql("CURRENT_TIMESTAMP");
+            entity.HasOne(e => e.Subnet)
+                  .WithMany(e => e.Devices)
+                  .HasForeignKey(e => e.SubnetId)
+                  .OnDelete(DeleteBehavior.SetNull);
+            entity.HasOne(e => e.ManagedServer)
+                  .WithMany()
+                  .HasForeignKey(e => e.ManagedServerId)
+                  .OnDelete(DeleteBehavior.SetNull);
+            entity.HasIndex(e => e.IpAddress);
+            entity.HasIndex(e => e.MacAddress);
+            entity.HasIndex(e => new { e.IpAddress, e.MacAddress });
+            entity.HasIndex(e => e.LastSeen);
+        });
+
+        // Configure DeviceHistory
+        modelBuilder.Entity<DeviceHistory>(entity =>
+        {
+            entity.HasKey(e => e.Id);
+            entity.Property(e => e.EventType).HasConversion<string>();
+            entity.Property(e => e.EventTime).HasDefaultValueSql("CURRENT_TIMESTAMP");
+            entity.HasOne(e => e.NetworkDevice)
+                  .WithMany(e => e.History)
+                  .HasForeignKey(e => e.NetworkDeviceId)
+                  .OnDelete(DeleteBehavior.Cascade);
+            entity.HasIndex(e => e.EventTime);
+            entity.HasIndex(e => new { e.NetworkDeviceId, e.EventTime });
+        });
+
+        // Configure IpReservation
+        modelBuilder.Entity<IpReservation>(entity =>
+        {
+            entity.HasKey(e => e.Id);
+            entity.Property(e => e.IpAddress).IsRequired().HasMaxLength(45);
+            entity.Property(e => e.Description).IsRequired().HasMaxLength(200);
+            entity.Property(e => e.CreatedAt).HasDefaultValueSql("CURRENT_TIMESTAMP");
+            entity.Property(e => e.UpdatedAt).HasDefaultValueSql("CURRENT_TIMESTAMP");
+            entity.HasOne(e => e.Subnet)
+                  .WithMany(e => e.Reservations)
+                  .HasForeignKey(e => e.SubnetId)
+                  .OnDelete(DeleteBehavior.SetNull);
+            entity.HasOne(e => e.NetworkDevice)
+                  .WithMany()
+                  .HasForeignKey(e => e.NetworkDeviceId)
+                  .OnDelete(DeleteBehavior.SetNull);
+            entity.HasIndex(e => e.IpAddress);
+            entity.HasIndex(e => new { e.IpAddress, e.IsActive });
+        });
+
+        // Configure OmadaController
+        modelBuilder.Entity<OmadaController>(entity =>
+        {
+            entity.HasKey(e => e.Id);
+            entity.Property(e => e.Name).IsRequired().HasMaxLength(200);
+            entity.Property(e => e.ApiUrl).IsRequired().HasMaxLength(500);
+            entity.Property(e => e.Username).IsRequired().HasMaxLength(100);
+            entity.Property(e => e.CreatedAt).HasDefaultValueSql("CURRENT_TIMESTAMP");
+            entity.Property(e => e.UpdatedAt).HasDefaultValueSql("CURRENT_TIMESTAMP");
+            entity.HasIndex(e => e.Name).IsUnique();
         });
     }
 }

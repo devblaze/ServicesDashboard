@@ -161,6 +161,144 @@ Comprehensive server infrastructure management with real-time monitoring and int
 
 ![Servers](./docs/images/servers.png)
 
+### 🌐 IP Address Management (NEW!)
+
+Comprehensive IP address management system for tracking, organizing, and managing your network infrastructure:
+
+#### Network Subnet Management
+- **Subnet Configuration**: Manage multiple subnets with CIDR notation (e.g., `192.168.1.0/24`)
+- **DHCP Range Tracking**: Configure and monitor DHCP IP ranges
+- **Gateway Management**: Define and track gateway addresses for each subnet
+- **VLAN Support**: Organize subnets by VLAN IDs
+- **Usage Statistics**: Real-time IP utilization tracking with visual indicators
+- **DNS Configuration**: Configure DNS servers per subnet
+
+![Subnets](./docs/images/subnets.png)
+
+#### IP Address Tracking
+- **IP Overview Dashboard**: Comprehensive view of all IP addresses across all subnets
+  - Visual status indicators (Available, In Use, Reserved, DHCP Pool, Gateway)
+  - Advanced filtering by status, subnet, and search criteria
+  - Detailed device information including hostname, MAC address, and device type
+  - Real-time availability tracking
+- **IP Grid Visualization**: Color-coded grid view of IP addresses
+  - 🟢 Green: Available IPs ready for assignment
+  - 🔵 Blue: In Use by active devices
+  - 🟣 Purple: Reserved for specific purposes
+  - 🟡 Yellow: DHCP pool range
+  - 🟠 Orange: Gateway addresses
+- **Conflict Detection**: Automatic detection of IP address conflicts
+- **Next Available IP**: Smart algorithm to find the next available IP, avoiding DHCP ranges
+
+![IP Overview](./docs/images/ip-overview.png)
+![IP Grid](./docs/images/ip-grid.png)
+
+#### Device Management
+- **Device Discovery**: Track all network devices across your infrastructure
+- **MAC Address Tracking**: Link devices to their physical MAC addresses
+- **Device Classification**: Categorize devices by type (Computer, Server, Phone, IoT, Printer, etc.)
+- **Status Monitoring**: Real-time online/offline status tracking
+- **Device History**: Complete audit trail of all device changes and events
+- **Multi-Source Discovery**: Support for network scans, Omada Controller, manual entry, SNMP, and ARP tables
+
+#### IP Reservations
+- **Static IP Management**: Reserve IP addresses for specific devices or purposes
+- **MAC Binding**: Lock reservations to specific MAC addresses
+- **Expiration Dates**: Set temporary reservations with automatic expiration
+- **Purpose Tracking**: Document the reason and assignment for each reservation
+- **Active/Inactive States**: Enable or disable reservations as needed
+
+#### TP-Link Omada Integration
+- **Omada Controller Sync**: Connect to TP-Link Omada Controller for automatic client discovery
+- **DHCP Lease Information**: Pull DHCP lease data directly from your controller
+- **Automatic Synchronization**: Schedule periodic syncs to keep device lists up-to-date
+- **Multi-Controller Support**: Manage multiple Omada controllers from one dashboard
+- **Connection Testing**: Verify Omada controller connectivity before syncing
+
+## 🚀 Upcoming Features
+
+### Network Management
+- [ ] **Device Tracker Completion**: Full device list management with advanced filtering and bulk operations
+- [ ] **Reservation Manager**: Complete UI for creating, editing, and managing IP reservations
+- [ ] **Omada Configuration UI**: Full interface for configuring Omada Controller integration
+- [ ] **Network Topology Map**: Visual representation of network layout and device relationships
+- [ ] **Subnet Calculator**: Built-in calculator for network planning and IP allocation
+- [ ] **MAC Address Vendor Lookup**: Automatic vendor identification from MAC addresses
+- [ ] **DNS Integration**: Automatic DNS record management and synchronization
+- [ ] **IPAM Export/Import**: Bulk import/export of IP data in CSV/JSON formats
+
+### Monitoring & Alerts
+- [ ] **IP Utilization Alerts**: Notifications when subnet usage exceeds thresholds
+- [ ] **Device Change Notifications**: Alerts for new devices, changes, or disconnections
+- [ ] **Conflict Alerts**: Real-time notifications for IP address conflicts
+- [ ] **Custom Alert Rules**: User-defined rules for network monitoring
+- [ ] **Alert Dashboard**: Centralized view of all network alerts and events
+- [ ] **Email/Webhook Notifications**: External notification support for critical events
+
+### Analytics & Reporting
+- [ ] **Historical IP Usage**: Track IP allocation trends over time
+- [ ] **Device Connection Patterns**: Analyze device connectivity patterns
+- [ ] **Subnet Growth Planning**: Predictive analytics for subnet capacity planning
+- [ ] **Custom Reports**: Generate detailed reports on network utilization
+- [ ] **Export Capabilities**: PDF/CSV export for all reports and dashboards
+- [ ] **Compliance Reports**: Network documentation for audit purposes
+
+### Service Management Enhancements
+- [ ] **Service Dependency Mapping**: Visual representation of service dependencies
+- [ ] **Advanced Health Metrics**: More granular health indicators (CPU, Memory, Disk, Network)
+- [ ] **Performance Trends**: Historical performance analysis with graphs and charts
+- [ ] **Predictive Alerts**: AI-powered prediction of potential service failures
+- [ ] **Custom Health Check Scripts**: User-defined health check logic
+- [ ] **Service Groups**: Organize services into logical groups for batch operations
+
+### Deployment & Automation
+- [ ] **CI/CD Pipeline Integration**: Direct integration with Jenkins, GitLab CI, GitHub Actions
+- [ ] **Automated Rollback**: Automatic rollback on deployment failure detection
+- [ ] **Blue-Green Deployments**: Zero-downtime deployment strategies
+- [ ] **Canary Releases**: Gradual rollout with automatic traffic shifting
+- [ ] **Deployment Templates**: Reusable deployment configurations
+- [ ] **Multi-Environment Management**: Dev, Staging, Production environment separation
+
+### Security & Compliance
+- [ ] **Vulnerability Scanning**: Integration with vulnerability scanners (Trivy, Clair)
+- [ ] **Security Audit Logs**: Comprehensive audit trail for all operations
+- [ ] **Role-Based Access Control (RBAC)**: User permissions and access management
+- [ ] **Two-Factor Authentication**: Enhanced security for user accounts
+- [ ] **API Key Management**: Secure API access with key rotation
+- [ ] **Compliance Dashboard**: Security compliance tracking and reporting
+
+### Integration & API
+- [ ] **REST API Documentation**: Interactive API documentation with Swagger/OpenAPI
+- [ ] **Webhook Support**: Event-driven webhooks for external integrations
+- [ ] **Prometheus Integration**: Metrics export for Prometheus monitoring
+- [ ] **Grafana Dashboards**: Pre-built dashboards for Grafana
+- [ ] **Slack/Teams Integration**: Real-time notifications to chat platforms
+- [ ] **Custom Plugin System**: Extensible plugin architecture for custom features
+
+### AI & Machine Learning
+- [ ] **Anomaly Detection**: ML-based detection of unusual patterns and behaviors
+- [ ] **Log Clustering**: Automatic grouping of similar log entries
+- [ ] **Root Cause Analysis**: AI-powered identification of issue root causes
+- [ ] **Capacity Planning**: ML predictions for resource capacity needs
+- [ ] **Smart Recommendations**: AI-suggested optimizations and improvements
+- [ ] **Natural Language Queries**: Ask questions about your infrastructure in plain English
+
+### Mobile & Accessibility
+- [ ] **Progressive Web App (PWA)**: Installable mobile app experience
+- [ ] **Push Notifications**: Mobile push notifications for critical events
+- [ ] **Offline Mode**: Basic functionality when offline
+- [ ] **Accessibility Improvements**: Full WCAG 2.1 AAA compliance
+- [ ] **Voice Commands**: Voice-controlled dashboard navigation
+- [ ] **Multi-Language Support**: Internationalization with multiple language options
+
+### Platform Expansion
+- [ ] **Kubernetes Integration**: Native K8s cluster monitoring and management
+- [ ] **AWS/Azure/GCP Support**: Cloud provider integration for hybrid environments
+- [ ] **Container Orchestration**: Support for Docker Swarm, Nomad, etc.
+- [ ] **Edge Computing**: Enhanced support for edge devices and IoT
+- [ ] **Multi-Tenant Architecture**: Support for multiple organizations/teams
+- [ ] **High Availability Mode**: Clustered deployment for enterprise environments
+
 ## 🙋‍♂️ Support & Community
 ### Getting Help
 - **📚 Documentation**: Comprehensive guides in the [wiki](https://github.com/devblaze/ServicesDashboard/wiki)
@@ -209,7 +347,7 @@ Comprehensive server infrastructure management with real-time monitoring and int
 1. **Update documentation** for any new features
 2. **Add or update tests** as needed
 3. **Ensure all tests pass** locally
-4. **Update the CHANGELOG** with your changes
+4. **Update the [CHANGELOG.md](CHANGELOG.md)** with your changes in the [Unreleased] section
 5. **Submit pull request** with detailed description
 
 ### Code Review Criteria
