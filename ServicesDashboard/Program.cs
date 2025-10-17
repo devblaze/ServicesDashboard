@@ -102,6 +102,10 @@ builder.Services.AddScoped<IAiDeploymentAssistant, AiDeploymentAssistant>();
 // Update Service
 builder.Services.AddScoped<IUpdateService, UpdateService>();
 
+// IP Management Services
+builder.Services.AddScoped<ServicesDashboard.Services.IpManagement.IIpManagementService, ServicesDashboard.Services.IpManagement.IpManagementService>();
+builder.Services.AddScoped<ServicesDashboard.Services.IpManagement.IOmadaControllerService, ServicesDashboard.Services.IpManagement.OmadaControllerService>();
+
 // Add SignalR for real-time notifications
 builder.Services.AddSignalR();
 
