@@ -238,7 +238,7 @@ export const UpdateSettingsSection: React.FC<UpdateSettingsSectionProps> = ({ da
       {/* Links */}
       <div className="mt-4 flex flex-wrap gap-4">
         <a
-          href="https://github.com/nickantoniadis/ServicesDashboard/releases"
+          href="https://github.com/devblaze/ServicesDashboard/releases"
           target="_blank"
           rel="noopener noreferrer"
           className={`inline-flex items-center gap-2 text-sm transition-colors ${
@@ -249,7 +249,7 @@ export const UpdateSettingsSection: React.FC<UpdateSettingsSectionProps> = ({ da
           View all releases
         </a>
         <a
-          href="https://github.com/nickantoniadis/ServicesDashboard/blob/main/CHANGELOG.md"
+          href="https://github.com/devblaze/ServicesDashboard/blob/main/CHANGELOG.md"
           target="_blank"
           rel="noopener noreferrer"
           className={`inline-flex items-center gap-2 text-sm transition-colors ${

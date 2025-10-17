@@ -284,7 +284,7 @@ export const ServicesList: React.FC<ServicesListProps> = ({
                 )}
 
                 {/* Add as Server Button for SSH Services */}
-                {isSshService(service) && service.isReachable && (
+                {isSshService(service) && service.isReachable && !isAdded && (
                   <button
                     onClick={() => handleAddAsServer(service)}
                     className={`flex items-center px-3 py-2 rounded-lg font-medium transition-all duration-200 ${

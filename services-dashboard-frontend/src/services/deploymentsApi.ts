@@ -53,7 +53,7 @@ class DeploymentsApiClient extends BaseApiClient {
       const newDeployment: Deployment = {
         id: Math.max(...mockDeployments.map(d => d.id)) + 1,
         ...data,
-        repositoryName: `Repository ${data.gitRepositoryId}`,
+        repositoryName: data.gitRepositoryId ? `Repository ${data.gitRepositoryId}` : undefined,
         serverName: `Server ${data.serverId}`,
         status: 'Created',
         createdAt: new Date().toISOString(),

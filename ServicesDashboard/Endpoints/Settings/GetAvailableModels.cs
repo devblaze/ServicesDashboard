@@ -2,6 +2,7 @@ using FastEndpoints;
 using ServicesDashboard.Data.Entities;
 using ServicesDashboard.Models;
 using ServicesDashboard.Services.Settings;
+using System.Text.Json;
 
 namespace ServicesDashboard.Endpoints.Settings;
 
@@ -35,19 +36,76 @@ public class GetAvailableModelsEndpoint : EndpointWithoutRequest<IEnumerable<str
 
             if (aiSettings.Provider == "ollama")
             {
-                var modelsUrl = $"{aiSettings.BaseUrl.TrimEnd('/')}/api/tags";
-                var response = await _httpClient.GetAsync(modelsUrl, ct);
+                var models = new List<string>();
 
-                if (!response.IsSuccessStatusCode)
+                // Try OpenAI-compatible API first (/v1/models)
+                try
                 {
-                    HttpContext.Response.StatusCode = 400;
-                await HttpContext.Response.WriteAsync(@"{""error"":""Failed to connect to Ollama server""}", ct);
-                return;
+                    var v1ModelsUrl = $"{aiSettings.BaseUrl.TrimEnd('/')}/v1/models";
+                    var v1Response = await _httpClient.GetAsync(v1ModelsUrl, ct);
+
+                    if (v1Response.IsSuccessStatusCode)
+                    {
+                        var jsonContent = await v1Response.Content.ReadAsStringAsync(ct);
+                        var jsonDoc = JsonDocument.Parse(jsonContent);
+
+                        if (jsonDoc.RootElement.TryGetProperty("data", out var dataArray))
+                        {
+                            foreach (var model in dataArray.EnumerateArray())
+                            {
+                                if (model.TryGetProperty("id", out var idElement))
+                                {
+                                    var modelId = idElement.GetString();
+                                    if (!string.IsNullOrEmpty(modelId))
+                                    {
+                                        models.Add(modelId);
+                                    }
+                                }
+                            }
+                        }
+
+                        if (models.Count > 0)
+                        {
+                            await Send.OkAsync(models, ct);
+                            return;
+                        }
+                    }
+                }
+                catch (Exception ex)
+                {
+                    _logger.LogWarning(ex, "Failed to fetch models from /v1/models, trying /api/tags");
                 }
 
-                var jsonContent = await response.Content.ReadAsStringAsync(ct);
-                // Parse and return model names...
-                await Send.OkAsync(new[] { aiSettings.Model }, ct); // Simplified for now
+                // Fallback to native Ollama API (/api/tags)
+                var tagsUrl = $"{aiSettings.BaseUrl.TrimEnd('/')}/api/tags";
+                var tagsResponse = await _httpClient.GetAsync(tagsUrl, ct);
+
+                if (!tagsResponse.IsSuccessStatusCode)
+                {
+                    HttpContext.Response.StatusCode = 400;
+                    await HttpContext.Response.WriteAsync(@"{""error"":""Failed to connect to Ollama server""}", ct);
+                    return;
+                }
+
+                var tagsJsonContent = await tagsResponse.Content.ReadAsStringAsync(ct);
+                var tagsJsonDoc = JsonDocument.Parse(tagsJsonContent);
+
+                if (tagsJsonDoc.RootElement.TryGetProperty("models", out var modelsArray))
+                {
+                    foreach (var model in modelsArray.EnumerateArray())
+                    {
+                        if (model.TryGetProperty("name", out var nameElement))
+                        {
+                            var modelName = nameElement.GetString();
+                            if (!string.IsNullOrEmpty(modelName))
+                            {
+                                models.Add(modelName);
+                            }
+                        }
+                    }
+                }
+
+                await Send.OkAsync(models, ct);
             }
             else
             {
@@ -59,7 +117,6 @@ public class GetAvailableModelsEndpoint : EndpointWithoutRequest<IEnumerable<str
             _logger.LogError(ex, "Failed to get available models");
             HttpContext.Response.StatusCode = 400;
             await HttpContext.Response.WriteAsync($@"{{""error"":""Failed to get models: {ex.Message.Replace("\"", "\\\"")}""}}", ct);
-            return;
         }
     }
 }

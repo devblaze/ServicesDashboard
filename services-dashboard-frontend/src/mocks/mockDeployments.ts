@@ -10,6 +10,7 @@ export const mockDeployments: Deployment[] = [
     name: 'Frontend Production',
     type: 'DockerCompose',
     status: 'Running',
+    deploymentSource: 'Git',
     branch: 'main',
     dockerComposeFile: 'docker-compose.prod.yml',
     environmentVariables: {
@@ -65,6 +66,7 @@ export const mockDeployments: Deployment[] = [
     serverName: 'Production Server 1',
     name: 'Backend API',
     type: 'Docker',
+    deploymentSource: 'Git',
     status: 'Running',
     branch: 'main',
     dockerfile: 'Dockerfile',
@@ -138,6 +140,7 @@ export const mockDeployments: Deployment[] = [
     serverName: 'Message Queue Server',
     name: 'Analytics Microservice',
     type: 'DockerCompose',
+    deploymentSource: 'Git',
     status: 'Running',
     branch: 'main',
     dockerComposeFile: 'docker-compose.yml',
@@ -187,6 +190,7 @@ export const mockDeployments: Deployment[] = [
     serverName: 'Monitoring Server',
     name: 'Grafana Dashboard',
     type: 'DockerCompose',
+    deploymentSource: 'Git',
     status: 'Running',
     branch: 'main',
     dockerComposeFile: 'docker-compose.monitoring.yml',
@@ -235,6 +239,7 @@ export const mockDeployments: Deployment[] = [
     serverName: 'Cache Server',
     name: 'Mobile App Backend',
     type: 'Docker',
+    deploymentSource: 'Git',
     status: 'Deploying',
     branch: 'release/v2.0',
     dockerfile: 'Dockerfile.prod',
@@ -285,6 +290,7 @@ export const mockDeployments: Deployment[] = [
     serverName: 'Message Queue Server',
     name: 'Webhook Processor',
     type: 'Script',
+    deploymentSource: 'Git',
     status: 'Stopped',
     branch: 'main',
     environmentVariables: {
@@ -317,6 +323,7 @@ export const mockDeployments: Deployment[] = [
     serverName: 'Cache Server',
     name: 'Nightly Batch Jobs',
     type: 'Docker',
+    deploymentSource: 'Git',
     status: 'Failed',
     branch: 'main',
     dockerfile: 'Dockerfile',
@@ -352,6 +359,7 @@ export const mockDeployments: Deployment[] = [
     serverName: 'Production Server 1',
     name: 'Admin Dashboard',
     type: 'DockerCompose',
+    deploymentSource: 'Git',
     status: 'Running',
     branch: 'main',
     dockerComposeFile: 'docker-compose.prod.yml',
@@ -400,6 +408,125 @@ export const mockDeployments: Deployment[] = [
         description: 'Admin portal web interface',
         isActive: true,
         allocatedAt: new Date(Date.now() - 55 * 24 * 60 * 60 * 1000).toISOString(),
+      },
+    ],
+  },
+  // Manual Deployment Examples (No Git Repository)
+  {
+    id: 9,
+    serverId: 5,
+    serverName: 'Load Balancer',
+    name: 'Custom WordPress Site',
+    type: 'DockerCompose',
+    status: 'Running',
+    deploymentSource: 'Manual',
+    dockerComposeFile: '/opt/deployments/wordpress/docker-compose.yml',
+    deploymentPath: '/opt/deployments/wordpress',
+    environmentVariables: {
+      WORDPRESS_DB_HOST: 'db:3306',
+      WORDPRESS_DB_USER: 'wordpress',
+      WORDPRESS_DB_PASSWORD: '***hidden***',
+      WORDPRESS_DB_NAME: 'wordpress',
+    },
+    portMappings: [
+      { hostPort: 9090, containerPort: 80, protocol: 'tcp' },
+    ],
+    volumeMappings: [
+      { hostPath: '/opt/wordpress/data', containerPath: '/var/www/html', mode: 'rw' },
+    ],
+    autoDeploy: false,
+    lastDeployedAt: new Date(Date.now() - 15 * 24 * 60 * 60 * 1000).toISOString(),
+    createdAt: new Date(Date.now() - 180 * 24 * 60 * 60 * 1000).toISOString(),
+    environments: [
+      {
+        id: 11,
+        deploymentId: 9,
+        name: 'Production',
+        type: 'Production',
+        portMappings: [{ hostPort: 9090, containerPort: 80, protocol: 'tcp' }],
+        isActive: true,
+        lastDeployedAt: new Date(Date.now() - 15 * 24 * 60 * 60 * 1000).toISOString(),
+        createdAt: new Date(Date.now() - 180 * 24 * 60 * 60 * 1000).toISOString(),
+      },
+    ],
+    allocatedPorts: [
+      {
+        id: 7,
+        serverId: 5,
+        deploymentId: 9,
+        port: 9090,
+        serviceName: 'wordpress',
+        description: 'WordPress site',
+        isActive: true,
+        allocatedAt: new Date(Date.now() - 180 * 24 * 60 * 60 * 1000).toISOString(),
+      },
+    ],
+  },
+  {
+    id: 10,
+    serverId: 2,
+    serverName: 'Cache Server',
+    name: 'Legacy Application Stack',
+    type: 'DockerCompose',
+    status: 'Running',
+    deploymentSource: 'Manual',
+    dockerComposeFile: '/opt/legacy-stack/docker-compose.yml',
+    deploymentPath: '/opt/legacy-stack',
+    dockerComposeFileContent: `version: '3.8'
+services:
+  web:
+    image: nginx:latest
+    ports:
+      - "7070:80"
+    volumes:
+      - ./html:/usr/share/nginx/html
+
+  db:
+    image: mysql:5.7
+    environment:
+      MYSQL_ROOT_PASSWORD: root
+      MYSQL_DATABASE: legacy_db
+    volumes:
+      - db_data:/var/lib/mysql
+
+volumes:
+  db_data:`,
+    environmentVariables: {
+      MYSQL_ROOT_PASSWORD: '***hidden***',
+      NGINX_PORT: '7070',
+    },
+    portMappings: [
+      { hostPort: 7070, containerPort: 80, protocol: 'tcp' },
+    ],
+    volumeMappings: [
+      { hostPath: '/opt/legacy-stack/html', containerPath: '/usr/share/nginx/html', mode: 'rw' },
+      { hostPath: '/opt/legacy-stack/db', containerPath: '/var/lib/mysql', mode: 'rw' },
+    ],
+    autoDeploy: false,
+    lastDeployedAt: new Date(Date.now() - 90 * 24 * 60 * 60 * 1000).toISOString(),
+    createdAt: new Date(Date.now() - 365 * 24 * 60 * 60 * 1000).toISOString(),
+    environments: [
+      {
+        id: 12,
+        deploymentId: 10,
+        name: 'Production',
+        type: 'Production',
+        portMappings: [{ hostPort: 7070, containerPort: 80, protocol: 'tcp' }],
+        isActive: true,
+        lastDeployedAt: new Date(Date.now() - 90 * 24 * 60 * 60 * 1000).toISOString(),
+        createdAt: new Date(Date.now() - 365 * 24 * 60 * 60 * 1000).toISOString(),
+      },
+    ],
+    allocatedPorts: [
+      {
+        id: 8,
+        serverId: 2,
+        deploymentId: 10,
+        port: 7070,
+        serviceName: 'legacy-web',
+        description: 'Legacy application nginx',
+        isActive: true,
+        allocatedAt: new Date(Date.now() - 365 * 24 * 60 * 60 * 1000).toISOString(),
       },
     ],
   },

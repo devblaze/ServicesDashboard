@@ -1,11 +1,11 @@
 import React, { useState, useCallback } from 'react';
 import { useMutation, useQueryClient, useQuery } from '@tanstack/react-query';
-import { X, Rocket, Loader2, AlertCircle } from 'lucide-react';
+import { X, Rocket, Loader2, AlertCircle, GitBranch, FileCode2 } from 'lucide-react';
 import { deploymentsApi } from '../../services/deploymentsApi';
 import { gitRepositoriesApi } from '../../services/gitRepositoriesApi';
 import { serverManagementApi } from '../../services/serverManagementApi';
 import { useEscapeKey } from '../../hooks/useEscapeKey';
-import type { CreateDeploymentRequest, DeploymentType } from '../../types/Deployment';
+import type { CreateDeploymentRequest, DeploymentType, DeploymentSource } from '../../types/Deployment';
 
 interface AddDeploymentModalProps {
   isOpen: boolean;
@@ -15,11 +15,16 @@ interface AddDeploymentModalProps {
 
 interface FormData {
   name: string;
+  deploymentSource: DeploymentSource;
   gitRepositoryId: string;
   serverId: string;
   type: DeploymentType;
   branch: string;
   autoDeploy: boolean;
+  // Manual deployment fields
+  deploymentPath: string;
+  dockerComposeFile: string;
+  dockerComposeFileContent: string;
 }
 
 interface FormErrors {
@@ -35,11 +40,15 @@ const DEPLOYMENT_TYPE_OPTIONS: { value: DeploymentType; label: string; icon: str
 
 const DEFAULT_FORM_DATA: FormData = {
   name: '',
+  deploymentSource: 'Git',
   gitRepositoryId: '',
   serverId: '',
   type: 'DockerCompose',
   branch: '',
   autoDeploy: false,
+  deploymentPath: '',
+  dockerComposeFile: '',
+  dockerComposeFileContent: '',
 };
 
 export const AddDeploymentModal: React.FC<AddDeploymentModalProps> = ({
@@ -88,8 +97,18 @@ export const AddDeploymentModal: React.FC<AddDeploymentModalProps> = ({
       newErrors.name = 'Deployment name is required';
     }
 
-    if (!formData.gitRepositoryId) {
-      newErrors.gitRepositoryId = 'Repository is required';
+    if (formData.deploymentSource === 'Git') {
+      if (!formData.gitRepositoryId) {
+        newErrors.gitRepositoryId = 'Repository is required';
+      }
+    } else {
+      // Manual deployment validation
+      if (!formData.deploymentPath.trim()) {
+        newErrors.deploymentPath = 'Deployment path is required';
+      }
+      if (!formData.dockerComposeFile.trim() && !formData.dockerComposeFileContent.trim()) {
+        newErrors.dockerComposeFile = 'Either Docker Compose file path or content is required';
+      }
     }
 
     if (!formData.serverId) {
@@ -115,12 +134,22 @@ export const AddDeploymentModal: React.FC<AddDeploymentModalProps> = ({
 
     const deploymentData: CreateDeploymentRequest = {
       name: formData.name.trim(),
-      gitRepositoryId: parseInt(formData.gitRepositoryId),
+      deploymentSource: formData.deploymentSource,
       serverId: parseInt(formData.serverId),
       type: formData.type,
-      branch: formData.branch.trim() || undefined,
       autoDeploy: formData.autoDeploy,
     };
+
+    // Add Git-specific fields
+    if (formData.deploymentSource === 'Git') {
+      deploymentData.gitRepositoryId = parseInt(formData.gitRepositoryId);
+      deploymentData.branch = formData.branch.trim() || undefined;
+    } else {
+      // Add Manual deployment fields
+      deploymentData.deploymentPath = formData.deploymentPath.trim();
+      deploymentData.dockerComposeFile = formData.dockerComposeFile.trim() || undefined;
+      deploymentData.dockerComposeFileContent = formData.dockerComposeFileContent.trim() || undefined;
+    }
 
     createMutation.mutate(deploymentData);
   }, [formData, validateForm, createMutation]);
@@ -210,41 +239,181 @@ export const AddDeploymentModal: React.FC<AddDeploymentModalProps> = ({
             )}
           </div>
 
-          {/* Repository */}
+          {/* Deployment Source */}
           <div>
             <label className={`block text-sm font-medium mb-2 ${
               darkMode ? 'text-gray-200' : 'text-gray-700'
             }`}>
-              Git Repository *
+              Deployment Source *
             </label>
-            <select
-              value={formData.gitRepositoryId}
-              onChange={(e) => handleInputChange('gitRepositoryId', e.target.value)}
-              disabled={createMutation.isPending}
-              className={`w-full px-3 py-2 rounded-lg border transition-colors ${
-                darkMode
-                  ? 'bg-gray-700/50 border-gray-600/50 text-white focus:border-blue-500/50 focus:ring-2 focus:ring-blue-500/20'
-                  : 'bg-white/50 border-gray-300/50 text-gray-900 focus:border-blue-500/50 focus:ring-2 focus:ring-blue-500/20'
-              } focus:outline-none disabled:opacity-50 disabled:cursor-not-allowed ${
-                errors.gitRepositoryId ? 'border-red-500/50 focus:border-red-500/50 focus:ring-red-500/20' : ''
-              }`}
-            >
-              <option value="">Select a repository...</option>
-              {repositories.map((repo) => (
-                <option key={repo.id} value={repo.id}>
-                  {repo.fullName} ({repo.providerName})
-                </option>
-              ))}
-            </select>
-            {errors.gitRepositoryId && (
-              <p className="mt-1 text-sm text-red-400">{errors.gitRepositoryId}</p>
-            )}
-            {repositories.length === 0 && (
-              <p className={`mt-1 text-xs ${darkMode ? 'text-gray-400' : 'text-gray-500'}`}>
-                No repositories found. Add a Git provider in Settings first.
-              </p>
-            )}
+            <div className="grid grid-cols-2 gap-3">
+              <button
+                type="button"
+                onClick={() => handleInputChange('deploymentSource', 'Git')}
+                disabled={createMutation.isPending}
+                className={`flex items-center justify-center space-x-2 px-4 py-3 rounded-lg border transition-all ${
+                  formData.deploymentSource === 'Git'
+                    ? darkMode
+                      ? 'bg-blue-600/20 border-blue-500/50 text-blue-400'
+                      : 'bg-blue-100/50 border-blue-400/50 text-blue-700'
+                    : darkMode
+                      ? 'bg-gray-700/30 border-gray-600/50 text-gray-400 hover:bg-gray-700/50'
+                      : 'bg-gray-50/30 border-gray-300/50 text-gray-600 hover:bg-gray-100/50'
+                } disabled:opacity-50 disabled:cursor-not-allowed`}
+              >
+                <GitBranch className="w-4 h-4" />
+                <span className="font-medium">Git Repository</span>
+              </button>
+              <button
+                type="button"
+                onClick={() => handleInputChange('deploymentSource', 'Manual')}
+                disabled={createMutation.isPending}
+                className={`flex items-center justify-center space-x-2 px-4 py-3 rounded-lg border transition-all ${
+                  formData.deploymentSource === 'Manual'
+                    ? darkMode
+                      ? 'bg-purple-600/20 border-purple-500/50 text-purple-400'
+                      : 'bg-purple-100/50 border-purple-400/50 text-purple-700'
+                    : darkMode
+                      ? 'bg-gray-700/30 border-gray-600/50 text-gray-400 hover:bg-gray-700/50'
+                      : 'bg-gray-50/30 border-gray-300/50 text-gray-600 hover:bg-gray-100/50'
+                } disabled:opacity-50 disabled:cursor-not-allowed`}
+              >
+                <FileCode2 className="w-4 h-4" />
+                <span className="font-medium">Manual Deploy</span>
+              </button>
+            </div>
+            <p className={`mt-1 text-xs ${darkMode ? 'text-gray-400' : 'text-gray-500'}`}>
+              {formData.deploymentSource === 'Git'
+                ? 'Deploy from a Git repository with automatic updates'
+                : 'Deploy manually with a Docker Compose file'
+              }
+            </p>
           </div>
+
+          {/* Repository (Git Source Only) */}
+          {formData.deploymentSource === 'Git' && (
+            <div>
+              <label className={`block text-sm font-medium mb-2 ${
+                darkMode ? 'text-gray-200' : 'text-gray-700'
+              }`}>
+                Git Repository *
+              </label>
+              <select
+                value={formData.gitRepositoryId}
+                onChange={(e) => handleInputChange('gitRepositoryId', e.target.value)}
+                disabled={createMutation.isPending}
+                className={`w-full px-3 py-2 rounded-lg border transition-colors ${
+                  darkMode
+                    ? 'bg-gray-700/50 border-gray-600/50 text-white focus:border-blue-500/50 focus:ring-2 focus:ring-blue-500/20'
+                    : 'bg-white/50 border-gray-300/50 text-gray-900 focus:border-blue-500/50 focus:ring-2 focus:ring-blue-500/20'
+                } focus:outline-none disabled:opacity-50 disabled:cursor-not-allowed ${
+                  errors.gitRepositoryId ? 'border-red-500/50 focus:border-red-500/50 focus:ring-red-500/20' : ''
+                }`}
+              >
+                <option value="">Select a repository...</option>
+                {repositories.map((repo) => (
+                  <option key={repo.id} value={repo.id}>
+                    {repo.fullName} ({repo.providerName})
+                  </option>
+                ))}
+              </select>
+              {errors.gitRepositoryId && (
+                <p className="mt-1 text-sm text-red-400">{errors.gitRepositoryId}</p>
+              )}
+              {repositories.length === 0 && (
+                <p className={`mt-1 text-xs ${darkMode ? 'text-gray-400' : 'text-gray-500'}`}>
+                  No repositories found. Add a Git provider in Settings first.
+                </p>
+              )}
+            </div>
+          )}
+
+          {/* Manual Deployment Fields */}
+          {formData.deploymentSource === 'Manual' && (
+            <>
+              {/* Deployment Path */}
+              <div>
+                <label className={`block text-sm font-medium mb-2 ${
+                  darkMode ? 'text-gray-200' : 'text-gray-700'
+                }`}>
+                  Deployment Path *
+                </label>
+                <input
+                  type="text"
+                  value={formData.deploymentPath}
+                  onChange={(e) => handleInputChange('deploymentPath', e.target.value)}
+                  placeholder="/opt/deployments/my-app"
+                  disabled={createMutation.isPending}
+                  className={`w-full px-3 py-2 rounded-lg border transition-colors ${
+                    darkMode
+                      ? 'bg-gray-700/50 border-gray-600/50 text-white placeholder-gray-400 focus:border-blue-500/50 focus:ring-2 focus:ring-blue-500/20'
+                      : 'bg-white/50 border-gray-300/50 text-gray-900 placeholder-gray-500 focus:border-blue-500/50 focus:ring-2 focus:ring-blue-500/20'
+                  } focus:outline-none disabled:opacity-50 disabled:cursor-not-allowed ${
+                    errors.deploymentPath ? 'border-red-500/50 focus:border-red-500/50 focus:ring-red-500/20' : ''
+                  }`}
+                />
+                {errors.deploymentPath && (
+                  <p className="mt-1 text-sm text-red-400">{errors.deploymentPath}</p>
+                )}
+                <p className={`mt-1 text-xs ${darkMode ? 'text-gray-400' : 'text-gray-500'}`}>
+                  The directory on the server where your application is located
+                </p>
+              </div>
+
+              {/* Docker Compose File Path */}
+              <div>
+                <label className={`block text-sm font-medium mb-2 ${
+                  darkMode ? 'text-gray-200' : 'text-gray-700'
+                }`}>
+                  Docker Compose File Path
+                </label>
+                <input
+                  type="text"
+                  value={formData.dockerComposeFile}
+                  onChange={(e) => handleInputChange('dockerComposeFile', e.target.value)}
+                  placeholder="/opt/deployments/my-app/docker-compose.yml"
+                  disabled={createMutation.isPending}
+                  className={`w-full px-3 py-2 rounded-lg border transition-colors ${
+                    darkMode
+                      ? 'bg-gray-700/50 border-gray-600/50 text-white placeholder-gray-400 focus:border-blue-500/50 focus:ring-2 focus:ring-blue-500/20'
+                      : 'bg-white/50 border-gray-300/50 text-gray-900 placeholder-gray-500 focus:border-blue-500/50 focus:ring-2 focus:ring-blue-500/20'
+                  } focus:outline-none disabled:opacity-50 disabled:cursor-not-allowed ${
+                    errors.dockerComposeFile ? 'border-red-500/50 focus:border-red-500/50 focus:ring-red-500/20' : ''
+                  }`}
+                />
+                <p className={`mt-1 text-xs ${darkMode ? 'text-gray-400' : 'text-gray-500'}`}>
+                  Path to your docker-compose.yml file on the server
+                </p>
+              </div>
+
+              {/* Docker Compose Content (Optional) */}
+              <div>
+                <label className={`block text-sm font-medium mb-2 ${
+                  darkMode ? 'text-gray-200' : 'text-gray-700'
+                }`}>
+                  Docker Compose Content <span className="text-sm font-normal text-gray-500">(optional)</span>
+                </label>
+                <textarea
+                  value={formData.dockerComposeFileContent}
+                  onChange={(e) => handleInputChange('dockerComposeFileContent', e.target.value)}
+                  placeholder="version: '3.8'&#10;services:&#10;  web:&#10;    image: nginx:latest&#10;    ports:&#10;      - '80:80'"
+                  rows={8}
+                  disabled={createMutation.isPending}
+                  className={`w-full px-3 py-2 rounded-lg border transition-colors font-mono text-sm ${
+                    darkMode
+                      ? 'bg-gray-700/50 border-gray-600/50 text-white placeholder-gray-400 focus:border-blue-500/50 focus:ring-2 focus:ring-blue-500/20'
+                      : 'bg-white/50 border-gray-300/50 text-gray-900 placeholder-gray-500 focus:border-blue-500/50 focus:ring-2 focus:ring-blue-500/20'
+                  } focus:outline-none disabled:opacity-50 disabled:cursor-not-allowed`}
+                />
+                <p className={`mt-1 text-xs ${darkMode ? 'text-gray-400' : 'text-gray-500'}`}>
+                  Paste your docker-compose.yml content directly (alternative to file path)
+                </p>
+                {errors.dockerComposeFile && (
+                  <p className="mt-1 text-sm text-red-400">{errors.dockerComposeFile}</p>
+                )}
+              </div>
+            </>
+          )}
 
           {/* Server */}
           <div>
@@ -302,29 +471,31 @@ export const AddDeploymentModal: React.FC<AddDeploymentModalProps> = ({
             </select>
           </div>
 
-          {/* Branch */}
-          <div>
-            <label className={`block text-sm font-medium mb-2 ${
-              darkMode ? 'text-gray-200' : 'text-gray-700'
-            }`}>
-              Branch <span className="text-sm font-normal text-gray-500">(optional)</span>
-            </label>
-            <input
-              type="text"
-              value={formData.branch}
-              onChange={(e) => handleInputChange('branch', e.target.value)}
-              placeholder="main"
-              disabled={createMutation.isPending}
-              className={`w-full px-3 py-2 rounded-lg border transition-colors ${
-                darkMode
-                  ? 'bg-gray-700/50 border-gray-600/50 text-white placeholder-gray-400 focus:border-blue-500/50 focus:ring-2 focus:ring-blue-500/20'
-                  : 'bg-white/50 border-gray-300/50 text-gray-900 placeholder-gray-500 focus:border-blue-500/50 focus:ring-2 focus:ring-blue-500/20'
-              } focus:outline-none disabled:opacity-50 disabled:cursor-not-allowed`}
-            />
-            <p className={`mt-1 text-xs ${darkMode ? 'text-gray-400' : 'text-gray-500'}`}>
-              Leave empty to use the repository's default branch
-            </p>
-          </div>
+          {/* Branch (Git Source Only) */}
+          {formData.deploymentSource === 'Git' && (
+            <div>
+              <label className={`block text-sm font-medium mb-2 ${
+                darkMode ? 'text-gray-200' : 'text-gray-700'
+              }`}>
+                Branch <span className="text-sm font-normal text-gray-500">(optional)</span>
+              </label>
+              <input
+                type="text"
+                value={formData.branch}
+                onChange={(e) => handleInputChange('branch', e.target.value)}
+                placeholder="main"
+                disabled={createMutation.isPending}
+                className={`w-full px-3 py-2 rounded-lg border transition-colors ${
+                  darkMode
+                    ? 'bg-gray-700/50 border-gray-600/50 text-white placeholder-gray-400 focus:border-blue-500/50 focus:ring-2 focus:ring-blue-500/20'
+                    : 'bg-white/50 border-gray-300/50 text-gray-900 placeholder-gray-500 focus:border-blue-500/50 focus:ring-2 focus:ring-blue-500/20'
+                } focus:outline-none disabled:opacity-50 disabled:cursor-not-allowed`}
+              />
+              <p className={`mt-1 text-xs ${darkMode ? 'text-gray-400' : 'text-gray-500'}`}>
+                Leave empty to use the repository's default branch
+              </p>
+            </div>
+          )}
 
           {/* Auto Deploy */}
           <div className="flex items-center justify-between">
@@ -335,7 +506,10 @@ export const AddDeploymentModal: React.FC<AddDeploymentModalProps> = ({
                 Auto-deploy
               </label>
               <p className={`text-xs ${darkMode ? 'text-gray-400' : 'text-gray-500'}`}>
-                Automatically deploy when changes are pushed
+                {formData.deploymentSource === 'Git'
+                  ? 'Automatically deploy when changes are pushed to the repository'
+                  : 'Enable automatic deployment monitoring for this deployment'
+                }
               </p>
             </div>
             <label className="relative inline-flex items-center cursor-pointer">

@@ -72,16 +72,18 @@ export interface GitBranch {
 // Deployment Types
 export interface Deployment {
   id: number;
-  gitRepositoryId: number;
-  repositoryName: string;
+  gitRepositoryId?: number; // Optional for manual deployments
+  repositoryName?: string;
   serverId: number;
   serverName: string;
   name: string;
   type: DeploymentType;
   status: DeploymentStatus;
+  deploymentSource: DeploymentSource; // Git or Manual
   branch?: string;
   tag?: string;
   dockerComposeFile?: string;
+  dockerComposeFileContent?: string; // For manual deployments
   dockerfile?: string;
   buildContext?: string;
   environmentVariables?: Record<string, string>;
@@ -97,19 +99,22 @@ export interface Deployment {
 }
 
 export interface CreateDeploymentRequest {
-  gitRepositoryId: number;
+  gitRepositoryId?: number; // Optional for manual deployments
   serverId: number;
   name: string;
   type: DeploymentType;
+  deploymentSource: DeploymentSource; // Git or Manual
   branch?: string;
   tag?: string;
   dockerComposeFile?: string;
+  dockerComposeFileContent?: string; // For manual deployments with inline content
   dockerfile?: string;
   buildContext?: string;
   environmentVariables?: Record<string, string>;
   portMappings?: PortMapping[];
   volumeMappings?: VolumeMapping[];
   autoDeploy: boolean;
+  deploymentPath?: string; // Required for manual deployments
 }
 
 export interface UpdateDeploymentRequest {
@@ -228,6 +233,8 @@ export interface GenerateDeploymentSuggestionsRequest {
 export type GitProviderType = 'GitHub' | 'GitLab' | 'Gitea';
 
 export type DeploymentType = 'DockerCompose' | 'Docker' | 'Kubernetes' | 'Script';
+
+export type DeploymentSource = 'Git' | 'Manual';
 
 export type DeploymentStatus =
   | 'Created'
