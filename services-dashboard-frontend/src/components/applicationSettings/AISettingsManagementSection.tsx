@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useMemo, useRef } from 'react';
-import { Bot, TestTube2, Check, AlertCircle, Loader2, Zap, Eye, Search, ChevronDown, Sparkles, Brain, Cpu, Gauge } from 'lucide-react';
+import { Bot, TestTube2, Check, AlertCircle, Loader2, Zap, Eye, Search, ChevronDown, Sparkles, Brain, Cpu, Gauge, RefreshCw } from 'lucide-react';
 import { useAISettings, useUpdateAISettings, useTestAIConnection, useAvailableModels } from '../../hooks/SettingsHooks';
 import type { AISettings } from '../../types/SettingsInterfaces';
 
@@ -129,7 +129,13 @@ export const AISettingsSection: React.FC<AISettingsSectionProps> = ({ darkMode =
   const testMutation = useTestAIConnection();
 
   // Combine provider models with available models from API
+  // For Ollama, prefer API-fetched models over static list
   const allModels = useMemo(() => {
+    if (selectedProvider?.id === 'ollama' && availableModels.length > 0) {
+      // For Ollama, use only the fetched models when available
+      return availableModels.sort();
+    }
+    // For other providers or when no models fetched, combine static and fetched
     const providerModels = selectedProvider?.models || [];
     const uniqueModels = new Set([...providerModels, ...availableModels]);
     return Array.from(uniqueModels).sort();
@@ -395,11 +401,29 @@ export const AISettingsSection: React.FC<AISettingsSectionProps> = ({ darkMode =
 
         {/* Searchable Model Selection */}
         <div>
-          <label className={`block text-sm font-medium mb-2 ${
-            darkMode ? 'text-gray-300' : 'text-gray-700'
-          }`}>
-            Model
-          </label>
+          <div className="flex items-center justify-between mb-2">
+            <label className={`block text-sm font-medium ${
+              darkMode ? 'text-gray-300' : 'text-gray-700'
+            }`}>
+              Model
+            </label>
+            {selectedProvider?.id === 'ollama' && (
+              <button
+                type="button"
+                onClick={() => refetchModels()}
+                disabled={modelsLoading}
+                className={`flex items-center space-x-1 px-2 py-1 text-xs rounded-lg transition-colors ${
+                  darkMode
+                    ? 'bg-blue-900/30 hover:bg-blue-900/50 text-blue-400'
+                    : 'bg-blue-100 hover:bg-blue-200 text-blue-700'
+                } disabled:opacity-50`}
+                title="Refresh available models from Ollama"
+              >
+                <RefreshCw className={`w-3 h-3 ${modelsLoading ? 'animate-spin' : ''}`} />
+                <span>Refresh Models</span>
+              </button>
+            )}
+          </div>
           <div className="relative" ref={dropdownRef}>
             <div
               onClick={() => setShowModelDropdown(!showModelDropdown)}
@@ -444,6 +468,15 @@ export const AISettingsSection: React.FC<AISettingsSectionProps> = ({ darkMode =
                     <p className="text-sm mt-1">Loading models...</p>
                   </div>
                 )}
+                {!modelsLoading && selectedProvider?.id === 'ollama' && availableModels.length === 0 && (
+                  <div className={`p-3 border-b ${
+                    darkMode ? 'border-gray-700 bg-blue-900/20' : 'border-gray-200 bg-blue-50'
+                  }`}>
+                    <p className={`text-xs ${darkMode ? 'text-blue-300' : 'text-blue-700'}`}>
+                      Click "Refresh Models" or "Test Connection" to fetch models from your Ollama instance
+                    </p>
+                  </div>
+                )}
                 {!modelsLoading && filteredModels.length === 0 && (
                   <div className={`p-3 text-center text-sm ${
                     darkMode ? 'text-gray-400' : 'text-gray-600'
@@ -476,6 +509,19 @@ export const AISettingsSection: React.FC<AISettingsSectionProps> = ({ darkMode =
               </div>
             )}
           </div>
+          {selectedProvider?.id === 'ollama' && (
+            <p className={`text-xs mt-1 ${darkMode ? 'text-gray-500' : 'text-gray-500'}`}>
+              {availableModels.length > 0 ? (
+                <span className={darkMode ? 'text-green-400' : 'text-green-600'}>
+                  ✓ Showing {availableModels.length} model{availableModels.length !== 1 ? 's' : ''} from your Ollama instance
+                </span>
+              ) : (
+                <span>
+                  Showing default models. Test connection to fetch available models from your instance.
+                </span>
+              )}
+            </p>
+          )}
         </div>
 
         {/* Timeout */}

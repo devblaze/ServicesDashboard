@@ -2,9 +2,9 @@ import React, { useState, useEffect } from 'react';
 import { X, Server, Key, Loader2, AlertCircle, Check } from 'lucide-react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { sshCredentialsApi } from '../../services/sshCredentialsApi';
-import { serversApi } from '../../services/serversApi';
+import { serverManagementApi } from '../../services/serverManagementApi';
 import { useEscapeKey } from '../../hooks/useEscapeKey';
-import type { CreateServerRequest } from '../../services/serversApi';
+import type { CreateServerDto } from '../../types/ServerManagement';
 import type { DiscoveredService, StoredDiscoveredService } from '../../types/networkDiscovery';
 
 interface AddServerFromDiscoveryModalProps {
@@ -60,10 +60,10 @@ export const AddServerFromDiscoveryModal: React.FC<AddServerFromDiscoveryModalPr
 
   // Create server mutation
   const createServerMutation = useMutation({
-    mutationFn: async (data: CreateServerRequest) => {
+    mutationFn: async (data: CreateServerDto) => {
       // If using custom credentials and user wants to save them, create credential first
       if (useCustomCredentials && customCredentials.saveCredentials) {
-        const newCredential = await sshCredentialsApi.createCredential({
+        await sshCredentialsApi.createCredential({
           name: customCredentials.credentialName || `Credentials for ${service.hostAddress}`,
           username: customCredentials.username,
           password: customCredentials.password,
@@ -71,13 +71,13 @@ export const AddServerFromDiscoveryModal: React.FC<AddServerFromDiscoveryModalPr
           defaultPort: service.port,
           isDefault: false
         });
-        data.sshCredentialId = newCredential.id;
       }
 
-      return serversApi.createServer(data);
+      return serverManagementApi.addServer(data);
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['servers'] });
+      queryClient.invalidateQueries({ queryKey: ['managed-servers'] });
       queryClient.invalidateQueries({ queryKey: ['sshCredentials'] });
       onSuccess?.();
       onClose();
@@ -93,12 +93,20 @@ export const AddServerFromDiscoveryModal: React.FC<AddServerFromDiscoveryModalPr
       let result;
       if (useCustomCredentials) {
         // Test with custom credentials
-        result = await serversApi.testConnection({
+        const testServerDto: CreateServerDto = {
+          name: 'Test',
           hostAddress: service.hostAddress,
-          port: service.port,
+          sshPort: service.port,
           username: customCredentials.username,
-          password: customCredentials.password
-        });
+          password: customCredentials.password,
+          type: 'Server',
+          group: 'OnPremise',
+        };
+        const success = await serverManagementApi.testNewServerConnection(testServerDto);
+        result = {
+          success,
+          message: success ? 'Connection successful' : 'Connection failed'
+        };
       } else if (selectedCredentialId) {
         // Test with selected credential
         result = await sshCredentialsApi.testCredential(selectedCredentialId, {
@@ -126,26 +134,46 @@ export const AddServerFromDiscoveryModal: React.FC<AddServerFromDiscoveryModalPr
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
 
-    const serverData: CreateServerRequest = {
-      name: serverName,
-      description,
-      ipAddress: service.hostAddress,
-      tags: tags ? tags.split(',').map(t => t.trim()) : [],
-      sshPort: service.port,
-      sshCredentialId: useCustomCredentials ? undefined : selectedCredentialId || undefined,
-      customSshUsername: useCustomCredentials ? customCredentials.username : undefined,
-      customSshPassword: useCustomCredentials ? customCredentials.password : undefined
-    };
-
-    createServerMutation.mutate(serverData);
+    if (useCustomCredentials) {
+      // Use custom credentials
+      const serverData: CreateServerDto = {
+        name: serverName,
+        hostAddress: service.hostAddress,
+        sshPort: service.port,
+        username: customCredentials.username,
+        password: customCredentials.password,
+        type: 'Server',
+        group: 'OnPremise',
+        tags: tags || null,
+      };
+      createServerMutation.mutate(serverData);
+    } else if (selectedCredentialId) {
+      // Use saved credential - pass credential ID to backend
+      // The backend will retrieve the password from the credential
+      const credential = credentials.find(c => c.id === selectedCredentialId);
+      if (credential) {
+        const serverData = {
+          name: serverName,
+          hostAddress: service.hostAddress,
+          sshPort: service.port,
+          username: credential.username,
+          password: '', // Backend will use credential ID to get password
+          type: 'Server' as const,
+          group: 'OnPremise' as const,
+          tags: tags || null,
+          sshCredentialId: selectedCredentialId, // Pass credential ID
+        };
+        createServerMutation.mutate(serverData as CreateServerDto);
+      }
+    }
   };
 
   // Handle ESC key to close modal
   useEscapeKey(onClose, !createServerMutation.isPending);
 
   return (
-    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-      <div className={`relative w-full max-w-2xl mx-4 rounded-xl shadow-xl ${
+    <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+      <div className={`relative w-full max-w-2xl rounded-xl shadow-xl ${
         darkMode ? 'bg-gray-800' : 'bg-white'
       }`}>
         {/* Header */}

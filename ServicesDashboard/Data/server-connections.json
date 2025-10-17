@@ -1,1 +1,28 @@
-[]
+[
+  {
+    "Id": "6d1acde7-2e97-4e4d-a64c-a4463296389c",
+    "Name": "192.168.4.253:22",
+    "Host": "192.168.4.253",
+    "Port": 22,
+    "Username": "root",
+    "AuthMethod": "Password",
+    "Password": "Blaze23104289\u0060",
+    "PrivateKeyPath": "",
+    "DockerEndpoint": "unix:///var/run/docker.sock",
+    "IsConnected": false,
+    "LastConnected": "2025-10-17T11:31:29.3702633+00:00"
+  },
+  {
+    "Id": "0b739bca-fe98-4c38-9178-9aba4351a151",
+    "Name": "Unraid Server",
+    "Host": "192.168.4.253",
+    "Port": 22,
+    "Username": "root",
+    "AuthMethod": "Password",
+    "Password": "Blaze23104289\u0060",
+    "PrivateKeyPath": "",
+    "DockerEndpoint": "unix:///var/run/docker.sock",
+    "IsConnected": false,
+    "LastConnected": "2025-10-17T11:37:09.5591888+00:00"
+  }
+]

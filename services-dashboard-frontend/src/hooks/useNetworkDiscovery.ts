@@ -1,10 +1,11 @@
 import { useState, useEffect, useMemo, useCallback } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { networkDiscoveryApi } from '../services/networkDiscoveryApi';
+import { serverManagementApi } from '../services/serverManagementApi';
 import { signalRService } from '../services/signalr.service';
-import type { 
+import type {
   ScanMode,
-  DiscoveredService, 
+  DiscoveredService,
   StoredDiscoveredService,
   NetworkScanSession,
   StartScanRequest,
@@ -112,6 +113,13 @@ export const useNetworkDiscovery = () => {
     queryKey: ['common-ports'],
     queryFn: () => networkDiscoveryApi.getCommonPorts(),
     staleTime: 5 * 60 * 1000, // 5 minutes
+  });
+
+  // Get existing managed servers to check if discovered services are already added
+  const { data: existingServers = [] } = useQuery({
+    queryKey: ['managed-servers'],
+    queryFn: () => serverManagementApi.getServers(),
+    staleTime: 30 * 1000, // 30 seconds
   });
 
   // Get recent scans
@@ -385,7 +393,26 @@ export const useNetworkDiscovery = () => {
   const isScanning = quickScanMutation.isPending || !!currentScanId;
   const isServiceAdded = (service: DiscoveredService | StoredDiscoveredService) => {
     const serviceKey = `${service.hostAddress}:${service.port}`;
-    return addedServices.has(serviceKey);
+
+    // Check if added during current session
+    if (addedServices.has(serviceKey)) {
+      return true;
+    }
+
+    // Check if it's an SSH service that matches an existing managed server
+    const isSshService = service.port === 22 ||
+                        service.serviceType?.toLowerCase().includes('ssh') ||
+                        service.canAddAsServer === true;
+
+    if (isSshService && existingServers.length > 0) {
+      // Check if any existing server has the same host address
+      return existingServers.some(server =>
+        server.hostAddress === service.hostAddress ||
+        server.hostAddress === `${service.hostAddress}:${service.port}`
+      );
+    }
+
+    return false;
   };
 
   const error = quickScanMutation.error || startBackgroundScanMutation.error || addToServicesMutation.error;

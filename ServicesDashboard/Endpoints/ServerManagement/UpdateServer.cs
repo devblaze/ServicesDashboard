@@ -14,6 +14,7 @@ public class UpdateServerRequest
     public string? Username { get; set; }
     public string? Password { get; set; }
     public string? Type { get; set; }
+    public string? Group { get; set; }
     public string? Tags { get; set; }
     public int? ParentServerId { get; set; }
 }
@@ -100,6 +101,7 @@ public class UpdateServerEndpoint : Endpoint<UpdateServerRequest, ManagedServer>
             Username = UpdateField(request.Username, existingServer.Username),
             EncryptedPassword = UpdateField(request.Password, existingServer.EncryptedPassword),
             Type = UpdateEnum<ServerType>(request.Type, existingServer.Type),
+            Group = UpdateEnum<ServerGroup>(request.Group, existingServer.Group),
             Tags = UpdateTags(request.Tags, existingServer.Tags),
             ParentServerId = request.ParentServerId, // Accept null to remove parent
 
