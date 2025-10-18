@@ -4,7 +4,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { sshCredentialsApi } from '../../services/sshCredentialsApi';
 import { serverManagementApi } from '../../services/serverManagementApi';
 import { useEscapeKey } from '../../hooks/useEscapeKey';
-import type { CreateServerDto } from '../../types/ServerManagement';
+import type { CreateServerDto, ServerType, ServerGroup } from '../../types/ServerManagement';
 import type { DiscoveredService, StoredDiscoveredService } from '../../types/networkDiscovery';
 
 interface AddServerFromDiscoveryModalProps {
@@ -13,6 +13,13 @@ interface AddServerFromDiscoveryModalProps {
   onClose: () => void;
   onSuccess?: () => void;
 }
+
+const SERVER_TYPES: { value: ServerType; label: string; icon: string }[] = [
+  { value: 'Server', label: 'Server', icon: '🖥️' },
+  { value: 'RaspberryPi', label: 'Raspberry Pi', icon: '🥧' },
+  { value: 'VirtualMachine', label: 'Virtual Machine', icon: '💻' },
+  { value: 'Container', label: 'Container', icon: '📦' },
+];
 
 export const AddServerFromDiscoveryModal: React.FC<AddServerFromDiscoveryModalProps> = ({
   darkMode = true,
@@ -32,6 +39,8 @@ export const AddServerFromDiscoveryModal: React.FC<AddServerFromDiscoveryModalPr
   const [serverName, setServerName] = useState('');
   const [description, setDescription] = useState('');
   const [tags, setTags] = useState('');
+  const [serverType, setServerType] = useState<ServerType>('Server');
+  const [serverGroup, setServerGroup] = useState<ServerGroup>('OnPremise');
   const [testingConnection, setTestingConnection] = useState(false);
   const [connectionTestResult, setConnectionTestResult] = useState<{ success: boolean; message: string } | null>(null);
 
@@ -99,8 +108,8 @@ export const AddServerFromDiscoveryModal: React.FC<AddServerFromDiscoveryModalPr
           sshPort: service.port,
           username: customCredentials.username,
           password: customCredentials.password,
-          type: 'Server',
-          group: 'OnPremise',
+          type: serverType,
+          group: serverGroup,
         };
         const success = await serverManagementApi.testNewServerConnection(testServerDto);
         result = {
@@ -142,8 +151,8 @@ export const AddServerFromDiscoveryModal: React.FC<AddServerFromDiscoveryModalPr
         sshPort: service.port,
         username: customCredentials.username,
         password: customCredentials.password,
-        type: 'Server',
-        group: 'OnPremise',
+        type: serverType,
+        group: serverGroup,
         tags: tags || null,
       };
       createServerMutation.mutate(serverData);
@@ -158,8 +167,8 @@ export const AddServerFromDiscoveryModal: React.FC<AddServerFromDiscoveryModalPr
           sshPort: service.port,
           username: credential.username,
           password: '', // Backend will use credential ID to get password
-          type: 'Server' as const,
-          group: 'OnPremise' as const,
+          type: serverType,
+          group: serverGroup,
           tags: tags || null,
           sshCredentialId: selectedCredentialId, // Pass credential ID
         };
@@ -290,6 +299,52 @@ export const AddServerFromDiscoveryModal: React.FC<AddServerFromDiscoveryModalPr
                     : 'bg-white border-gray-300 text-gray-900'
                 }`}
               />
+            </div>
+          </div>
+
+          {/* Server Type and Group */}
+          <div className="grid grid-cols-2 gap-4">
+            <div>
+              <label className={`block text-sm font-medium mb-1 ${
+                darkMode ? 'text-gray-300' : 'text-gray-700'
+              }`}>
+                Server Type
+              </label>
+              <select
+                value={serverType}
+                onChange={(e) => setServerType(e.target.value as ServerType)}
+                className={`w-full px-3 py-2 rounded-lg border ${
+                  darkMode
+                    ? 'bg-gray-900 border-gray-600 text-white'
+                    : 'bg-white border-gray-300 text-gray-900'
+                }`}
+              >
+                {SERVER_TYPES.map((type) => (
+                  <option key={type.value} value={type.value}>
+                    {type.icon} {type.label}
+                  </option>
+                ))}
+              </select>
+            </div>
+
+            <div>
+              <label className={`block text-sm font-medium mb-1 ${
+                darkMode ? 'text-gray-300' : 'text-gray-700'
+              }`}>
+                Server Group
+              </label>
+              <select
+                value={serverGroup}
+                onChange={(e) => setServerGroup(e.target.value as ServerGroup)}
+                className={`w-full px-3 py-2 rounded-lg border ${
+                  darkMode
+                    ? 'bg-gray-900 border-gray-600 text-white'
+                    : 'bg-white border-gray-300 text-gray-900'
+                }`}
+              >
+                <option value="OnPremise">🏢 On-Premise</option>
+                <option value="Remote">🌐 Remote</option>
+              </select>
             </div>
           </div>
 

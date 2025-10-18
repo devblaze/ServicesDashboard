@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { Edit3, Save, Loader2, Trash2 } from 'lucide-react';
 import { useMutation, useQueryClient, useQuery } from '@tanstack/react-query';
-import type { ManagedServer, ServerType, ServerGroup } from '../../../types/ServerManagement';
+import type { ManagedServer, ServerType, ServerGroup, UpdateServerDto } from '../../../types/ServerManagement';
 import { serverManagementApi } from '../../../services/serverManagementApi';
 
 interface SettingsTabProps {
@@ -57,7 +57,7 @@ export const SettingsTab: React.FC<SettingsTabProps> = ({
   });
 
   const updateServerMutation = useMutation({
-    mutationFn: (updates: Partial<ManagedServer>) => 
+    mutationFn: (updates: UpdateServerDto) =>
       serverManagementApi.updateServer(server.id, updates),
     onSuccess: (updatedServer) => {
       onUpdate(updatedServer);
@@ -75,7 +75,7 @@ export const SettingsTab: React.FC<SettingsTabProps> = ({
   });
 
   const handleSave = () => {
-    const updates = {
+    const updates: UpdateServerDto = {
       name: editForm.name,
       hostAddress: editForm.hostAddress,
       sshPort: editForm.sshPort,
