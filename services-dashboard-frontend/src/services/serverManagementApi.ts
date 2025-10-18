@@ -5,6 +5,7 @@ import type {
   ServerHealthCheck,
   UpdateReport,
   CreateServerDto,
+  UpdateServerDto,
   ServerType,
   ServerGroup,
   AlertType,
@@ -405,7 +406,7 @@ class ServerManagementApiClient extends BaseApiClient {
     return this.transformServer(rawServer);
   }
 
-  async updateServer(id: number, server: Partial<CreateServerDto>): Promise<ManagedServer> {
+  async updateServer(id: number, server: UpdateServerDto): Promise<ManagedServer> {
     if (isDemoMode()) {
       await new Promise(resolve => setTimeout(resolve, 400));
       const existingServer = mockServers.find(s => s.id === id);

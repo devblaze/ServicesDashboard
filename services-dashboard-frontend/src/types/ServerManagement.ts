@@ -36,6 +36,18 @@ export interface CreateServerDto {
   parentServerId?: number | null;
 }
 
+export interface UpdateServerDto {
+  name?: string;
+  hostAddress?: string;
+  sshPort?: number;
+  username?: string;
+  password?: string;
+  type?: ServerType;
+  group?: ServerGroup;
+  tags?: string | null;
+  parentServerId?: number | null;
+}
+
 export interface ServerHealthCheck {
   id: number;
   serverId: number;

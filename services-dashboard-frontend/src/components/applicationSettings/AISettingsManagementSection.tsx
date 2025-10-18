@@ -124,7 +124,9 @@ export const AISettingsSection: React.FC<AISettingsSectionProps> = ({ darkMode =
   const dropdownRef = useRef<HTMLDivElement>(null);
 
   const { data: settings, isLoading } = useAISettings();
-  const { data: availableModels = [], refetch: refetchModels, isLoading: modelsLoading } = useAvailableModels();
+  // Auto-fetch models only when provider is Ollama
+  const shouldFetchModels = formData?.provider === 'ollama';
+  const { data: availableModels = [], refetch: refetchModels, isLoading: modelsLoading } = useAvailableModels(shouldFetchModels);
   const updateMutation = useUpdateAISettings();
   const testMutation = useTestAIConnection();
 

@@ -8,13 +8,13 @@ namespace ServicesDashboard.Services.Servers;
 
 public interface IServerConnectionManager
 {
-    Task<IEnumerable<Models.ServerConnection>> GetAllConnectionsAsync();
-    Task<Models.ServerConnection?> GetConnectionByIdAsync(string id);
-    Task<Models.ServerConnection> AddConnectionAsync(Models.ServerConnectionDto connectionDto);
-    Task<Models.ServerConnection?> UpdateConnectionAsync(string id, Models.ServerConnectionDto connectionDto);
+    Task<IEnumerable<ServerConnection>> GetAllConnectionsAsync();
+    Task<ServerConnection?> GetConnectionByIdAsync(string id);
+    Task<ServerConnection> AddConnectionAsync(ServerConnectionDto connectionDto);
+    Task<ServerConnection?> UpdateConnectionAsync(string id, ServerConnectionDto connectionDto);
     Task<bool> DeleteConnectionAsync(string id);
     Task<bool> TestConnectionAsync(string id);
-    Task<bool> TestConnectionAsync(Models.ServerConnectionDto connectionDto);
+    Task<bool> TestConnectionAsync(ServerConnectionDto connectionDto);
 }
 
 public class ServerConnectionManager : IServerConnectionManager
@@ -40,19 +40,19 @@ public class ServerConnectionManager : IServerConnectionManager
         }
     }
 
-    public async Task<IEnumerable<Models.ServerConnection>> GetAllConnectionsAsync()
+    public async Task<IEnumerable<ServerConnection>> GetAllConnectionsAsync()
     {
         await _semaphore.WaitAsync();
         try
         {
             var json = await File.ReadAllTextAsync(_connectionsFilePath);
-            var connections = JsonSerializer.Deserialize<List<Models.ServerConnection>>(json) ?? new List<Models.ServerConnection>();
+            var connections = JsonSerializer.Deserialize<List<ServerConnection>>(json) ?? new List<ServerConnection>();
             return connections;
         }
         catch (Exception ex)
         {
             _logger.LogError(ex, "Failed to get server connections");
-            return new List<Models.ServerConnection>();
+            return new List<ServerConnection>();
         }
         finally
         {
@@ -60,19 +60,19 @@ public class ServerConnectionManager : IServerConnectionManager
         }
     }
 
-    public async Task<Models.ServerConnection?> GetConnectionByIdAsync(string id)
+    public async Task<ServerConnection?> GetConnectionByIdAsync(string id)
     {
         var connections = await GetAllConnectionsAsync();
         return connections.FirstOrDefault(c => c.Id == id);
     }
 
-    public async Task<Models.ServerConnection> AddConnectionAsync(ServerConnectionDto connectionDto)
+    public async Task<ServerConnection> AddConnectionAsync(ServerConnectionDto connectionDto)
     {
         await _semaphore.WaitAsync();
         try
         {
             var json = await File.ReadAllTextAsync(_connectionsFilePath);
-            var connections = JsonSerializer.Deserialize<List<Models.ServerConnection>>(json) ?? new List<Models.ServerConnection>();
+            var connections = JsonSerializer.Deserialize<List<ServerConnection>>(json) ?? new List<ServerConnection>();
 
             // Check if we should use SSH credentials
             var username = connectionDto.Username;
@@ -92,7 +92,7 @@ public class ServerConnectionManager : IServerConnectionManager
                 }
             }
 
-            var newConnection = new Models.ServerConnection
+            var newConnection = new ServerConnection
             {
                 Id = Guid.NewGuid().ToString(),
                 Name = connectionDto.Name,
@@ -124,13 +124,13 @@ public class ServerConnectionManager : IServerConnectionManager
         }
     }
 
-    public async Task<Models.ServerConnection?> UpdateConnectionAsync(string id, ServerConnectionDto connectionDto)
+    public async Task<ServerConnection?> UpdateConnectionAsync(string id, ServerConnectionDto connectionDto)
     {
         await _semaphore.WaitAsync();
         try
         {
             var json = await File.ReadAllTextAsync(_connectionsFilePath);
-            var connections = JsonSerializer.Deserialize<List<Models.ServerConnection>>(json) ?? new List<Models.ServerConnection>();
+            var connections = JsonSerializer.Deserialize<List<ServerConnection>>(json) ?? new List<ServerConnection>();
             
             var existingConnection = connections.FirstOrDefault(c => c.Id == id);
             if (existingConnection == null)
@@ -180,7 +180,7 @@ public class ServerConnectionManager : IServerConnectionManager
         try
         {
             var json = await File.ReadAllTextAsync(_connectionsFilePath);
-            var connections = JsonSerializer.Deserialize<List<Models.ServerConnection>>(json) ?? new List<Models.ServerConnection>();
+            var connections = JsonSerializer.Deserialize<List<ServerConnection>>(json) ?? new List<ServerConnection>();
             
             var existingConnection = connections.FirstOrDefault(c => c.Id == id);
             if (existingConnection == null)
@@ -238,7 +238,7 @@ public class ServerConnectionManager : IServerConnectionManager
             }
         }
 
-        var connection = new Models.ServerConnection
+        var connection = new ServerConnection
         {
             Host = connectionDto.Host,
             Port = port,
@@ -251,7 +251,7 @@ public class ServerConnectionManager : IServerConnectionManager
         return await TestSshConnectionAsync(connection);
     }
 
-    private async Task<bool> TestSshConnectionAsync(Models.ServerConnection connection)
+    private async Task<bool> TestSshConnectionAsync(ServerConnection connection)
     {
         try
         {
@@ -274,7 +274,7 @@ public class ServerConnectionManager : IServerConnectionManager
         }
     }
 
-    private SshClient CreateSshClient(Models.ServerConnection connection)
+    private SshClient CreateSshClient(ServerConnection connection)
     {
         if (connection.AuthMethod == "PrivateKey" && !string.IsNullOrEmpty(connection.PrivateKeyPath))
         {

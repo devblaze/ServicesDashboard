@@ -37,11 +37,13 @@ export function useTestAIConnection() {
   });
 }
 
-export function useAvailableModels() {
+export function useAvailableModels(enabled = true) {
   return useQuery({
     queryKey: settingsKeys.models,
     queryFn: () => settingsApiClient.getAvailableModels(),
-    enabled: false // Only fetch when explicitly requested
+    enabled: enabled,
+    staleTime: 30000, // Consider data fresh for 30 seconds
+    refetchOnWindowFocus: false // Don't refetch when window regains focus
   });
 }
 
