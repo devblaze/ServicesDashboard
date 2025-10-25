@@ -229,6 +229,52 @@ export interface IpConflictDetail {
   status: string; // "Online", "Offline"
 }
 
+export interface DockerNetworkMigrationAnalysis {
+  serverId: number;
+  serverName: string;
+  containersByNetwork: Record<string, DockerContainerInfo[]>;
+  totalContainers: number;
+  containersNeedingMigration: number;
+  suggestedIpRange: string[];
+}
+
+export interface DockerContainerInfo {
+  containerId: string;
+  name: string;
+  image: string;
+  status: string;
+  networkMode: string;
+  currentIp?: string;
+  suggestedIp?: string;
+  isRunning: boolean;
+  needsMigration: boolean;
+}
+
+export interface IpSuggestionRequest {
+  serverId: number;
+  containerIds: string[];
+  targetNetwork: string;
+  ipRangeStart: string;
+  ipRangeEnd: string;
+}
+
+export interface IpSuggestionResult {
+  success: boolean;
+  errorMessage?: string;
+  suggestions: ContainerIpSuggestion[];
+  totalChecked: number;
+  availableIpsFound: number;
+}
+
+export interface ContainerIpSuggestion {
+  containerId: string;
+  containerName: string;
+  currentIp?: string;
+  suggestedIp: string;
+  hasConflict: boolean;
+  conflicts: IpConflictDetail[];
+}
+
 class ServerManagementApiClient extends BaseApiClient {
   constructor() {
     super({ serviceName: 'Server Management API' });
@@ -756,6 +802,55 @@ class ServerManagementApiClient extends BaseApiClient {
       ipAddress,
       excludeDeviceId
     });
+  }
+
+  async analyzeDockerNetworks(serverId: number): Promise<DockerNetworkMigrationAnalysis> {
+    if (isDemoMode()) {
+      await new Promise(resolve => setTimeout(resolve, 1500));
+      const mockResult: DockerNetworkMigrationAnalysis = {
+        serverId,
+        serverName: 'Unraid Server',
+        containersByNetwork: {
+          'br0': [
+            { containerId: '1', name: 'kimai', image: 'kimai:latest', status: 'stopped', networkMode: 'br0', isRunning: false, needsMigration: true },
+            { containerId: '2', name: 'nginx-proxy-manager', image: 'nginx-proxy-manager', status: 'stopped', networkMode: 'br0', isRunning: false, needsMigration: true },
+          ],
+          'bond0': [
+            { containerId: '3', name: 'jellyseerr', image: 'jellyseerr:latest', status: 'running', networkMode: 'bond0', currentIp: '192.168.4.230', isRunning: true, needsMigration: false },
+          ],
+          'bridge': [
+            { containerId: '4', name: 'radarr', image: 'radarr:latest', status: 'running', networkMode: 'bridge', currentIp: '172.17.0.4', isRunning: true, needsMigration: false },
+          ]
+        },
+        totalContainers: 4,
+        containersNeedingMigration: 2,
+        suggestedIpRange: ['192.168.4.100', '192.168.4.249']
+      };
+      return mockResult;
+    }
+
+    return this.request<DockerNetworkMigrationAnalysis>('get', `/servermanagement/${serverId}/analyze-docker-networks`);
+  }
+
+  async suggestIpsForMigration(request: IpSuggestionRequest): Promise<IpSuggestionResult> {
+    if (isDemoMode()) {
+      await new Promise(resolve => setTimeout(resolve, 2000));
+      const mockResult: IpSuggestionResult = {
+        success: true,
+        suggestions: request.containerIds.map((id, idx) => ({
+          containerId: id,
+          containerName: `Container ${idx + 1}`,
+          suggestedIp: `192.168.4.${100 + idx}`,
+          hasConflict: false,
+          conflicts: []
+        })),
+        totalChecked: request.containerIds.length * 5,
+        availableIpsFound: request.containerIds.length
+      };
+      return mockResult;
+    }
+
+    return this.request<IpSuggestionResult>('post', '/servermanagement/suggest-ips-for-migration', request);
   }
 }
 

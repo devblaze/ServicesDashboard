@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
-import { X, AlertTriangle, Server, CheckCircle } from 'lucide-react';
+import { X, AlertTriangle, Server } from 'lucide-react';
 import { serverManagementApi } from '../services/serverManagementApi';
 import type { ServerAlert } from '../types/ServerManagement';
 
