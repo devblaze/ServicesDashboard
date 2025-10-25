@@ -56,8 +56,8 @@ export const DockerServicesTab: React.FC<DockerServicesTabProps> = ({
       setSyncResult(message);
       setTimeout(() => setSyncResult(null), 8000);
     },
-    onError: (error: any) => {
-      const message = `❌ Sync failed: ${error.message || 'Unknown error'}`;
+    onError: (error) => {
+      const message = `❌ Sync failed: ${error instanceof Error ? error.message : 'Unknown error'}`;
       setSyncResult(message);
       setTimeout(() => setSyncResult(null), 5000);
     },

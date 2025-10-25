@@ -68,8 +68,8 @@ const DeviceTracker: React.FC<DeviceTrackerProps> = ({ darkMode = true }) => {
       }
 
       setTimeout(() => setSyncResult(null), 10000);
-    } catch (error: any) {
-      const errorMsg = `❌ Sync failed: ${error.message || 'Unknown error'}`;
+    } catch (error) {
+      const errorMsg = `❌ Sync failed: ${error instanceof Error ? error.message : 'Unknown error'}`;
       setSyncResult(errorMsg);
       setTimeout(() => setSyncResult(null), 5000);
     } finally {
@@ -134,8 +134,8 @@ const DeviceTracker: React.FC<DeviceTrackerProps> = ({ darkMode = true }) => {
       );
 
       handleCancelEdit();
-    } catch (error: any) {
-      alert(`Failed to update IP: ${error.message || 'Unknown error'}`);
+    } catch (error) {
+      alert(`Failed to update IP: ${error instanceof Error ? error.message : 'Unknown error'}`);
     } finally {
       setSaving(false);
     }

@@ -160,5 +160,47 @@
         <member name="M:ServicesDashboard.Migrations.AddServerGrouping.BuildTargetModel(Microsoft.EntityFrameworkCore.ModelBuilder)">
             <inheritdoc />
         </member>
+        <member name="T:ServicesDashboard.Migrations.AddIpManagementTables">
+            <inheritdoc />
+        </member>
+        <member name="M:ServicesDashboard.Migrations.AddIpManagementTables.Up(Microsoft.EntityFrameworkCore.Migrations.MigrationBuilder)">
+            <inheritdoc />
+        </member>
+        <member name="M:ServicesDashboard.Migrations.AddIpManagementTables.Down(Microsoft.EntityFrameworkCore.Migrations.MigrationBuilder)">
+            <inheritdoc />
+        </member>
+        <member name="M:ServicesDashboard.Migrations.AddIpManagementTables.BuildTargetModel(Microsoft.EntityFrameworkCore.ModelBuilder)">
+            <inheritdoc />
+        </member>
+        <member name="T:ServicesDashboard.Models.Subnet">
+            <summary>
+            Represents a subnet/network segment
+            </summary>
+        </member>
+        <member name="T:ServicesDashboard.Models.NetworkDevice">
+            <summary>
+            Represents a network device discovered on the network
+            </summary>
+        </member>
+        <member name="T:ServicesDashboard.Models.DeviceHistory">
+            <summary>
+            Tracks history of device connections and changes
+            </summary>
+        </member>
+        <member name="T:ServicesDashboard.Models.IpReservation">
+            <summary>
+            Represents an IP reservation for static assignment
+            </summary>
+        </member>
+        <member name="T:ServicesDashboard.Models.OmadaController">
+            <summary>
+            Stores Omada Controller connection information
+            </summary>
+        </member>
+        <member name="T:ServicesDashboard.Services.IpManagement.SubnetSummary">
+            <summary>
+            Summary statistics for a subnet
+            </summary>
+        </member>
     </members>
 </doc>

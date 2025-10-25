@@ -1,7 +1,16 @@
 #!/bin/bash
 #
 # Services Dashboard - One-Line Installer
+# Version: 2.0.0
+# Updated: 2025-10-26
+#
 # Usage: curl -sSL https://raw.githubusercontent.com/YOUR_USERNAME/ServicesDashboard/main/install.sh | sudo bash
+#
+# Requirements:
+# - .NET 9.0 Runtime
+# - 1GB+ RAM (2GB+ recommended)
+# - 2GB+ free disk space
+# - Raspberry Pi 3 or newer (ARMv7/ARMv8) for ARM devices
 #
 
 set -e
@@ -9,15 +18,42 @@ set -e
 REPO_OWNER="${REPO_OWNER:-devblaze}"
 REPO_NAME="${REPO_NAME:-ServicesDashboard}"
 GITHUB_REPO="$REPO_OWNER/$REPO_NAME"
+MIN_RAM_MB=900  # Minimum RAM in MB (allows for some overhead below 1GB)
 
-echo "🚀 Services Dashboard Installer"
-echo "================================"
+echo "🚀 Services Dashboard Installer v2.0.0"
+echo "======================================="
 echo ""
 
 # Check if running as root
 if [ "$EUID" -ne 0 ]; then
   echo "❌ Please run as root (use sudo)"
   exit 1
+fi
+
+# Check system requirements (Linux only)
+if [ "$(uname -s)" = "Linux" ]; then
+  TOTAL_RAM_MB=$(free -m | awk '/^Mem:/{print $2}')
+  if [ "$TOTAL_RAM_MB" -lt "$MIN_RAM_MB" ]; then
+    echo ""
+    echo "⚠️  WARNING: Insufficient RAM"
+    echo ""
+    echo "   Detected: ${TOTAL_RAM_MB}MB"
+    echo "   Required: 1GB+ (1024MB)"
+    echo ""
+    echo "   .NET applications require at least 1GB RAM."
+    echo "   Installation may fail or service may be unstable."
+    echo ""
+    echo "   Recommended: 2GB+ RAM for production use"
+    echo ""
+    read -p "   Continue anyway? (y/N): " -n 1 -r
+    echo ""
+    if [[ ! $REPLY =~ ^[Yy]$ ]]; then
+      echo "Installation cancelled."
+      exit 1
+    fi
+  else
+    echo "✅ RAM check passed: ${TOTAL_RAM_MB}MB"
+  fi
 fi
 
 # Detect architecture and OS
@@ -35,8 +71,20 @@ case "$ARCH" in
     ARCH="arm"
     ;;
   armv6l)
-    ARCH="arm"
-    echo "📟 Detected Raspberry Pi Zero"
+    echo ""
+    echo "❌ Raspberry Pi Zero / Pi 1 NOT Supported"
+    echo ""
+    echo "   .NET 9.0 does not support ARMv6 architecture."
+    echo "   The Raspberry Pi Zero has only 512MB RAM which is"
+    echo "   insufficient for .NET applications."
+    echo ""
+    echo "   Minimum requirements:"
+    echo "   • Raspberry Pi 3 or newer (ARMv7/ARMv8)"
+    echo "   • 1GB+ RAM"
+    echo ""
+    echo "   Please upgrade to Raspberry Pi 3, 4, or 5."
+    echo ""
+    exit 1
     ;;
   *)
     echo "❌ Unsupported architecture: $ARCH"
@@ -46,7 +94,7 @@ esac
 
 # Determine the correct release asset
 if [ "$OS" = "linux" ] && [ "$ARCH" = "arm" ]; then
-  ASSET_NAME="servicesdashboard-pizero-linux-arm.tar.gz"
+  ASSET_NAME="servicesdashboard-pi-linux-arm.tar.gz"
 elif [ "$OS" = "linux" ] && [ "$ARCH" = "arm64" ]; then
   ASSET_NAME="servicesdashboard-pi-linux-arm64.tar.gz"
 elif [ "$OS" = "linux" ] && [ "$ARCH" = "x64" ]; then
@@ -99,3 +147,22 @@ echo ""
 echo "✅ Installation complete!"
 echo ""
 echo "🎉 Services Dashboard has been installed successfully!"
+echo ""
+echo "📝 Next Steps:"
+echo "   1. Start the service:"
+echo "      sudo systemctl start servicesdashboard"
+echo ""
+echo "   2. Enable auto-start on boot:"
+echo "      sudo systemctl enable servicesdashboard"
+echo ""
+echo "   3. Check service status:"
+echo "      sudo systemctl status servicesdashboard"
+echo ""
+echo "   4. View logs:"
+echo "      sudo journalctl -u servicesdashboard -f"
+echo ""
+echo "   5. Access the dashboard:"
+echo "      http://$(hostname -I | awk '{print $1}'):5050"
+echo ""
+echo "📚 Documentation: https://github.com/$GITHUB_REPO"
+echo ""
