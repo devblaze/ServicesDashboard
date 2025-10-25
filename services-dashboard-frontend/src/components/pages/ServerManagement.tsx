@@ -19,7 +19,7 @@ import {
   ChevronRight
 } from 'lucide-react';
 import { serverManagementApi } from '../../services/serverManagementApi.ts';
-import type { ManagedServer, ServerAlert } from '../../types/ServerManagement.ts';
+import type { ManagedServer } from '../../types/ServerManagement.ts';
 import { AddServerModal } from '../modals/AddServerModal.tsx';
 import { ServerCard } from '../cards/ServerCard.tsx';
 import { ServerDetailsModal } from '../modals/ServerDetails/ServerDetailsModal.tsx';
@@ -54,16 +54,6 @@ export const ServerManagement: React.FC<ServerManagementProps> = ({ darkMode = t
     retry: 1,
   });
 
-  // Fetch alerts
-  const {
-    data: alerts = [],
-    error: alertsError
-  } = useQuery<ServerAlert[], Error>({
-    queryKey: ['server-alerts'],
-    queryFn: () => serverManagementApi.getAlerts(),
-    refetchInterval: 2 * 60 * 1000, // Refresh every 2 minutes
-    retry: 1,
-  });
 
   // Bulk health check mutation
   const bulkHealthCheckMutation = useMutation({
@@ -306,11 +296,6 @@ export const ServerManagement: React.FC<ServerManagementProps> = ({ darkMode = t
             <div className="mt-3 p-2 rounded bg-black/10 font-mono text-xs">
               Server Error: {String(serversError)}
             </div>
-            {alertsError && (
-              <div className="mt-3 p-2 rounded bg-black/10 font-mono text-xs">
-                Alerts Error: {String(alertsError)}
-              </div>
-            )}
           </div>
         </div>
       </div>
@@ -507,7 +492,7 @@ export const ServerManagement: React.FC<ServerManagementProps> = ({ darkMode = t
         )}
 
         {/* Quick stats */}
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+        <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
           <div className={`p-4 rounded-xl ${
             darkMode ? 'bg-gray-700/30' : 'bg-gray-50/50'
           }`}>
@@ -518,7 +503,7 @@ export const ServerManagement: React.FC<ServerManagementProps> = ({ darkMode = t
                   Online
                 </p>
                 <p className={`text-xl font-semibold ${darkMode ? 'text-white' : 'text-gray-900'}`}>
-                  {servers.filter((s: ManagedServer) => s.status === 'Online').length}
+                  {servers.filter((s: ManagedServer) => s.status === 'Online').length} / {servers.length}
                 </p>
               </div>
             </div>
@@ -551,22 +536,6 @@ export const ServerManagement: React.FC<ServerManagementProps> = ({ darkMode = t
                 </p>
                 <p className={`text-xl font-semibold ${darkMode ? 'text-white' : 'text-gray-900'}`}>
                   {servers.filter((s: ManagedServer) => s.status === 'Critical').length}
-                </p>
-              </div>
-            </div>
-          </div>
-
-          <div className={`p-4 rounded-xl ${
-            darkMode ? 'bg-gray-700/30' : 'bg-gray-50/50'
-          }`}>
-            <div className="flex items-center space-x-3">
-              <AlertTriangle className="w-5 h-5 text-red-500" />
-              <div>
-                <p className={`text-sm ${darkMode ? 'text-gray-400' : 'text-gray-600'}`}>
-                  Active Alerts
-                </p>
-                <p className={`text-xl font-semibold ${darkMode ? 'text-white' : 'text-gray-900'}`}>
-                  {alerts.length}
                 </p>
               </div>
             </div>

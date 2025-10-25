@@ -18,7 +18,7 @@ const IpManagementPage: React.FC<IpManagementPageProps> = ({ darkMode = true }) 
   const tabs = [
     { id: 'subnets' as Tab, label: 'Subnets', icon: Network },
     { id: 'overview' as Tab, label: 'IP Overview', icon: List },
-    { id: 'devices' as Tab, label: 'Devices', icon: Server },
+    { id: 'devices' as Tab, label: 'Fixed IPs', icon: Server },
     { id: 'reservations' as Tab, label: 'Reservations', icon: Shield },
     { id: 'omada' as Tab, label: 'Omada', icon: Settings },
   ];
@@ -32,7 +32,7 @@ const IpManagementPage: React.FC<IpManagementPageProps> = ({ darkMode = true }) 
             IP Address Management
           </h1>
           <p className={darkMode ? 'text-gray-400' : 'text-gray-600'}>
-            Manage your network subnets, track devices, reserve IPs, and integrate with Omada Controller
+            Track fixed IPs from Docker containers, VMs, and network devices across all your servers
           </p>
         </div>
 

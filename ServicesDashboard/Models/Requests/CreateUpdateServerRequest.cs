@@ -22,6 +22,8 @@ public class CreateUpdateServerRequest
     
     public string? Type { get; set; }
 
+    public string? Group { get; set; }
+
     public string? Tags { get; set; }
 
     public int? ParentServerId { get; set; }

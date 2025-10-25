@@ -128,6 +128,7 @@ export type DeviceType =
   | 'Storage'
   | 'Gaming'
   | 'SmartHome'
+  | 'VirtualMachine'
   | 'Other';
 
 export type DeviceStatus =
@@ -140,7 +141,8 @@ export type DiscoverySource =
   | 'OmadaController'
   | 'ManualEntry'
   | 'SNMP'
-  | 'ArpTable';
+  | 'ArpTable'
+  | 'Docker';
 
 export type DeviceHistoryEventType =
   | 'FirstSeen'
@@ -190,6 +192,7 @@ export const DEVICE_TYPE_OPTIONS = [
   { value: 'Unknown' as const, label: 'Unknown', icon: '❓' },
   { value: 'Computer' as const, label: 'Computer', icon: '💻' },
   { value: 'Server' as const, label: 'Server', icon: '🖥️' },
+  { value: 'VirtualMachine' as const, label: 'Virtual Machine', icon: '🖥️' },
   { value: 'Phone' as const, label: 'Phone', icon: '📱' },
   { value: 'Tablet' as const, label: 'Tablet', icon: '📱' },
   { value: 'IoT' as const, label: 'IoT Device', icon: '🔌' },

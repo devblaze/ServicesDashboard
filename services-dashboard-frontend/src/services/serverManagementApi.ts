@@ -111,6 +111,7 @@ interface RawManagedServer {
 // Add these interfaces and method to the ServerManagementApiClient class:
 
 export interface CommandResult {
+  command?: string;
   output: string;
   error: string;
   exitCode: number;
@@ -169,6 +170,63 @@ export interface CreateServiceFromDockerRequest {
   serviceUrl?: string;
   port?: number;
   environment: string;
+}
+
+export interface DockerIpSyncResult {
+  success: boolean;
+  errorMessage?: string;
+  devicesCreated: number;
+  devicesUpdated: number;
+  totalContainersScanned: number;
+  syncedContainers: string[];
+}
+
+export interface NetworkInterfacesSyncResult {
+  success: boolean;
+  errorMessage?: string;
+  serverId: number;
+  dockerContainersSynced: number;
+  virtualMachinesSynced: number;
+  networkInterfacesSynced: number;
+  totalDevicesSynced: number;
+  syncDetails: string[];
+}
+
+export interface BulkSyncResult {
+  success: boolean;
+  errorMessage?: string;
+  totalServers: number;
+  successfulServers: number;
+  failedServers: number;
+  totalDevicesSynced: number;
+  serverResults: ServerSyncSummary[];
+}
+
+export interface ServerSyncSummary {
+  serverId: number;
+  serverName: string;
+  success: boolean;
+  devicesSynced: number;
+  details?: string;
+  errorMessage?: string;
+}
+
+export interface IpConflictCheckResult {
+  isAvailable: boolean;
+  hasConflict: boolean;
+  conflicts: IpConflictDetail[];
+  isReachableOnNetwork: boolean;
+  pingResponse?: string;
+}
+
+export interface IpConflictDetail {
+  source: string; // "Database", "Docker", "VM", "NetworkInterface", "Server"
+  deviceName: string;
+  serverName?: string;
+  serverId?: number;
+  macAddress?: string;
+  details?: string;
+  status: string; // "Online", "Offline"
 }
 
 class ServerManagementApiClient extends BaseApiClient {
@@ -589,6 +647,115 @@ class ServerManagementApiClient extends BaseApiClient {
 
   async addDockerServiceToServices(serverId: number, containerId: string, request: CreateServiceFromDockerRequest): Promise<void> {
     return this.request<void>('post', `/servermanagement/${serverId}/docker-services/${containerId}/add-to-services`, request);
+  }
+
+  async syncDockerIps(serverId: number): Promise<DockerIpSyncResult> {
+    if (isDemoMode()) {
+      await new Promise(resolve => setTimeout(resolve, 1500));
+      const mockResult: DockerIpSyncResult = {
+        success: true,
+        devicesCreated: Math.floor(Math.random() * 5) + 2,
+        devicesUpdated: Math.floor(Math.random() * 3),
+        totalContainersScanned: Math.floor(Math.random() * 10) + 5,
+        syncedContainers: [
+          'plex (192.168.4.10)',
+          'nextcloud (192.168.4.15)',
+          'home-assistant (192.168.4.20)'
+        ]
+      };
+      return mockResult;
+    }
+
+    return this.request<DockerIpSyncResult>('post', `/servermanagement/${serverId}/sync-docker-ips`);
+  }
+
+  async syncAllNetworkInterfaces(serverId: number): Promise<NetworkInterfacesSyncResult> {
+    if (isDemoMode()) {
+      await new Promise(resolve => setTimeout(resolve, 2000));
+      const mockResult: NetworkInterfacesSyncResult = {
+        success: true,
+        serverId,
+        dockerContainersSynced: Math.floor(Math.random() * 5) + 2,
+        virtualMachinesSynced: Math.floor(Math.random() * 3),
+        networkInterfacesSynced: Math.floor(Math.random() * 2),
+        totalDevicesSynced: Math.floor(Math.random() * 10) + 5,
+        syncDetails: [
+          'Docker: plex (192.168.4.10)',
+          'VM: ubuntu-server (192.168.4.50)',
+          'Interface: bond0 (192.168.4.1)'
+        ]
+      };
+      return mockResult;
+    }
+
+    return this.request<NetworkInterfacesSyncResult>('post', `/servermanagement/${serverId}/sync-all-network-interfaces`);
+  }
+
+  async syncAllServers(): Promise<BulkSyncResult> {
+    if (isDemoMode()) {
+      await new Promise(resolve => setTimeout(resolve, 3000));
+      const mockResult: BulkSyncResult = {
+        success: true,
+        totalServers: 3,
+        successfulServers: 3,
+        failedServers: 0,
+        totalDevicesSynced: 15,
+        serverResults: [
+          {
+            serverId: 1,
+            serverName: 'Unraid Server',
+            success: true,
+            devicesSynced: 8,
+            details: 'Docker: 5, VMs: 2, Interfaces: 1'
+          },
+          {
+            serverId: 2,
+            serverName: 'Ubuntu Server',
+            success: true,
+            devicesSynced: 5,
+            details: 'Docker: 3, VMs: 0, Interfaces: 2'
+          },
+          {
+            serverId: 3,
+            serverName: 'Proxmox',
+            success: true,
+            devicesSynced: 2,
+            details: 'Docker: 0, VMs: 2, Interfaces: 0'
+          }
+        ]
+      };
+      return mockResult;
+    }
+
+    return this.request<BulkSyncResult>('post', '/servermanagement/sync-all-servers');
+  }
+
+  async checkIpConflict(ipAddress: string, excludeDeviceId?: number): Promise<IpConflictCheckResult> {
+    if (isDemoMode()) {
+      await new Promise(resolve => setTimeout(resolve, 1000));
+      // Simulate random conflict detection
+      const hasConflict = Math.random() > 0.7;
+      const mockResult: IpConflictCheckResult = {
+        isAvailable: !hasConflict,
+        hasConflict,
+        conflicts: hasConflict ? [{
+          source: 'Docker',
+          deviceName: 'plex-container',
+          serverName: 'Unraid Server',
+          serverId: 1,
+          details: 'Docker Container',
+          status: 'Online'
+        }] : [],
+        isReachableOnNetwork: Math.random() > 0.5,
+        pingResponse: 'Device is reachable'
+      };
+      return mockResult;
+    }
+
+    return this.request<IpConflictCheckResult>('post', '/servermanagement/check-ip-conflict', {
+      ipAddress,
+      excludeDeviceId
+    });
   }
 }
 

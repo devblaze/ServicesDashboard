@@ -12,6 +12,7 @@ export const TerminalTab: React.FC<TerminalTabProps> = ({ serverId, darkMode }) 
   const [command, setCommand] = useState('');
   const [commandHistory, setCommandHistory] = useState<CommandResult[]>([]);
   const terminalRef = useRef<HTMLDivElement>(null);
+  const inputRef = useRef<HTMLInputElement>(null);
 
   // Check tmux availability when component mounts
   const { data: tmuxStatus, isLoading: checkingTmux, refetch: recheckTmux } = useQuery({
@@ -28,6 +29,20 @@ export const TerminalTab: React.FC<TerminalTabProps> = ({ serverId, darkMode }) 
     }
   });
 
+  // Auto-scroll to bottom when command history changes
+  useEffect(() => {
+    if (terminalRef.current) {
+      terminalRef.current.scrollTop = terminalRef.current.scrollHeight;
+    }
+  }, [commandHistory]);
+
+  // Auto-focus input when component mounts or tmux becomes available
+  useEffect(() => {
+    if (tmuxStatus?.isAvailable && inputRef.current) {
+      inputRef.current.focus();
+    }
+  }, [tmuxStatus?.isAvailable]);
+
   // Cleanup tmux session when component unmounts
   useEffect(() => {
     return () => {
@@ -40,21 +55,49 @@ export const TerminalTab: React.FC<TerminalTabProps> = ({ serverId, darkMode }) 
 
   const executeCommandMutation = useMutation({
     mutationFn: (cmd: string) => serverManagementApi.executeCommand(serverId, cmd),
-    onSuccess: (result: CommandResult) => {
-      setCommandHistory(prev => [...prev, result]);
+    onSuccess: (result: CommandResult, cmd: string) => {
+      // Add the command to the result for display purposes
+      setCommandHistory(prev => [...prev, { ...result, command: cmd }]);
       setCommand('');
-      // Scroll to bottom after a short delay to ensure content is rendered
+      // Refocus input after command execution
       setTimeout(() => {
-        if (terminalRef.current) {
-          terminalRef.current.scrollTop = terminalRef.current.scrollHeight;
+        if (inputRef.current) {
+          inputRef.current.focus();
         }
-      }, 100);
+      }, 50);
     },
   });
 
   const handleExecuteCommand = () => {
     if (!command.trim()) return;
     executeCommandMutation.mutate(command.trim());
+  };
+
+  // Clean terminal output by removing shell prompts and excessive whitespace
+  const cleanOutput = (output: string): string => {
+    if (!output) return '';
+
+    // Split into lines
+    let lines = output.split('\n');
+
+    // Remove lines that are just shell prompts (e.g., "user@host:~$" or "blaze@HpElitedeskDebian:~$")
+    lines = lines.filter(line => {
+      const trimmed = line.trim();
+      // Match common shell prompt patterns
+      const isPrompt = /^[a-zA-Z0-9_-]+@[a-zA-Z0-9_-]+:.*[$#]\s*$/.test(trimmed);
+      return !isPrompt;
+    });
+
+    // Join back and trim excessive blank lines
+    let cleaned = lines.join('\n');
+
+    // Remove leading and trailing whitespace
+    cleaned = cleaned.trim();
+
+    // Replace multiple consecutive newlines with max 2
+    cleaned = cleaned.replace(/\n{3,}/g, '\n\n');
+
+    return cleaned;
   };
 
   // Show tmux installation prompt if not available
@@ -159,13 +202,15 @@ export const TerminalTab: React.FC<TerminalTabProps> = ({ serverId, darkMode }) 
       </div>
 
       {/* Terminal Output */}
-      <div 
+      <div
         ref={terminalRef}
-        className={`h-64 p-4 mb-4 rounded-lg border font-mono text-sm overflow-y-auto ${
+        onClick={() => inputRef.current?.focus()}
+        className={`h-96 p-4 mb-4 rounded-lg border font-mono text-sm overflow-y-auto cursor-text ${
           darkMode
             ? 'bg-gray-900/50 border-gray-700/50 text-green-400'
             : 'bg-gray-50 border-gray-200 text-gray-900'
         }`}
+        style={{ scrollBehavior: 'smooth' }}
       >
         {commandHistory.length === 0 ? (
           <div className="flex items-center space-x-2">
@@ -175,27 +220,49 @@ export const TerminalTab: React.FC<TerminalTabProps> = ({ serverId, darkMode }) 
             </p>
           </div>
         ) : (
-          commandHistory.map((result: CommandResult, index: number) => (
-            <div key={index} className="mb-4">
-              <div className={`${darkMode ? 'text-blue-400' : 'text-blue-600'}`}>
-                $ {/* Command would be stored if needed */}
-              </div>
-              <div className="whitespace-pre-wrap mt-1">
-                {result.output || 'No output'}
-              </div>
-              {result.exitCode !== undefined && result.exitCode !== 0 && (
-                <div className="text-red-400 mt-1">
-                  Exit code: {result.exitCode}
+          commandHistory.map((result: CommandResult, index: number) => {
+            const cleanedOutput = cleanOutput(result.output);
+            const cleanedError = cleanOutput(result.error);
+            const hasOutput = cleanedOutput || cleanedError;
+
+            return (
+              <div key={index} className="mb-2">
+                {/* Command prompt with command */}
+                <div className={`flex items-start ${darkMode ? 'text-blue-400' : 'text-blue-600'}`}>
+                  <span className="select-none mr-1">$</span>
+                  <span className="flex-1">{result.command || ''}</span>
                 </div>
-              )}
-            </div>
-          ))
+                {/* Command output */}
+                {hasOutput && (
+                  <div className={`whitespace-pre-wrap mt-1 mb-1 ${
+                    cleanedError ? 'text-red-400' : darkMode ? 'text-gray-300' : 'text-gray-900'
+                  }`}>
+                    {cleanedError || cleanedOutput}
+                  </div>
+                )}
+                {/* Exit code for non-zero exits */}
+                {result.exitCode !== undefined && result.exitCode !== 0 && (
+                  <div className="text-red-400 text-xs">
+                    [Exit code: {result.exitCode}]
+                  </div>
+                )}
+              </div>
+            );
+          })
+        )}
+        {/* Show loading indicator while command is running */}
+        {executeCommandMutation.isPending && (
+          <div className={`flex items-center space-x-2 ${darkMode ? 'text-gray-400' : 'text-gray-600'}`}>
+            <Loader2 className="w-3 h-3 animate-spin" />
+            <span className="text-xs">Executing...</span>
+          </div>
         )}
       </div>
 
       {/* Command Input */}
       <div className="flex space-x-2">
         <input
+          ref={inputRef}
           type="text"
           value={command}
           onChange={(e) => setCommand(e.target.value)}

@@ -1,8 +1,10 @@
 import { useState, lazy, Suspense, useRef, useEffect } from 'react';
+import { Routes, Route, Navigate, useNavigate, useLocation } from 'react-router-dom';
 import { QueryProvider } from './providers/QueryProvider';
 import { MonitoringProvider } from './providers/MonitoringProvider';
 import { LoadingSpinner } from './components/ui/LoadingSpinner';
 import { ScanNotifications } from './components/ScanNotifications';
+import { ServerAlertsNotifications } from './components/ServerAlertsNotifications';
 import { MonitoringStatusIndicator } from './components/ui/MonitoringStatusIndicator';
 import { UpdateNotification } from './components/UpdateNotification';
 import { VersionFooter } from './components/ui/VersionFooter';
@@ -56,10 +58,19 @@ function isMenuGroup(item: NavItem): item is MenuGroup {
 }
 
 function App() {
-  const [activeTab, setActiveTab] = useState<TabType>('services');
+  const navigate = useNavigate();
+  const location = useLocation();
   const [darkMode, setDarkMode] = useState(true);
   const [openDropdown, setOpenDropdown] = useState<string | null>(null);
   const dropdownRef = useRef<HTMLDivElement>(null);
+
+  // Get current tab from URL path
+  const getCurrentTab = (): TabType => {
+    const path = location.pathname.substring(1); // Remove leading slash
+    return (path || 'services') as TabType;
+  };
+
+  const activeTab = getCurrentTab();
 
   // Close dropdown when clicking outside
   useEffect(() => {
@@ -102,7 +113,7 @@ function App() {
   ];
 
   const handleNavItemClick = (id: TabType) => {
-    setActiveTab(id);
+    navigate(`/${id}`);
     setOpenDropdown(null);
   };
 
@@ -110,40 +121,11 @@ function App() {
     setOpenDropdown(openDropdown === groupId ? null : groupId);
   };
 
-  const renderContent = () => {
-    const loadingFallback = (
-      <div className="flex justify-center items-center min-h-[400px]">
-        <LoadingSpinner />
-      </div>
-    );
-
-    return (
-      <Suspense fallback={loadingFallback}>
-        {(() => {
-          switch (activeTab) {
-            case 'services':
-              return <ServicesList darkMode={darkMode} />;
-            case 'servers':
-              return <ServerManagement darkMode={darkMode} />;
-            case 'docker':
-              return <DockerServices darkMode={darkMode} />;
-            case 'network':
-              return <NetworkDiscovery darkMode={darkMode} />;
-            case 'ip-management':
-              return <IpManagementPage darkMode={darkMode} />;
-            case 'tasks':
-              return <ScheduledTasksPage darkMode={darkMode} />;
-            case 'deployments':
-              return <DeploymentsManagement darkMode={darkMode} />;
-            case 'settings':
-              return <ApplicationSettings darkMode={darkMode} />;
-            default:
-              return <ServicesList darkMode={darkMode} />;
-          }
-        })()}
-      </Suspense>
-    );
-  };
+  const loadingFallback = (
+    <div className="flex justify-center items-center min-h-[400px]">
+      <LoadingSpinner />
+    </div>
+  );
 
   return (
     <QueryProvider>
@@ -327,12 +309,28 @@ function App() {
 
           {/* Main Content */}
           <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-            {renderContent()}
+            <Suspense fallback={loadingFallback}>
+              <Routes>
+                <Route path="/" element={<Navigate to="/services" replace />} />
+                <Route path="/services" element={<ServicesList darkMode={darkMode} />} />
+                <Route path="/servers" element={<ServerManagement darkMode={darkMode} />} />
+                <Route path="/docker" element={<DockerServices darkMode={darkMode} />} />
+                <Route path="/network" element={<NetworkDiscovery darkMode={darkMode} />} />
+                <Route path="/ip-management" element={<IpManagementPage darkMode={darkMode} />} />
+                <Route path="/tasks" element={<ScheduledTasksPage darkMode={darkMode} />} />
+                <Route path="/deployments" element={<DeploymentsManagement darkMode={darkMode} />} />
+                <Route path="/settings" element={<ApplicationSettings darkMode={darkMode} />} />
+                <Route path="*" element={<Navigate to="/services" replace />} />
+              </Routes>
+            </Suspense>
           </div>
         </div>
 
         {/* Scan Notifications Component */}
-        <ScanNotifications onNavigateToDiscovery={() => setActiveTab('network')} />
+        <ScanNotifications onNavigateToDiscovery={() => navigate('/network')} />
+
+        {/* Server Alerts Notifications Component */}
+        <ServerAlertsNotifications onNavigateToServers={() => navigate('/servers')} darkMode={darkMode} />
 
         {/* Update Notification Component */}
         <UpdateNotification />

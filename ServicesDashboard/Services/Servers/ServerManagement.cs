@@ -38,6 +38,10 @@ public interface IServerManagementService
     Task<bool> StartDockerContainerAsync(int serverId, string containerId);
     Task<bool> StopDockerContainerAsync(int serverId, string containerId);
     Task<bool> RestartDockerContainerAsync(int serverId, string containerId);
+    Task<DockerIpSyncResult> SyncDockerContainerIpsAsync(int serverId);
+    Task<NetworkInterfacesSyncResult> SyncAllNetworkInterfacesAsync(int serverId);
+    Task<BulkSyncResult> SyncAllServersAsync();
+    Task<IpConflictCheckResult> CheckIpConflictAsync(string ipAddress, int? excludeDeviceId = null);
 }
 
 public class ServerManagement : IServerManagementService
@@ -46,17 +50,20 @@ public class ServerManagement : IServerManagementService
     private readonly ILogger<ServerManagement> _logger;
     private readonly IOllamaApiClient _ollamaClient;
     private readonly AppSettings _settings;
+    private readonly IpManagement.IIpManagementService? _ipManagementService;
 
     public ServerManagement(
         ServicesDashboardContext context,
         ILogger<ServerManagement> logger,
         IOllamaApiClient ollamaClient,
-        IOptions<AppSettings> settings)
+        IOptions<AppSettings> settings,
+        IpManagement.IIpManagementService? ipManagementService = null)
     {
         _context = context;
         _logger = logger;
         _ollamaClient = ollamaClient;
         _settings = settings.Value;
+        _ipManagementService = ipManagementService;
     }
 
     public async Task<IEnumerable<ManagedServer>> GetServersAsync()
@@ -436,7 +443,9 @@ If some information cannot be determined, use null or reasonable defaults. Focus
         existingServer.SshPort = server.SshPort;
         existingServer.Username = server.Username;
         existingServer.Type = server.Type;
+        existingServer.Group = server.Group;
         existingServer.Tags = server.Tags;
+        existingServer.ParentServerId = server.ParentServerId;
         existingServer.UpdatedAt = server.UpdatedAt;
 
         // Handle password update
@@ -1067,7 +1076,226 @@ If some information cannot be determined, use null or reasonable defaults. Focus
             return false;
         }
     }
-    
+
+    public async Task<DockerIpSyncResult> SyncDockerContainerIpsAsync(int serverId)
+    {
+        var result = new DockerIpSyncResult
+        {
+            Success = false
+        };
+
+        try
+        {
+            // Check if IP Management service is available
+            if (_ipManagementService == null)
+            {
+                result.ErrorMessage = "IP Management service is not available";
+                return result;
+            }
+
+            var server = await GetServerAsync(serverId);
+            if (server == null)
+            {
+                result.ErrorMessage = "Server not found";
+                return result;
+            }
+
+            // Discover all Docker containers on this server
+            var discoveryResult = await DiscoverDockerServicesAsync(serverId);
+            if (!discoveryResult.Success)
+            {
+                result.ErrorMessage = discoveryResult.ErrorMessage;
+                return result;
+            }
+
+            result.TotalContainersScanned = discoveryResult.Services.Count;
+
+            // Process each container's network configuration
+            foreach (var container in discoveryResult.Services)
+            {
+                if (container.Networks == null || !container.Networks.Any())
+                {
+                    _logger.LogDebug("Container {ContainerName} has no network configuration", container.Name);
+                    continue;
+                }
+
+                foreach (var network in container.Networks)
+                {
+                    // Skip if no IP address is assigned
+                    if (string.IsNullOrEmpty(network.IpAddress))
+                    {
+                        continue;
+                    }
+
+                    // Check if device already exists by MAC or IP
+                    NetworkDevice? existingDevice = null;
+
+                    if (!string.IsNullOrEmpty(network.MacAddress))
+                    {
+                        existingDevice = await _ipManagementService.FindDeviceByMacAsync(network.MacAddress);
+                    }
+
+                    if (existingDevice == null)
+                    {
+                        existingDevice = await _ipManagementService.GetDeviceByIpAsync(network.IpAddress);
+                    }
+
+                    var deviceType = DetermineDeviceType(container);
+
+                    if (existingDevice != null)
+                    {
+                        // Update existing device
+                        existingDevice.IpAddress = network.IpAddress;
+                        existingDevice.MacAddress = network.MacAddress ?? existingDevice.MacAddress;
+                        existingDevice.Hostname = container.Name;
+                        existingDevice.DeviceType = deviceType;
+                        existingDevice.Status = container.Status.Contains("Up") ? DeviceStatus.Online : DeviceStatus.Offline;
+                        existingDevice.LastSeen = DateTime.UtcNow;
+                        existingDevice.ManagedServerId = serverId;
+                        existingDevice.IsStaticIp = true; // Docker containers typically have static IPs on custom networks
+                        existingDevice.IsDhcpAssigned = false;
+                        existingDevice.Source = DiscoverySource.Docker;
+
+                        // Add notes about the container
+                        existingDevice.Notes = $"Docker Container: {container.Image}\nNetwork: {network.NetworkName}\nMode: {container.NetworkMode}";
+
+                        // Store open ports as JSON
+                        if (container.Ports.Any())
+                        {
+                            var ports = container.Ports.Select(p => p.ContainerPort).ToList();
+                            existingDevice.OpenPorts = JsonSerializer.Serialize(ports);
+                        }
+
+                        await _ipManagementService.CreateOrUpdateDeviceAsync(existingDevice);
+                        result.DevicesUpdated++;
+                    }
+                    else
+                    {
+                        // Create new device
+                        var newDevice = new NetworkDevice
+                        {
+                            IpAddress = network.IpAddress,
+                            MacAddress = network.MacAddress,
+                            Hostname = container.Name,
+                            DeviceType = deviceType,
+                            Status = container.Status.Contains("Up") ? DeviceStatus.Online : DeviceStatus.Offline,
+                            FirstSeen = DateTime.UtcNow,
+                            LastSeen = DateTime.UtcNow,
+                            ManagedServerId = serverId,
+                            IsStaticIp = true,
+                            IsDhcpAssigned = false,
+                            Source = DiscoverySource.Docker,
+                            Notes = $"Docker Container: {container.Image}\nNetwork: {network.NetworkName}\nMode: {container.NetworkMode}",
+                            Vendor = "Docker Container"
+                        };
+
+                        // Store open ports
+                        if (container.Ports.Any())
+                        {
+                            var ports = container.Ports.Select(p => p.ContainerPort).ToList();
+                            newDevice.OpenPorts = JsonSerializer.Serialize(ports);
+                        }
+
+                        // Try to find the subnet this IP belongs to
+                        var allSubnets = await _ipManagementService.GetAllSubnetsAsync();
+                        foreach (var subnet in allSubnets)
+                        {
+                            if (IsIpInSubnet(network.IpAddress, subnet.Network))
+                            {
+                                newDevice.SubnetId = subnet.Id;
+                                break;
+                            }
+                        }
+
+                        await _ipManagementService.CreateOrUpdateDeviceAsync(newDevice);
+                        result.DevicesCreated++;
+                    }
+
+                    result.SyncedContainers.Add($"{container.Name} ({network.IpAddress})");
+                }
+            }
+
+            result.Success = true;
+            _logger.LogInformation(
+                "Successfully synced Docker IPs for server {ServerId}: {Created} created, {Updated} updated",
+                serverId, result.DevicesCreated, result.DevicesUpdated);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Failed to sync Docker container IPs for server {ServerId}", serverId);
+            result.ErrorMessage = ex.Message;
+        }
+
+        return result;
+    }
+
+    private DeviceType DetermineDeviceType(DockerService container)
+    {
+        var imageLower = container.Image.ToLowerInvariant();
+
+        if (imageLower.Contains("database") || imageLower.Contains("postgres") ||
+            imageLower.Contains("mysql") || imageLower.Contains("mongo") ||
+            imageLower.Contains("redis"))
+        {
+            return DeviceType.Server;
+        }
+
+        if (imageLower.Contains("iot") || imageLower.Contains("homeassistant") ||
+            imageLower.Contains("mqtt"))
+        {
+            return DeviceType.IoT;
+        }
+
+        if (imageLower.Contains("router") || imageLower.Contains("network"))
+        {
+            return DeviceType.NetworkDevice;
+        }
+
+        // Default to server for other containers
+        return DeviceType.Server;
+    }
+
+    private bool IsIpInSubnet(string ipAddress, string cidrNotation)
+    {
+        try
+        {
+            var parts = cidrNotation.Split('/');
+            if (parts.Length != 2) return false;
+
+            var networkAddress = parts[0];
+            var prefixLength = int.Parse(parts[1]);
+
+            var ipBytes = System.Net.IPAddress.Parse(ipAddress).GetAddressBytes();
+            var networkBytes = System.Net.IPAddress.Parse(networkAddress).GetAddressBytes();
+
+            if (ipBytes.Length != networkBytes.Length) return false;
+
+            var maskBytes = prefixLength / 8;
+            var remainingBits = prefixLength % 8;
+
+            // Check full bytes
+            for (int i = 0; i < maskBytes; i++)
+            {
+                if (ipBytes[i] != networkBytes[i])
+                    return false;
+            }
+
+            // Check remaining bits
+            if (remainingBits > 0)
+            {
+                var mask = (byte)(0xFF << (8 - remainingBits));
+                if ((ipBytes[maskBytes] & mask) != (networkBytes[maskBytes] & mask))
+                    return false;
+            }
+
+            return true;
+        }
+        catch
+        {
+            return false;
+        }
+    }
+
     private async Task<List<DockerService>> GetDockerServicesAsync(SshClient client, string hostAddress)
     {
         var services = new List<DockerService>();
@@ -1127,6 +1355,16 @@ If some information cannot be determined, use null or reasonable defaults. Focus
 
                     // Get labels for the container (using docker inspect to avoid parsing issues)
                     dockerService.Labels = await GetContainerLabelsAsync(client, containerId);
+
+                    // Get network configuration for the container
+                    dockerService.Networks = await GetContainerNetworkConfigAsync(client, containerId);
+
+                    // Get network mode and MAC address
+                    var networkModeCmd = $"docker inspect {containerId} --format '{{{{.HostConfig.NetworkMode}}}}'";
+                    dockerService.NetworkMode = await ExecuteCommandAsync(client, networkModeCmd);
+
+                    var macAddressCmd = $"docker inspect {containerId} --format '{{{{.NetworkSettings.MacAddress}}}}'";
+                    dockerService.MacAddress = await ExecuteCommandAsync(client, macAddressCmd);
 
                     // Try to determine if it's a web service and extract description
                     await EnhanceDockerServiceInfoAsync(client, dockerService, hostAddress);
@@ -1203,6 +1441,96 @@ If some information cannot be determined, use null or reasonable defaults. Focus
         }
 
         return environment;
+    }
+
+    private async Task<List<DockerNetworkConfig>> GetContainerNetworkConfigAsync(SshClient client, string containerId)
+    {
+        var networks = new List<DockerNetworkConfig>();
+
+        try
+        {
+            // Get network settings using docker inspect
+            var networkCommand = $"docker inspect {containerId} --format '{{{{json .NetworkSettings}}}}'";
+            var networkJson = await ExecuteCommandAsync(client, networkCommand);
+
+            if (!string.IsNullOrEmpty(networkJson))
+            {
+                using var jsonDoc = JsonDocument.Parse(networkJson);
+                var root = jsonDoc.RootElement;
+
+                // Get NetworkMode
+                if (root.TryGetProperty("NetworkMode", out var networkModeElement))
+                {
+                    // This will be populated in the calling method
+                }
+
+                // Get MacAddress
+                if (root.TryGetProperty("MacAddress", out var macAddressElement))
+                {
+                    // This will be populated in the calling method
+                }
+
+                // Get Networks object (contains all network connections)
+                if (root.TryGetProperty("Networks", out var networksElement) &&
+                    networksElement.ValueKind == JsonValueKind.Object)
+                {
+                    foreach (var network in networksElement.EnumerateObject())
+                    {
+                        var config = new DockerNetworkConfig
+                        {
+                            NetworkName = network.Name
+                        };
+
+                        var networkValue = network.Value;
+
+                        if (networkValue.TryGetProperty("IPAddress", out var ipElement))
+                        {
+                            config.IpAddress = ipElement.GetString();
+                        }
+
+                        if (networkValue.TryGetProperty("Gateway", out var gatewayElement))
+                        {
+                            config.Gateway = gatewayElement.GetString();
+                        }
+
+                        if (networkValue.TryGetProperty("MacAddress", out var macElement))
+                        {
+                            config.MacAddress = macElement.GetString();
+                        }
+
+                        if (networkValue.TryGetProperty("NetworkID", out var networkIdElement))
+                        {
+                            config.NetworkId = networkIdElement.GetString();
+                        }
+
+                        // Get subnet from IPPrefixLen and Gateway
+                        if (networkValue.TryGetProperty("IPPrefixLen", out var prefixElement) &&
+                            config.Gateway != null)
+                        {
+                            var prefixLen = prefixElement.GetInt32();
+                            // Extract network address from gateway
+                            var gatewayParts = config.Gateway.Split('.');
+                            if (gatewayParts.Length == 4)
+                            {
+                                config.Subnet = $"{gatewayParts[0]}.{gatewayParts[1]}.{gatewayParts[2]}.0/{prefixLen}";
+                            }
+                        }
+
+                        // Only add if it has an IP address
+                        if (!string.IsNullOrEmpty(config.IpAddress))
+                        {
+                            networks.Add(config);
+                        }
+                    }
+                }
+            }
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "Failed to get network config for container {ContainerId}", containerId);
+        }
+
+        return networks;
     }
 
     private async Task EnhanceDockerServiceInfoAsync(SshClient client, DockerService service, string hostAddress)
@@ -1653,6 +1981,702 @@ Example: {{""recommendation"": ""Apply security updates immediately, schedule ot
         {
             _logger.LogError(ex, "Failed to decrypt password, using as plain text");
             return encryptedPassword;
+        }
+    }
+
+    public async Task<NetworkInterfacesSyncResult> SyncAllNetworkInterfacesAsync(int serverId)
+    {
+        var result = new NetworkInterfacesSyncResult
+        {
+            Success = false,
+            ServerId = serverId
+        };
+
+        try
+        {
+            if (_ipManagementService == null)
+            {
+                result.ErrorMessage = "IP Management service is not available";
+                return result;
+            }
+
+            var server = await GetServerAsync(serverId);
+            if (server == null)
+            {
+                result.ErrorMessage = "Server not found";
+                return result;
+            }
+
+            using var client = CreateSshClient(server);
+            client.Connect();
+
+            if (!client.IsConnected)
+            {
+                result.ErrorMessage = "Could not establish SSH connection";
+                return result;
+            }
+
+            _logger.LogInformation("🔍 Syncing all network interfaces for server {ServerName} (ID: {ServerId})",
+                server.Name, serverId);
+
+            // Sync Docker containers
+            var dockerResult = await SyncDockerContainerIpsAsync(serverId);
+            result.DockerContainersSynced = dockerResult.DevicesCreated + dockerResult.DevicesUpdated;
+
+            // Sync VMs (libvirt/virsh for Unraid, Proxmox, etc.)
+            var vmResult = await SyncVirtualMachinesAsync(client, server, serverId);
+            result.VirtualMachinesSynced = vmResult.DevicesSynced;
+            result.SyncDetails.AddRange(vmResult.Details);
+
+            // Sync network interfaces (bridges, bonds, etc.)
+            var interfaceResult = await SyncNetworkInterfacesAsync(client, server, serverId);
+            result.NetworkInterfacesSynced = interfaceResult.DevicesSynced;
+            result.SyncDetails.AddRange(interfaceResult.Details);
+
+            result.Success = true;
+            result.TotalDevicesSynced = result.DockerContainersSynced + result.VirtualMachinesSynced +
+                                       result.NetworkInterfacesSynced;
+
+            _logger.LogInformation(
+                "✅ Successfully synced server {ServerName}: {Total} devices ({Docker} Docker, {VMs} VMs, {Interfaces} interfaces)",
+                server.Name, result.TotalDevicesSynced, result.DockerContainersSynced,
+                result.VirtualMachinesSynced, result.NetworkInterfacesSynced);
+
+            client.Disconnect();
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Failed to sync network interfaces for server {ServerId}", serverId);
+            result.ErrorMessage = ex.Message;
+        }
+
+        return result;
+    }
+
+    private async Task<VmSyncResult> SyncVirtualMachinesAsync(SshClient client, ManagedServer server, int serverId)
+    {
+        var result = new VmSyncResult();
+
+        try
+        {
+            // Check if virsh is available
+            var virshCheck = await ExecuteCommandAsync(client, "command -v virsh >/dev/null 2>&1; echo $?");
+            if (virshCheck.Trim() != "0")
+            {
+                _logger.LogDebug("virsh not available on server {ServerId}, skipping VM sync", serverId);
+                return result;
+            }
+
+            // Get list of all VMs (running and stopped)
+            var vmListCommand = "virsh list --all --name";
+            var vmListOutput = await ExecuteCommandAsync(client, vmListCommand);
+
+            if (string.IsNullOrEmpty(vmListOutput))
+            {
+                _logger.LogDebug("No VMs found on server {ServerId}", serverId);
+                return result;
+            }
+
+            var vmNames = vmListOutput.Split('\n', StringSplitOptions.RemoveEmptyEntries)
+                .Select(n => n.Trim())
+                .Where(n => !string.IsNullOrEmpty(n))
+                .ToList();
+
+            foreach (var vmName in vmNames)
+            {
+                try
+                {
+                    // Get VM details including network interfaces
+                    var vmInfoCommand = $"virsh domifaddr {vmName} --source agent 2>/dev/null || virsh domifaddr {vmName} 2>/dev/null";
+                    var vmInfoOutput = await ExecuteCommandAsync(client, vmInfoCommand);
+
+                    // Get VM state
+                    var vmStateCommand = $"virsh domstate {vmName}";
+                    var vmState = await ExecuteCommandAsync(client, vmStateCommand);
+                    var isRunning = vmState.Trim().Equals("running", StringComparison.OrdinalIgnoreCase);
+
+                    // Parse network interfaces from output
+                    if (!string.IsNullOrEmpty(vmInfoOutput))
+                    {
+                        var lines = vmInfoOutput.Split('\n', StringSplitOptions.RemoveEmptyEntries).Skip(2); // Skip header
+
+                        foreach (var line in lines)
+                        {
+                            var parts = line.Split(new[] { ' ' }, StringSplitOptions.RemoveEmptyEntries);
+                            if (parts.Length >= 4)
+                            {
+                                var interfaceName = parts[0].Trim();
+                                var macAddress = parts[1].Trim();
+                                var ipWithMask = parts[3].Trim();
+
+                                // Extract IP address (remove /24 or similar)
+                                var ipAddress = ipWithMask.Split('/')[0];
+
+                                if (!string.IsNullOrEmpty(ipAddress) &&
+                                    System.Net.IPAddress.TryParse(ipAddress, out _))
+                                {
+                                    // Check if device already exists
+                                    var existingDevice = await _ipManagementService!.FindDeviceByMacAsync(macAddress) ??
+                                                        await _ipManagementService.GetDeviceByIpAsync(ipAddress);
+
+                                    if (existingDevice != null)
+                                    {
+                                        // Update existing device
+                                        existingDevice.IpAddress = ipAddress;
+                                        existingDevice.MacAddress = macAddress;
+                                        existingDevice.Hostname = vmName;
+                                        existingDevice.DeviceType = DeviceType.VirtualMachine;
+                                        existingDevice.Status = isRunning ? DeviceStatus.Online : DeviceStatus.Offline;
+                                        existingDevice.LastSeen = DateTime.UtcNow;
+                                        existingDevice.ManagedServerId = serverId;
+                                        existingDevice.IsStaticIp = true;
+                                        existingDevice.IsDhcpAssigned = false;
+                                        existingDevice.Source = DiscoverySource.ManualEntry; // We'll use this for VM detection
+                                        existingDevice.Notes = $"Virtual Machine on {server.Name}\nInterface: {interfaceName}";
+                                        existingDevice.Vendor = "Virtual Machine";
+
+                                        await _ipManagementService.CreateOrUpdateDeviceAsync(existingDevice);
+                                    }
+                                    else
+                                    {
+                                        // Create new device
+                                        var newDevice = new NetworkDevice
+                                        {
+                                            IpAddress = ipAddress,
+                                            MacAddress = macAddress,
+                                            Hostname = vmName,
+                                            DeviceType = DeviceType.VirtualMachine,
+                                            Status = isRunning ? DeviceStatus.Online : DeviceStatus.Offline,
+                                            FirstSeen = DateTime.UtcNow,
+                                            LastSeen = DateTime.UtcNow,
+                                            ManagedServerId = serverId,
+                                            IsStaticIp = true,
+                                            IsDhcpAssigned = false,
+                                            Source = DiscoverySource.ManualEntry,
+                                            Notes = $"Virtual Machine on {server.Name}\nInterface: {interfaceName}",
+                                            Vendor = "Virtual Machine"
+                                        };
+
+                                        // Try to find subnet
+                                        var allSubnets = await _ipManagementService.GetAllSubnetsAsync();
+                                        foreach (var subnet in allSubnets)
+                                        {
+                                            if (IsIpInSubnet(ipAddress, subnet.Network))
+                                            {
+                                                newDevice.SubnetId = subnet.Id;
+                                                break;
+                                            }
+                                        }
+
+                                        await _ipManagementService.CreateOrUpdateDeviceAsync(newDevice);
+                                    }
+
+                                    result.DevicesSynced++;
+                                    result.Details.Add($"VM: {vmName} ({ipAddress})");
+                                }
+                            }
+                        }
+                    }
+                }
+                catch (Exception ex)
+                {
+                    _logger.LogWarning(ex, "Failed to sync VM {VmName} on server {ServerId}", vmName, serverId);
+                }
+            }
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "Failed to sync VMs for server {ServerId}", serverId);
+        }
+
+        return result;
+    }
+
+    private async Task<NetworkInterfaceSyncResult> SyncNetworkInterfacesAsync(SshClient client, ManagedServer server, int serverId)
+    {
+        var result = new NetworkInterfaceSyncResult();
+
+        try
+        {
+            // Get all network interfaces with IPs
+            var ipCommand = "ip -o -4 addr show | awk '{print $2,$4}' | grep -v '^lo ' | grep -v '^docker'";
+            var ipOutput = await ExecuteCommandAsync(client, ipCommand);
+
+            if (string.IsNullOrEmpty(ipOutput))
+            {
+                _logger.LogDebug("No network interfaces found on server {ServerId}", serverId);
+                return result;
+            }
+
+            var lines = ipOutput.Split('\n', StringSplitOptions.RemoveEmptyEntries);
+
+            foreach (var line in lines)
+            {
+                try
+                {
+                    var parts = line.Split(new[] { ' ' }, StringSplitOptions.RemoveEmptyEntries);
+                    if (parts.Length >= 2)
+                    {
+                        var interfaceName = parts[0].Trim();
+                        var ipWithMask = parts[1].Trim();
+                        var ipAddress = ipWithMask.Split('/')[0];
+
+                        // Skip if not a valid IP or is a link-local address
+                        if (!System.Net.IPAddress.TryParse(ipAddress, out var parsedIp) ||
+                            ipAddress.StartsWith("127.") ||
+                            ipAddress.StartsWith("169.254."))
+                        {
+                            continue;
+                        }
+
+                        // Get MAC address for this interface
+                        var macCommand = $"cat /sys/class/net/{interfaceName}/address 2>/dev/null";
+                        var macAddress = await ExecuteCommandAsync(client, macCommand);
+                        macAddress = macAddress.Trim();
+
+                        // Determine device type based on interface name
+                        var deviceType = interfaceName.StartsWith("br") ? DeviceType.NetworkDevice :
+                                       interfaceName.StartsWith("bond") ? DeviceType.NetworkDevice :
+                                       interfaceName.StartsWith("vlan") ? DeviceType.NetworkDevice :
+                                       DeviceType.Server;
+
+                        // Check if device already exists
+                        var existingDevice = !string.IsNullOrEmpty(macAddress)
+                            ? await _ipManagementService!.FindDeviceByMacAsync(macAddress)
+                            : null;
+
+                        existingDevice ??= await _ipManagementService!.GetDeviceByIpAsync(ipAddress);
+
+                        // Only create/update if this is a significant interface (bridges, bonds, or static IPs)
+                        if (interfaceName.StartsWith("br") || interfaceName.StartsWith("bond") ||
+                            interfaceName.StartsWith("vlan"))
+                        {
+                            if (existingDevice != null)
+                            {
+                                existingDevice.IpAddress = ipAddress;
+                                existingDevice.MacAddress = string.IsNullOrEmpty(macAddress) ? existingDevice.MacAddress : macAddress;
+                                existingDevice.Hostname = $"{server.Name}-{interfaceName}";
+                                existingDevice.DeviceType = deviceType;
+                                existingDevice.Status = DeviceStatus.Online;
+                                existingDevice.LastSeen = DateTime.UtcNow;
+                                existingDevice.ManagedServerId = serverId;
+                                existingDevice.IsStaticIp = true;
+                                existingDevice.IsDhcpAssigned = false;
+                                existingDevice.Source = DiscoverySource.NetworkScan;
+                                existingDevice.Notes = $"Network Interface on {server.Name}\nInterface: {interfaceName}";
+                                existingDevice.Vendor = "Network Interface";
+
+                                await _ipManagementService.CreateOrUpdateDeviceAsync(existingDevice);
+                                result.DevicesSynced++;
+                                result.Details.Add($"Interface: {interfaceName} ({ipAddress})");
+                            }
+                            else
+                            {
+                                var newDevice = new NetworkDevice
+                                {
+                                    IpAddress = ipAddress,
+                                    MacAddress = macAddress,
+                                    Hostname = $"{server.Name}-{interfaceName}",
+                                    DeviceType = deviceType,
+                                    Status = DeviceStatus.Online,
+                                    FirstSeen = DateTime.UtcNow,
+                                    LastSeen = DateTime.UtcNow,
+                                    ManagedServerId = serverId,
+                                    IsStaticIp = true,
+                                    IsDhcpAssigned = false,
+                                    Source = DiscoverySource.NetworkScan,
+                                    Notes = $"Network Interface on {server.Name}\nInterface: {interfaceName}",
+                                    Vendor = "Network Interface"
+                                };
+
+                                // Try to find subnet
+                                var allSubnets = await _ipManagementService.GetAllSubnetsAsync();
+                                foreach (var subnet in allSubnets)
+                                {
+                                    if (IsIpInSubnet(ipAddress, subnet.Network))
+                                    {
+                                        newDevice.SubnetId = subnet.Id;
+                                        break;
+                                    }
+                                }
+
+                                await _ipManagementService.CreateOrUpdateDeviceAsync(newDevice);
+                                result.DevicesSynced++;
+                                result.Details.Add($"Interface: {interfaceName} ({ipAddress})");
+                            }
+                        }
+                    }
+                }
+                catch (Exception ex)
+                {
+                    _logger.LogWarning(ex, "Failed to process network interface line: {Line}", line);
+                }
+            }
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "Failed to sync network interfaces for server {ServerId}", serverId);
+        }
+
+        return result;
+    }
+
+    public async Task<BulkSyncResult> SyncAllServersAsync()
+    {
+        var result = new BulkSyncResult
+        {
+            Success = false
+        };
+
+        try
+        {
+            var servers = await GetServersAsync();
+            result.TotalServers = servers.Count();
+
+            foreach (var server in servers)
+            {
+                try
+                {
+                    _logger.LogInformation("🔄 Syncing server: {ServerName} (ID: {ServerId})",
+                        server.Name, server.Id);
+
+                    var syncResult = await SyncAllNetworkInterfacesAsync(server.Id);
+
+                    if (syncResult.Success)
+                    {
+                        result.SuccessfulServers++;
+                        result.TotalDevicesSynced += syncResult.TotalDevicesSynced;
+                        result.ServerResults.Add(new ServerSyncSummary
+                        {
+                            ServerId = server.Id,
+                            ServerName = server.Name,
+                            Success = true,
+                            DevicesSynced = syncResult.TotalDevicesSynced,
+                            Details = $"Docker: {syncResult.DockerContainersSynced}, VMs: {syncResult.VirtualMachinesSynced}, Interfaces: {syncResult.NetworkInterfacesSynced}"
+                        });
+                    }
+                    else
+                    {
+                        result.FailedServers++;
+                        result.ServerResults.Add(new ServerSyncSummary
+                        {
+                            ServerId = server.Id,
+                            ServerName = server.Name,
+                            Success = false,
+                            ErrorMessage = syncResult.ErrorMessage
+                        });
+                    }
+                }
+                catch (Exception ex)
+                {
+                    _logger.LogError(ex, "Failed to sync server {ServerId}", server.Id);
+                    result.FailedServers++;
+                    result.ServerResults.Add(new ServerSyncSummary
+                    {
+                        ServerId = server.Id,
+                        ServerName = server.Name,
+                        Success = false,
+                        ErrorMessage = ex.Message
+                    });
+                }
+            }
+
+            result.Success = result.SuccessfulServers > 0;
+
+            _logger.LogInformation(
+                "✅ Bulk sync completed: {Success}/{Total} servers synced, {Devices} total devices",
+                result.SuccessfulServers, result.TotalServers, result.TotalDevicesSynced);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Bulk sync failed");
+            result.ErrorMessage = ex.Message;
+        }
+
+        return result;
+    }
+
+    // Helper result classes
+    private class VmSyncResult
+    {
+        public int DevicesSynced { get; set; }
+        public List<string> Details { get; set; } = new();
+    }
+
+    private class NetworkInterfaceSyncResult
+    {
+        public int DevicesSynced { get; set; }
+        public List<string> Details { get; set; } = new();
+    }
+
+    public async Task<IpConflictCheckResult> CheckIpConflictAsync(string ipAddress, int? excludeDeviceId = null)
+    {
+        var result = new IpConflictCheckResult
+        {
+            IsAvailable = true,
+            HasConflict = false
+        };
+
+        try
+        {
+            _logger.LogInformation("🔍 Checking IP {IpAddress} for conflicts", ipAddress);
+
+            // 1. Check database for existing devices
+            var existingDevice = await _ipManagementService?.GetDeviceByIpAsync(ipAddress)!;
+            if (existingDevice != null && (excludeDeviceId == null || existingDevice.Id != excludeDeviceId))
+            {
+                result.HasConflict = true;
+                result.IsAvailable = false;
+                result.Conflicts.Add(new IpConflictDetail
+                {
+                    Source = "Database",
+                    DeviceName = existingDevice.Hostname ?? "Unknown",
+                    ServerName = existingDevice.ManagedServerId != null ?
+                        (await GetServerAsync(existingDevice.ManagedServerId.Value))?.Name : null,
+                    ServerId = existingDevice.ManagedServerId,
+                    MacAddress = existingDevice.MacAddress,
+                    Details = $"Device Type: {existingDevice.DeviceType}, Source: {existingDevice.Source}",
+                    Status = existingDevice.Status.ToString()
+                });
+            }
+
+            // 2. Check all servers for Docker containers (running and stopped)
+            var servers = await GetServersAsync();
+            foreach (var server in servers)
+            {
+                try
+                {
+                    using var client = CreateSshClient(server);
+                    client.Connect();
+
+                    // Check Docker containers
+                    var dockerCheck = await CheckDockerContainersForIpAsync(client, server, ipAddress);
+                    if (dockerCheck.HasConflict)
+                    {
+                        result.HasConflict = true;
+                        result.IsAvailable = false;
+                        result.Conflicts.AddRange(dockerCheck.Conflicts);
+                    }
+
+                    // Check VMs
+                    var vmCheck = await CheckVmsForIpAsync(client, server, ipAddress);
+                    if (vmCheck.HasConflict)
+                    {
+                        result.HasConflict = true;
+                        result.IsAvailable = false;
+                        result.Conflicts.AddRange(vmCheck.Conflicts);
+                    }
+
+                    // Check network interfaces
+                    var interfaceCheck = await CheckNetworkInterfacesForIpAsync(client, server, ipAddress);
+                    if (interfaceCheck.HasConflict)
+                    {
+                        result.HasConflict = true;
+                        result.IsAvailable = false;
+                        result.Conflicts.AddRange(interfaceCheck.Conflicts);
+                    }
+
+                    client.Disconnect();
+                }
+                catch (Exception ex)
+                {
+                    _logger.LogWarning(ex, "Failed to check server {ServerName} for IP conflicts", server.Name);
+                }
+            }
+
+            // 3. Network scan (ping test)
+            result.IsReachableOnNetwork = await PingTestAsync(ipAddress);
+            if (result.IsReachableOnNetwork && !result.HasConflict)
+            {
+                result.HasConflict = true;
+                result.IsAvailable = false;
+                result.Conflicts.Add(new IpConflictDetail
+                {
+                    Source = "Network Scan",
+                    DeviceName = "Unknown Device",
+                    Details = "Device responded to ping but not found in system",
+                    Status = "Online"
+                });
+            }
+
+            result.PingResponse = result.IsReachableOnNetwork ? "Device is reachable" : "Device not reachable";
+
+            _logger.LogInformation(
+                "✅ IP conflict check completed for {IpAddress}: Available={Available}, HasConflict={HasConflict}, Conflicts={ConflictCount}",
+                ipAddress, result.IsAvailable, result.HasConflict, result.Conflicts.Count);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Failed to check IP {IpAddress} for conflicts", ipAddress);
+        }
+
+        return result;
+    }
+
+    private async Task<IpConflictCheckResult> CheckDockerContainersForIpAsync(SshClient client, ManagedServer server, string ipAddress)
+    {
+        var result = new IpConflictCheckResult();
+
+        try
+        {
+            // Get all containers (running and stopped)
+            var dockerPsCommand = "docker ps -a --format \"{{.ID}}|{{.Names}}|{{.Status}}\" --no-trunc";
+            var dockerPsOutput = await ExecuteCommandAsync(client, dockerPsCommand);
+
+            if (string.IsNullOrEmpty(dockerPsOutput))
+                return result;
+
+            var lines = dockerPsOutput.Split('\n', StringSplitOptions.RemoveEmptyEntries);
+
+            foreach (var line in lines)
+            {
+                var parts = line.Split('|');
+                if (parts.Length >= 3)
+                {
+                    var containerId = parts[0].Trim();
+                    var containerName = parts[1].Trim();
+                    var status = parts[2].Trim();
+
+                    // Get all IPs for this container
+                    var inspectCommand = $"docker inspect {containerId} --format '{{{{range .NetworkSettings.Networks}}}}{{{{.IPAddress}}}}|{{{{end}}}}'";
+                    var ipsOutput = await ExecuteCommandAsync(client, inspectCommand);
+
+                    if (!string.IsNullOrEmpty(ipsOutput))
+                    {
+                        var ips = ipsOutput.Split('|', StringSplitOptions.RemoveEmptyEntries);
+                        foreach (var ip in ips)
+                        {
+                            if (ip.Trim() == ipAddress)
+                            {
+                                result.HasConflict = true;
+                                result.Conflicts.Add(new IpConflictDetail
+                                {
+                                    Source = "Docker",
+                                    DeviceName = containerName,
+                                    ServerName = server.Name,
+                                    ServerId = server.Id,
+                                    Details = $"Docker Container",
+                                    Status = status.Contains("Up") ? "Online" : "Offline"
+                                });
+                            }
+                        }
+                    }
+                }
+            }
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "Failed to check Docker containers on server {ServerId}", server.Id);
+        }
+
+        return result;
+    }
+
+    private async Task<IpConflictCheckResult> CheckVmsForIpAsync(SshClient client, ManagedServer server, string ipAddress)
+    {
+        var result = new IpConflictCheckResult();
+
+        try
+        {
+            // Check if virsh is available
+            var virshCheck = await ExecuteCommandAsync(client, "command -v virsh >/dev/null 2>&1; echo $?");
+            if (virshCheck.Trim() != "0")
+                return result;
+
+            // Get all VMs
+            var vmListCommand = "virsh list --all --name";
+            var vmListOutput = await ExecuteCommandAsync(client, vmListCommand);
+
+            if (string.IsNullOrEmpty(vmListOutput))
+                return result;
+
+            var vmNames = vmListOutput.Split('\n', StringSplitOptions.RemoveEmptyEntries)
+                .Select(n => n.Trim())
+                .Where(n => !string.IsNullOrEmpty(n))
+                .ToList();
+
+            foreach (var vmName in vmNames)
+            {
+                try
+                {
+                    var vmInfoCommand = $"virsh domifaddr {vmName} --source agent 2>/dev/null || virsh domifaddr {vmName} 2>/dev/null";
+                    var vmInfoOutput = await ExecuteCommandAsync(client, vmInfoCommand);
+
+                    var vmStateCommand = $"virsh domstate {vmName}";
+                    var vmState = await ExecuteCommandAsync(client, vmStateCommand);
+
+                    if (!string.IsNullOrEmpty(vmInfoOutput) && vmInfoOutput.Contains(ipAddress))
+                    {
+                        result.HasConflict = true;
+                        result.Conflicts.Add(new IpConflictDetail
+                        {
+                            Source = "VM",
+                            DeviceName = vmName,
+                            ServerName = server.Name,
+                            ServerId = server.Id,
+                            Details = "Virtual Machine",
+                            Status = vmState.Trim().Equals("running", StringComparison.OrdinalIgnoreCase) ? "Online" : "Offline"
+                        });
+                    }
+                }
+                catch (Exception ex)
+                {
+                    _logger.LogWarning(ex, "Failed to check VM {VmName}", vmName);
+                }
+            }
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "Failed to check VMs on server {ServerId}", server.Id);
+        }
+
+        return result;
+    }
+
+    private async Task<IpConflictCheckResult> CheckNetworkInterfacesForIpAsync(SshClient client, ManagedServer server, string ipAddress)
+    {
+        var result = new IpConflictCheckResult();
+
+        try
+        {
+            var ipCommand = $"ip -o -4 addr show | grep '{ipAddress}/' | awk '{{print $2}}'";
+            var interfaceOutput = await ExecuteCommandAsync(client, ipCommand);
+
+            if (!string.IsNullOrEmpty(interfaceOutput))
+            {
+                var interfaceName = interfaceOutput.Trim();
+                result.HasConflict = true;
+                result.Conflicts.Add(new IpConflictDetail
+                {
+                    Source = "NetworkInterface",
+                    DeviceName = $"{server.Name}-{interfaceName}",
+                    ServerName = server.Name,
+                    ServerId = server.Id,
+                    Details = $"Network Interface: {interfaceName}",
+                    Status = "Online"
+                });
+            }
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "Failed to check network interfaces on server {ServerId}", server.Id);
+        }
+
+        return result;
+    }
+
+    private async Task<bool> PingTestAsync(string ipAddress)
+    {
+        try
+        {
+            using var ping = new System.Net.NetworkInformation.Ping();
+            var reply = await ping.SendPingAsync(ipAddress, 1000); // 1 second timeout
+            return reply.Status == System.Net.NetworkInformation.IPStatus.Success;
+        }
+        catch (Exception ex)
+        {
+            _logger.LogDebug(ex, "Ping test failed for {IpAddress}", ipAddress);
+            return false;
         }
     }
 }
