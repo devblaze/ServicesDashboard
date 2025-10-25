@@ -36,6 +36,7 @@ public class AddServerEndpoint : Endpoint<CreateUpdateServerRequest, ManagedServ
                 Username = req.Username,
                 EncryptedPassword = req.Password, // Will be encrypted in service
                 Type = Enum.Parse<ServerType>(req.Type ?? "Server"),
+                Group = Enum.Parse<ServerGroup>(req.Group ?? "Remote"),
                 Tags = req.Tags,
                 ParentServerId = req.ParentServerId
             };

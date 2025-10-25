@@ -79,14 +79,12 @@ public class UpdateServerEndpoint : Endpoint<UpdateServerRequest, ManagedServer>
             HttpContext.Response.StatusCode = 400;
             var escapedMessage = ex.Message.Replace("\"", "\\\"");
             await HttpContext.Response.WriteAsync($@"{{""error"":""DuplicateHostAddress"",""message"":""{escapedMessage}""}}", ct);
-            return;
         }
         catch (Exception ex)
         {
             _logger.LogError(ex, "Error updating server {ServerId}", req.Id);
             HttpContext.Response.StatusCode = 500;
             await HttpContext.Response.WriteAsync(@"{""error"":""Internal server error""}", ct);
-            return;
         }
     }
 

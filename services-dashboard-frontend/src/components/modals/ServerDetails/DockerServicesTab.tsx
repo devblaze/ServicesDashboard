@@ -1,14 +1,15 @@
 import React, { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { 
-  Container, 
-  ExternalLink, 
-  Plus, 
-  Globe, 
-  RefreshCw, 
-  CheckCircle, 
+import {
+  Container,
+  ExternalLink,
+  Plus,
+  Globe,
+  RefreshCw,
+  CheckCircle,
   AlertCircle,
   Clock,
+  Network,
 } from 'lucide-react';
 import { serverManagementApi } from '../../../services/serverManagementApi';
 import type { DockerService, CreateServiceFromDockerRequest } from '../../../services/serverManagementApi';
@@ -26,6 +27,7 @@ export const DockerServicesTab: React.FC<DockerServicesTabProps> = ({
 }) => {
   const [showAddModal, setShowAddModal] = useState(false);
   const [serviceToAdd, setServiceToAdd] = useState<DockerService | null>(null);
+  const [syncResult, setSyncResult] = useState<string | null>(null);
   const queryClient = useQueryClient();
 
   const { data: dockerData, isLoading, error, refetch } = useQuery({
@@ -41,6 +43,23 @@ export const DockerServicesTab: React.FC<DockerServicesTabProps> = ({
       queryClient.invalidateQueries({ queryKey: ['services'] });
       setShowAddModal(false);
       setServiceToAdd(null);
+    },
+  });
+
+  const syncIpsMutation = useMutation({
+    mutationFn: () => serverManagementApi.syncDockerIps(serverId),
+    onSuccess: (data) => {
+      queryClient.invalidateQueries({ queryKey: ['ip-devices'] });
+      const message = `✅ Successfully synced ${data.totalContainersScanned} containers!\n` +
+        `Created: ${data.devicesCreated} | Updated: ${data.devicesUpdated}\n` +
+        `Synced: ${data.syncedContainers.slice(0, 3).join(', ')}${data.syncedContainers.length > 3 ? '...' : ''}`;
+      setSyncResult(message);
+      setTimeout(() => setSyncResult(null), 8000);
+    },
+    onError: (error: any) => {
+      const message = `❌ Sync failed: ${error.message || 'Unknown error'}`;
+      setSyncResult(message);
+      setTimeout(() => setSyncResult(null), 5000);
     },
   });
 
@@ -150,6 +169,21 @@ export const DockerServicesTab: React.FC<DockerServicesTabProps> = ({
 
   return (
     <div className="p-6 space-y-6">
+      {/* Sync Result Notification */}
+      {syncResult && (
+        <div className={`p-4 rounded-lg ${
+          syncResult.startsWith('✅')
+            ? darkMode
+              ? 'bg-green-900/30 border border-green-700/50 text-green-300'
+              : 'bg-green-50 border border-green-200 text-green-800'
+            : darkMode
+              ? 'bg-red-900/30 border border-red-700/50 text-red-300'
+              : 'bg-red-50 border border-red-200 text-red-800'
+        }`}>
+          <pre className="text-sm whitespace-pre-wrap font-mono">{syncResult}</pre>
+        </div>
+      )}
+
       <div className="flex justify-between items-center">
         <div>
           <h3 className={`text-lg font-semibold ${darkMode ? 'text-white' : 'text-gray-900'}`}>
@@ -159,17 +193,32 @@ export const DockerServicesTab: React.FC<DockerServicesTabProps> = ({
             {services.length} containers running
           </p>
         </div>
-        <button
-          onClick={() => refetch()}
-          className={`flex items-center px-4 py-2 rounded-lg font-medium transition-colors ${
-            darkMode
-              ? 'bg-gray-700/50 hover:bg-gray-600/50 text-gray-300'
-              : 'bg-gray-100 hover:bg-gray-200 text-gray-700'
-          }`}
-        >
-          <RefreshCw className="w-4 h-4 mr-2" />
-          Refresh
-        </button>
+        <div className="flex gap-2">
+          <button
+            onClick={() => syncIpsMutation.mutate()}
+            disabled={syncIpsMutation.isPending}
+            className={`flex items-center px-4 py-2 rounded-lg font-medium transition-colors ${
+              darkMode
+                ? 'bg-blue-600 hover:bg-blue-700 text-white'
+                : 'bg-blue-500 hover:bg-blue-600 text-white'
+            } disabled:opacity-50 disabled:cursor-not-allowed`}
+            title="Sync Docker container IPs to IP Management"
+          >
+            <Network className={`w-4 h-4 mr-2 ${syncIpsMutation.isPending ? 'animate-spin' : ''}`} />
+            {syncIpsMutation.isPending ? 'Syncing...' : 'Sync IPs'}
+          </button>
+          <button
+            onClick={() => refetch()}
+            className={`flex items-center px-4 py-2 rounded-lg font-medium transition-colors ${
+              darkMode
+                ? 'bg-gray-700/50 hover:bg-gray-600/50 text-gray-300'
+                : 'bg-gray-100 hover:bg-gray-200 text-gray-700'
+            }`}
+          >
+            <RefreshCw className="w-4 h-4 mr-2" />
+            Refresh
+          </button>
+        </div>
       </div>
 
       {services.length === 0 ? (

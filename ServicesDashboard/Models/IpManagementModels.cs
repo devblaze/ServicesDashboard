@@ -275,6 +275,7 @@ public enum DeviceType
     Storage,
     Gaming,
     SmartHome,
+    VirtualMachine,
     Other
 }
 
@@ -291,7 +292,8 @@ public enum DiscoverySource
     OmadaController,
     ManualEntry,
     SNMP,
-    ArpTable
+    ArpTable,
+    Docker
 }
 
 public enum DeviceHistoryEventType
