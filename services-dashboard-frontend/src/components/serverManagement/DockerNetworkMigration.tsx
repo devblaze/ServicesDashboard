@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import {
   Network,
   RefreshCw,
@@ -29,11 +29,7 @@ const DockerNetworkMigration: React.FC<DockerNetworkMigrationProps> = ({ serverI
   const [copiedCommand, setCopiedCommand] = useState<string | null>(null);
   const [expandedNetworks, setExpandedNetworks] = useState<Set<string>>(new Set(['br0']));
 
-  useEffect(() => {
-    loadAnalysis();
-  }, [serverId]);
-
-  const loadAnalysis = async () => {
+  const loadAnalysis = useCallback(async () => {
     try {
       setLoading(true);
       const result = await serverManagementApi.analyzeDockerNetworks(serverId);
@@ -43,7 +39,11 @@ const DockerNetworkMigration: React.FC<DockerNetworkMigrationProps> = ({ serverI
     } finally {
       setLoading(false);
     }
-  };
+  }, [serverId]);
+
+  useEffect(() => {
+    loadAnalysis();
+  }, [loadAnalysis]);
 
   const toggleContainerSelection = (containerId: string) => {
     const newSelection = new Set(selectedContainers);
