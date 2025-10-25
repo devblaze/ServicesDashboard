@@ -6,7 +6,7 @@
 
 set -e
 
-REPO_OWNER="${REPO_OWNER:-YOUR_USERNAME}"
+REPO_OWNER="${REPO_OWNER:-devblaze}"
 REPO_NAME="${REPO_NAME:-ServicesDashboard}"
 GITHUB_REPO="$REPO_OWNER/$REPO_NAME"
 

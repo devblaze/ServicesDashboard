@@ -119,3 +119,54 @@ public class IpConflictDetail
     public string? Details { get; set; }
     public string Status { get; set; } = "Unknown"; // "Online", "Offline"
 }
+
+public class DockerNetworkMigrationAnalysis
+{
+    public int ServerId { get; set; }
+    public string ServerName { get; set; } = string.Empty;
+    public Dictionary<string, List<DockerContainerInfo>> ContainersByNetwork { get; set; } = new();
+    public int TotalContainers { get; set; }
+    public int ContainersNeedingMigration { get; set; }
+    public List<string> SuggestedIpRange { get; set; } = new();
+}
+
+public class DockerContainerInfo
+{
+    public string ContainerId { get; set; } = string.Empty;
+    public string Name { get; set; } = string.Empty;
+    public string Image { get; set; } = string.Empty;
+    public string Status { get; set; } = string.Empty;
+    public string NetworkMode { get; set; } = string.Empty;
+    public string? CurrentIp { get; set; }
+    public string? SuggestedIp { get; set; }
+    public bool IsRunning { get; set; }
+    public bool NeedsMigration { get; set; }
+}
+
+public class IpSuggestionRequest
+{
+    public int ServerId { get; set; }
+    public List<string> ContainerIds { get; set; } = new();
+    public string TargetNetwork { get; set; } = "bond0";
+    public string IpRangeStart { get; set; } = "192.168.4.100";
+    public string IpRangeEnd { get; set; } = "192.168.4.249";
+}
+
+public class IpSuggestionResult
+{
+    public bool Success { get; set; }
+    public string? ErrorMessage { get; set; }
+    public List<ContainerIpSuggestion> Suggestions { get; set; } = new();
+    public int TotalChecked { get; set; }
+    public int AvailableIpsFound { get; set; }
+}
+
+public class ContainerIpSuggestion
+{
+    public string ContainerId { get; set; } = string.Empty;
+    public string ContainerName { get; set; } = string.Empty;
+    public string? CurrentIp { get; set; }
+    public string SuggestedIp { get; set; } = string.Empty;
+    public bool HasConflict { get; set; }
+    public List<IpConflictDetail> Conflicts { get; set; } = new();
+}

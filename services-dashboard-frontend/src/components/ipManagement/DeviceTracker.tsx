@@ -1,8 +1,8 @@
 import React, { useState, useEffect } from 'react';
-import { Server, Search, Filter, RefreshCw, Download, Container, Network, Edit2, Check, X, AlertTriangle, Loader2, ChevronUp, ChevronDown } from 'lucide-react';
+import { Server, Search, Filter, RefreshCw, Container, Network, Edit2, Check, X, AlertTriangle, Loader2, ChevronUp, ChevronDown } from 'lucide-react';
 import { ipManagementApi } from '../../services/ipManagementApi';
 import { serverManagementApi, type IpConflictCheckResult } from '../../services/serverManagementApi';
-import type { NetworkDevice, DeviceStatus, DeviceType, DiscoverySource } from '../../types/IpManagement';
+import type { NetworkDevice, DeviceStatus, DiscoverySource } from '../../types/IpManagement';
 import { getDeviceTypeIcon, getDeviceStatusColor } from '../../types/IpManagement';
 
 interface DeviceTrackerProps {
@@ -579,7 +579,7 @@ const DeviceTracker: React.FC<DeviceTrackerProps> = ({ darkMode = true }) => {
                     </td>
                     <td className="px-4 py-3">
                       <span className={`inline-flex items-center px-2 py-1 rounded-full text-xs font-medium ${
-                        getDeviceStatusColor(device.status, darkMode)
+                        getDeviceStatusColor(device.status)
                       }`}>
                         <span className={`w-2 h-2 mr-1.5 rounded-full ${
                           device.status === 'Online' ? 'bg-green-400' :

@@ -106,6 +106,9 @@ builder.Services.AddScoped<IUpdateService, UpdateService>();
 builder.Services.AddScoped<ServicesDashboard.Services.IpManagement.IIpManagementService, ServicesDashboard.Services.IpManagement.IpManagementService>();
 builder.Services.AddScoped<ServicesDashboard.Services.IpManagement.IOmadaControllerService, ServicesDashboard.Services.IpManagement.OmadaControllerService>();
 
+// AI Error Analysis Service
+builder.Services.AddScoped<ServicesDashboard.Services.AI.IAIErrorAnalysisService, ServicesDashboard.Services.AI.AIErrorAnalysisService>();
+
 // Add SignalR for real-time notifications
 builder.Services.AddSignalR();
 

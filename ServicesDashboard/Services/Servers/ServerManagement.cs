@@ -42,6 +42,8 @@ public interface IServerManagementService
     Task<NetworkInterfacesSyncResult> SyncAllNetworkInterfacesAsync(int serverId);
     Task<BulkSyncResult> SyncAllServersAsync();
     Task<IpConflictCheckResult> CheckIpConflictAsync(string ipAddress, int? excludeDeviceId = null);
+    Task<DockerNetworkMigrationAnalysis> AnalyzeDockerNetworksAsync(int serverId);
+    Task<IpSuggestionResult> SuggestIpsForMigrationAsync(IpSuggestionRequest request);
 }
 
 public class ServerManagement : IServerManagementService
@@ -51,18 +53,21 @@ public class ServerManagement : IServerManagementService
     private readonly IOllamaApiClient _ollamaClient;
     private readonly AppSettings _settings;
     private readonly IpManagement.IIpManagementService? _ipManagementService;
+    private readonly IServiceProvider _serviceProvider;
 
     public ServerManagement(
         ServicesDashboardContext context,
         ILogger<ServerManagement> logger,
         IOllamaApiClient ollamaClient,
         IOptions<AppSettings> settings,
+        IServiceProvider serviceProvider,
         IpManagement.IIpManagementService? ipManagementService = null)
     {
         _context = context;
         _logger = logger;
         _ollamaClient = ollamaClient;
         _settings = settings.Value;
+        _serviceProvider = serviceProvider;
         _ipManagementService = ipManagementService;
     }
 
@@ -914,9 +919,14 @@ If some information cannot be determined, use null or reasonable defaults. Focus
 
     public async Task<bool> InstallTmuxAsync(int serverId)
     {
+        ManagedServer? server = null;
+        string osId = "unknown";
+        string lastCommand = "";
+        string lastOutput = "";
+
         try
         {
-            var server = await _context.ManagedServers.FindAsync(serverId);
+            server = await _context.ManagedServers.FindAsync(serverId);
             if (server == null)
                 return false;
 
@@ -926,64 +936,138 @@ If some information cannot be determined, use null or reasonable defaults. Focus
             if (!client.IsConnected)
                 return false;
 
-            // Detect OS and install tmux accordingly
+            // Detect OS
             var osCheckCmd = client.CreateCommand("cat /etc/os-release 2>/dev/null | grep -E '^ID=' | cut -d'=' -f2 | tr -d '\"'");
-            var osId = osCheckCmd.Execute().Trim().ToLower();
+            osId = osCheckCmd.Execute().Trim().ToLower();
 
-            string installCommand;
-            if (osId.Contains("ubuntu") || osId.Contains("debian"))
-            {
-                installCommand = "sudo apt-get update && sudo apt-get install -y tmux";
-            }
-            else if (osId.Contains("centos") || osId.Contains("rhel") || osId.Contains("fedora"))
-            {
-                installCommand = "sudo yum install -y tmux || sudo dnf install -y tmux";
-            }
-            else if (osId.Contains("arch"))
-            {
-                installCommand = "sudo pacman -Sy --noconfirm tmux";
-            }
-            else if (osId.Contains("alpine"))
-            {
-                installCommand = "sudo apk add --no-cache tmux";
-            }
-            else
-            {
-                _logger.LogWarning("Unknown OS type for server {ServerId}: {OsId}", serverId, osId);
-                // Try apt-get as default
-                installCommand = "sudo apt-get update && sudo apt-get install -y tmux";
-            }
+            // Determine installation commands (try without sudo first, then with sudo)
+            var installCommands = GetTmuxInstallCommands(osId);
 
-            _logger.LogInformation("Installing tmux on server {ServerId} with command: {Command}", serverId, installCommand);
+            _logger.LogInformation("Installing tmux on server {ServerId} (OS: {OsId})", serverId, osId);
 
-            var installCmd = client.CreateCommand(installCommand);
-            installCmd.CommandTimeout = TimeSpan.FromMinutes(5); // Installation might take time
-            var output = installCmd.Execute();
+            bool installSuccess = false;
 
-            _logger.LogInformation("tmux installation output for server {ServerId}: {Output}", serverId, output);
+            // Try each command until one succeeds
+            foreach (var installCommand in installCommands)
+            {
+                lastCommand = installCommand;
+                _logger.LogInformation("Trying: {Command}", installCommand);
 
-            // Verify installation
-            var verifyCmd = client.CreateCommand("command -v tmux >/dev/null 2>&1; echo $?");
-            var verifyResult = verifyCmd.Execute().Trim();
+                var installCmd = client.CreateCommand(installCommand);
+                installCmd.CommandTimeout = TimeSpan.FromMinutes(5);
+                lastOutput = installCmd.Execute();
+
+                var exitStatus = installCmd.ExitStatus;
+
+                _logger.LogInformation("Exit status: {Status}, Output: {Output}", exitStatus, lastOutput);
+
+                // Verify installation after each attempt
+                var verifyCmd = client.CreateCommand("command -v tmux >/dev/null 2>&1; echo $?");
+                var verifyResult = verifyCmd.Execute().Trim();
+
+                if (verifyResult == "0")
+                {
+                    installSuccess = true;
+                    _logger.LogInformation("✅ Successfully installed tmux on server {ServerId} using: {Command}", serverId, installCommand);
+                    break;
+                }
+            }
 
             client.Disconnect();
 
-            var success = verifyResult == "0";
-            if (success)
+            if (!installSuccess)
             {
-                _logger.LogInformation("Successfully installed tmux on server {ServerId}", serverId);
-            }
-            else
-            {
-                _logger.LogWarning("tmux installation may have failed on server {ServerId}", serverId);
+                // Installation failed - analyze with AI
+                await AnalyzeInstallationFailureAsync(serverId, osId, lastCommand, lastOutput, server.Name);
             }
 
-            return success;
+            return installSuccess;
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Failed to install tmux on server {ServerId}", serverId);
+            _logger.LogError(ex, "❌ Failed to install tmux on server {ServerId}", serverId);
+
+            // Analyze error with AI
+            await AnalyzeInstallationFailureAsync(serverId, osId, lastCommand, ex.Message, server?.Name ?? "Unknown");
+
             return false;
+        }
+    }
+
+    private List<string> GetTmuxInstallCommands(string osId)
+    {
+        var commands = new List<string>();
+
+        if (osId.Contains("ubuntu") || osId.Contains("debian"))
+        {
+            // Try without sudo first (in case user has passwordless access or is root)
+            commands.Add("apt-get update && apt-get install -y tmux");
+            commands.Add("sudo -n apt-get update && sudo -n apt-get install -y tmux"); // -n = non-interactive
+            commands.Add("sudo apt-get update && sudo apt-get install -y tmux"); // May prompt for password
+        }
+        else if (osId.Contains("centos") || osId.Contains("rhel") || osId.Contains("fedora"))
+        {
+            commands.Add("yum install -y tmux || dnf install -y tmux");
+            commands.Add("sudo -n yum install -y tmux || sudo -n dnf install -y tmux");
+            commands.Add("sudo yum install -y tmux || sudo dnf install -y tmux");
+        }
+        else if (osId.Contains("arch"))
+        {
+            commands.Add("pacman -Sy --noconfirm tmux");
+            commands.Add("sudo -n pacman -Sy --noconfirm tmux");
+            commands.Add("sudo pacman -Sy --noconfirm tmux");
+        }
+        else if (osId.Contains("alpine"))
+        {
+            commands.Add("apk add --no-cache tmux");
+            commands.Add("sudo -n apk add --no-cache tmux");
+            commands.Add("sudo apk add --no-cache tmux");
+        }
+        else
+        {
+            // Default to apt-get
+            _logger.LogWarning("Unknown OS type: {OsId}, trying apt-get", osId);
+            commands.Add("apt-get update && apt-get install -y tmux");
+            commands.Add("sudo -n apt-get update && sudo -n apt-get install -y tmux");
+            commands.Add("sudo apt-get update && sudo apt-get install -y tmux");
+        }
+
+        return commands;
+    }
+
+    private async Task AnalyzeInstallationFailureAsync(int serverId, string osId, string command, string output, string serverName)
+    {
+        try
+        {
+            // Lazy load the AI service to avoid circular dependencies
+            var aiService = _serviceProvider.GetService<AI.IAIErrorAnalysisService>();
+            if (aiService == null)
+            {
+                _logger.LogWarning("AI Error Analysis Service not available");
+                return;
+            }
+
+            var errorContext = new ErrorContext
+            {
+                Operation = $"Install tmux on {serverName}",
+                ErrorMessage = "Failed to install tmux",
+                CommandExecuted = command,
+                CommandOutput = output,
+                ServerOs = osId,
+                ServerId = serverId,
+                AdditionalContext = new Dictionary<string, string>
+                {
+                    ["Package"] = "tmux",
+                    ["Suggestion"] = "Configure passwordless sudo for package installation commands"
+                }
+            };
+
+            // This will log the AI analysis automatically
+            await aiService.CreateErrorNotificationAsync(errorContext);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Failed to analyze tmux installation error with AI");
         }
     }
 
@@ -2678,5 +2762,176 @@ Example: {{""recommendation"": ""Apply security updates immediately, schedule ot
             _logger.LogDebug(ex, "Ping test failed for {IpAddress}", ipAddress);
             return false;
         }
+    }
+
+    public async Task<DockerNetworkMigrationAnalysis> AnalyzeDockerNetworksAsync(int serverId)
+    {
+        var result = new DockerNetworkMigrationAnalysis
+        {
+            ServerId = serverId
+        };
+
+        try
+        {
+            var server = await GetServerAsync(serverId);
+            if (server == null)
+            {
+                return result;
+            }
+
+            result.ServerName = server.Name;
+
+            // Get all Docker containers
+            var discoveryResult = await DiscoverDockerServicesAsync(serverId);
+            if (!discoveryResult.Success)
+            {
+                return result;
+            }
+
+            result.TotalContainers = discoveryResult.Services.Count;
+
+            // Group containers by network mode
+            foreach (var container in discoveryResult.Services)
+            {
+                var networkMode = container.NetworkMode ?? "unknown";
+
+                if (!result.ContainersByNetwork.ContainsKey(networkMode))
+                {
+                    result.ContainersByNetwork[networkMode] = new List<DockerContainerInfo>();
+                }
+
+                var containerInfo = new DockerContainerInfo
+                {
+                    ContainerId = container.ContainerId,
+                    Name = container.Name,
+                    Image = container.Image,
+                    Status = container.Status,
+                    NetworkMode = networkMode,
+                    CurrentIp = container.Networks.FirstOrDefault()?.IpAddress,
+                    IsRunning = container.Status.Contains("Up"),
+                    NeedsMigration = networkMode == "br0" // Mark br0 containers for migration
+                };
+
+                result.ContainersByNetwork[networkMode].Add(containerInfo);
+
+                if (containerInfo.NeedsMigration)
+                {
+                    result.ContainersNeedingMigration++;
+                }
+            }
+
+            // Suggest IP range for migration
+            result.SuggestedIpRange = new List<string> { "192.168.4.100", "192.168.4.249" };
+
+            _logger.LogInformation(
+                "📊 Network Analysis for {ServerName}: {Total} containers, {NeedMigration} need migration from br0",
+                server.Name, result.TotalContainers, result.ContainersNeedingMigration);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Failed to analyze Docker networks for server {ServerId}", serverId);
+        }
+
+        return result;
+    }
+
+    public async Task<IpSuggestionResult> SuggestIpsForMigrationAsync(IpSuggestionRequest request)
+    {
+        var result = new IpSuggestionResult
+        {
+            Success = false
+        };
+
+        try
+        {
+            var server = await GetServerAsync(request.ServerId);
+            if (server == null)
+            {
+                result.ErrorMessage = "Server not found";
+                return result;
+            }
+
+            // Get all Docker containers to identify which ones need suggestions
+            var discoveryResult = await DiscoverDockerServicesAsync(request.ServerId);
+            if (!discoveryResult.Success)
+            {
+                result.ErrorMessage = "Failed to discover Docker containers";
+                return result;
+            }
+
+            _logger.LogInformation("🔍 Finding available IPs in range {Start} - {End} for {Count} containers",
+                request.IpRangeStart, request.IpRangeEnd, request.ContainerIds.Count);
+
+            // Parse IP range
+            var startParts = request.IpRangeStart.Split('.').Select(int.Parse).ToArray();
+            var endParts = request.IpRangeEnd.Split('.').Select(int.Parse).ToArray();
+
+            if (startParts.Length != 4 || endParts.Length != 4)
+            {
+                result.ErrorMessage = "Invalid IP range format";
+                return result;
+            }
+
+            var startLastOctet = startParts[3];
+            var endLastOctet = endParts[3];
+            var ipPrefix = $"{startParts[0]}.{startParts[1]}.{startParts[2]}";
+
+            // Find available IPs for each container
+            foreach (var containerId in request.ContainerIds)
+            {
+                var container = discoveryResult.Services.FirstOrDefault(c => c.ContainerId == containerId);
+                if (container == null)
+                {
+                    _logger.LogWarning("Container {ContainerId} not found", containerId);
+                    continue;
+                }
+
+                string? suggestedIp = null;
+                IpConflictCheckResult? conflictCheck = null;
+
+                // Search for available IP
+                for (int octet = startLastOctet; octet <= endLastOctet; octet++)
+                {
+                    result.TotalChecked++;
+                    var testIp = $"{ipPrefix}.{octet}";
+
+                    // Check if this IP is available
+                    conflictCheck = await CheckIpConflictAsync(testIp);
+
+                    if (conflictCheck.IsAvailable && !conflictCheck.HasConflict)
+                    {
+                        suggestedIp = testIp;
+                        result.AvailableIpsFound++;
+                        break;
+                    }
+                }
+
+                // Create suggestion
+                var suggestion = new ContainerIpSuggestion
+                {
+                    ContainerId = container.ContainerId,
+                    ContainerName = container.Name,
+                    CurrentIp = container.Networks.FirstOrDefault()?.IpAddress,
+                    SuggestedIp = suggestedIp ?? "No available IP found",
+                    HasConflict = suggestedIp == null,
+                    Conflicts = conflictCheck?.HasConflict == true ? conflictCheck.Conflicts : new List<IpConflictDetail>()
+                };
+
+                result.Suggestions.Add(suggestion);
+            }
+
+            result.Success = true;
+
+            _logger.LogInformation(
+                "✅ IP Suggestion completed: {Found} available IPs found out of {Checked} checked for {Containers} containers",
+                result.AvailableIpsFound, result.TotalChecked, request.ContainerIds.Count);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Failed to suggest IPs for migration");
+            result.ErrorMessage = ex.Message;
+        }
+
+        return result;
     }
 }

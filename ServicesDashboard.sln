@@ -13,6 +13,7 @@ Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "Solution Items", "Solution 
 		.gitea\workflows\ci-backend.yml = .gitea\workflows\ci-backend.yml
 		.gitea\workflows\ci-frontend.yml = .gitea\workflows\ci-frontend.yml
 		README-old.md = README-old.md
+		install.sh = install.sh
 	EndProjectSection
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "ServicesDashboard.Tests", "ServicesDashboard.Tests\ServicesDashboard.Tests.csproj", "{1176BFC6-185A-4ADE-B537-18E22CD0F2CD}"
