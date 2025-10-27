@@ -12,7 +12,12 @@ Services Dashboard is a comprehensive monitoring solution that combines real-tim
 
 ### One-Line Install (Linux/macOS/Raspberry Pi)
 
-Get started in seconds with our automated installer:
+Get started in seconds with our automated installer. The installer will automatically:
+- ✅ Detect your system architecture
+- ✅ Check system requirements (RAM, dependencies)
+- ✅ Install required .NET dependencies (ICU library, OpenSSL, CA certificates)
+- ✅ Download and configure the application
+- ✅ Set up systemd service for auto-start
 
 **Raspberry Pi 3/4 (32-bit):**
 ```bash
@@ -58,6 +63,48 @@ sudo journalctl -u servicesdashboard -f
 
 **For Windows:**
 Download the latest release from [GitHub Releases](https://github.com/nickantoniadis/ServicesDashboard/releases/latest) and run `install.ps1` as Administrator.
+
+### 🔧 Troubleshooting Installation
+
+If you encounter issues during installation, try these solutions:
+
+**ICU Library Missing Error (Raspberry Pi/Linux):**
+```
+Process terminated. Couldn't find a valid ICU package installed on the system.
+```
+
+**Solution:**
+```bash
+# Debian/Ubuntu/DietPi
+sudo apt-get update
+sudo apt-get install -y libicu-dev libssl-dev ca-certificates
+
+# RHEL/CentOS/Fedora
+sudo yum install -y icu openssl-libs ca-certificates
+
+# Alpine Linux
+sudo apk add --no-cache icu-libs libssl3 ca-certificates
+
+# After installing dependencies, restart the service
+sudo systemctl restart servicesdashboard
+```
+
+**Service Fails to Start:**
+```bash
+# Check detailed logs
+sudo journalctl -u servicesdashboard -n 50 --no-pager
+
+# Verify service file exists
+sudo systemctl status servicesdashboard
+
+# Check if port 5050 is already in use
+sudo netstat -tlnp | grep 5050
+```
+
+**Insufficient Memory on Raspberry Pi:**
+- Ensure you have at least 1GB RAM (Raspberry Pi 3 or newer)
+- Close unnecessary services to free up memory
+- Consider increasing swap space if needed
 
 ## 🚀 Key Features
 

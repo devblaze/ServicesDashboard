@@ -54,6 +54,72 @@ if [ "$(uname -s)" = "Linux" ]; then
   else
     echo "✅ RAM check passed: ${TOTAL_RAM_MB}MB"
   fi
+
+  # Check and install .NET dependencies for Linux
+  echo ""
+  echo "🔍 Checking .NET dependencies..."
+
+  # Detect package manager
+  if command -v apt-get &> /dev/null; then
+    PKG_MANAGER="apt-get"
+    ICU_PACKAGE="libicu-dev"
+  elif command -v yum &> /dev/null; then
+    PKG_MANAGER="yum"
+    ICU_PACKAGE="icu"
+  elif command -v dnf &> /dev/null; then
+    PKG_MANAGER="dnf"
+    ICU_PACKAGE="icu"
+  elif command -v apk &> /dev/null; then
+    PKG_MANAGER="apk"
+    ICU_PACKAGE="icu-libs"
+  else
+    echo "⚠️  WARNING: Could not detect package manager"
+    echo "   Please ensure ICU library is installed manually:"
+    echo "   - Debian/Ubuntu: sudo apt-get install libicu-dev"
+    echo "   - RHEL/CentOS: sudo yum install icu"
+    echo "   - Alpine: sudo apk add icu-libs"
+    echo ""
+  fi
+
+  # Check if ICU is installed
+  if [ -n "$PKG_MANAGER" ]; then
+    ICU_INSTALLED=false
+
+    # Check for ICU library files
+    if ldconfig -p 2>/dev/null | grep -q libicuuc || [ -f /usr/lib/libicuuc.so* ] || [ -f /usr/lib/*/libicuuc.so* ]; then
+      ICU_INSTALLED=true
+      echo "✅ ICU library found"
+    fi
+
+    if [ "$ICU_INSTALLED" = false ]; then
+      echo "📦 Installing required dependencies..."
+      echo "   Package: $ICU_PACKAGE"
+
+      case "$PKG_MANAGER" in
+        apt-get)
+          apt-get update -qq
+          apt-get install -y $ICU_PACKAGE libssl-dev ca-certificates
+          ;;
+        yum)
+          yum install -y $ICU_PACKAGE openssl-libs ca-certificates
+          ;;
+        dnf)
+          dnf install -y $ICU_PACKAGE openssl-libs ca-certificates
+          ;;
+        apk)
+          apk add --no-cache $ICU_PACKAGE libssl3 ca-certificates
+          ;;
+      esac
+
+      if [ $? -eq 0 ]; then
+        echo "✅ Dependencies installed successfully"
+      else
+        echo "❌ Failed to install dependencies"
+        echo "   Please install manually and try again"
+        exit 1
+      fi
+    fi
+  fi
 fi
 
 # Detect architecture and OS

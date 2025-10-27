@@ -6,6 +6,14 @@
         <ImplicitUsings>enable</ImplicitUsings>
         <DockerDefaultTargetOS>Linux</DockerDefaultTargetOS>
         <PreserveCompilationContext>true</PreserveCompilationContext>
+
+        <!-- FastEndpoints configuration for ARM devices -->
+        <!-- Disable trimming to preserve endpoint discovery -->
+        <PublishTrimmed>false</PublishTrimmed>
+        <!-- If using single-file, ensure all assemblies are included -->
+        <IncludeAllContentForSelfExtract>true</IncludeAllContentForSelfExtract>
+        <!-- Preserve compilation references for reflection -->
+        <CopyRefAssembliesToPublishDirectory>true</CopyRefAssembliesToPublishDirectory>
     </PropertyGroup>
 
     <PropertyGroup>

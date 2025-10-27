@@ -53,6 +53,12 @@ public class ManagedServer
     [Required]
     public ServerGroup Group { get; set; } = ServerGroup.Remote;
 
+    // Wake-on-LAN configuration
+    [MaxLength(17)] // Format: XX:XX:XX:XX:XX:XX
+    public string? MacAddress { get; set; }
+
+    public int WakeOnLanPort { get; set; } = 9; // Default WoL port
+
     // Parent-Child relationship for server hierarchies (e.g., VM host and VMs)
     public int? ParentServerId { get; set; }
 
@@ -71,6 +77,10 @@ public class ManagedServer
     // Computed property to identify if this is the dashboard server
     [NotMapped]
     public bool IsDashboardServer { get; set; }
+
+    // Computed property to check if Wake-on-LAN is supported
+    [NotMapped]
+    public bool SupportsWakeOnLan => !string.IsNullOrWhiteSpace(MacAddress);
 }
 
 public class ServerHealthCheck

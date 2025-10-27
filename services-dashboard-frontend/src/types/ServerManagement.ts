@@ -22,6 +22,9 @@ export interface ManagedServer {
   updateReports?: UpdateReport[];
   alerts?: ServerAlert[];
   isDashboardServer?: boolean;
+  macAddress?: string;
+  wakeOnLanPort?: number;
+  supportsWakeOnLan?: boolean;
 }
 
 export interface CreateServerDto {
@@ -34,6 +37,8 @@ export interface CreateServerDto {
   group: ServerGroup;
   tags?: string | null;
   parentServerId?: number | null;
+  macAddress?: string | null;
+  wakeOnLanPort?: number;
 }
 
 export interface UpdateServerDto {
@@ -46,6 +51,8 @@ export interface UpdateServerDto {
   group?: ServerGroup;
   tags?: string | null;
   parentServerId?: number | null;
+  macAddress?: string | null;
+  wakeOnLanPort?: number;
 }
 
 export interface ServerHealthCheck {
@@ -167,6 +174,16 @@ export const ALERT_SEVERITIES = [
 ] as const;
 
 export type ServerGroup = 'OnPremise' | 'Remote';
+
+export interface WakeOnLanResult {
+  success: boolean;
+  message: string;
+  macAddress?: string;
+  targetHost?: string;
+  port: number;
+  sentAt: string;
+  errorMessage?: string;
+}
 
 export const SERVER_GROUPS = [
   'OnPremise',

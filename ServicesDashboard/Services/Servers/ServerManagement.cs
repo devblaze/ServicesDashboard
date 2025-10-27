@@ -44,6 +44,7 @@ public interface IServerManagementService
     Task<IpConflictCheckResult> CheckIpConflictAsync(string ipAddress, int? excludeDeviceId = null);
     Task<DockerNetworkMigrationAnalysis> AnalyzeDockerNetworksAsync(int serverId);
     Task<IpSuggestionResult> SuggestIpsForMigrationAsync(IpSuggestionRequest request);
+    Task<WakeOnLanResult> SendWakeOnLanAsync(int serverId);
 }
 
 public class ServerManagement : IServerManagementService
@@ -2930,6 +2931,109 @@ Example: {{""recommendation"": ""Apply security updates immediately, schedule ot
         {
             _logger.LogError(ex, "Failed to suggest IPs for migration");
             result.ErrorMessage = ex.Message;
+        }
+
+        return result;
+    }
+
+    public async Task<WakeOnLanResult> SendWakeOnLanAsync(int serverId)
+    {
+        var result = new WakeOnLanResult
+        {
+            Success = false,
+            SentAt = DateTime.UtcNow
+        };
+
+        try
+        {
+            // Get server from database
+            var server = await GetServerAsync(serverId);
+            if (server == null)
+            {
+                result.ErrorMessage = "Server not found";
+                return result;
+            }
+
+            result.TargetHost = server.HostAddress;
+
+            // Validate MAC address
+            if (string.IsNullOrWhiteSpace(server.MacAddress))
+            {
+                result.ErrorMessage = "Server does not have a MAC address configured. Please add a MAC address to enable Wake-on-LAN.";
+                return result;
+            }
+
+            result.MacAddress = server.MacAddress;
+            result.Port = server.WakeOnLanPort;
+
+            _logger.LogInformation("🔌 Sending Wake-on-LAN packet to {ServerName} (MAC: {MacAddress}, Port: {Port})",
+                server.Name, server.MacAddress, server.WakeOnLanPort);
+
+            // Parse MAC address (remove separators)
+            var macString = server.MacAddress.Replace(":", "").Replace("-", "").Replace(".", "");
+
+            if (macString.Length != 12)
+            {
+                result.ErrorMessage = "Invalid MAC address format. Expected format: XX:XX:XX:XX:XX:XX";
+                return result;
+            }
+
+            // Convert MAC address to byte array
+            byte[] macBytes = new byte[6];
+            for (int i = 0; i < 6; i++)
+            {
+                macBytes[i] = Convert.ToByte(macString.Substring(i * 2, 2), 16);
+            }
+
+            // Create magic packet: 6 bytes of 0xFF followed by 16 repetitions of the MAC address
+            byte[] magicPacket = new byte[102]; // 6 + (16 * 6) = 102 bytes
+
+            // First 6 bytes are 0xFF
+            for (int i = 0; i < 6; i++)
+            {
+                magicPacket[i] = 0xFF;
+            }
+
+            // Repeat MAC address 16 times
+            for (int i = 1; i <= 16; i++)
+            {
+                for (int j = 0; j < 6; j++)
+                {
+                    magicPacket[i * 6 + j] = macBytes[j];
+                }
+            }
+
+            // Send magic packet via UDP to broadcast address
+            using var udpClient = new System.Net.Sockets.UdpClient();
+            udpClient.EnableBroadcast = true;
+
+            // Try to determine the broadcast address from the server's host address
+            string broadcastAddress = "255.255.255.255"; // Default to limited broadcast
+
+            // If the server has an IP address, try to calculate the broadcast address
+            if (System.Net.IPAddress.TryParse(server.HostAddress, out var serverIp))
+            {
+                // For simplicity, we'll use the subnet broadcast (assuming /24)
+                var ipParts = server.HostAddress.Split('.');
+                if (ipParts.Length == 4)
+                {
+                    broadcastAddress = $"{ipParts[0]}.{ipParts[1]}.{ipParts[2]}.255";
+                }
+            }
+
+            var endpoint = new System.Net.IPEndPoint(System.Net.IPAddress.Parse(broadcastAddress), server.WakeOnLanPort);
+            await udpClient.SendAsync(magicPacket, magicPacket.Length, endpoint);
+
+            result.Success = true;
+            result.Message = $"Wake-on-LAN packet sent successfully to {server.Name} ({server.MacAddress}) via {broadcastAddress}:{server.WakeOnLanPort}";
+
+            _logger.LogInformation("✅ Wake-on-LAN packet sent successfully to {ServerName} ({MacAddress}) via {BroadcastAddress}:{Port}",
+                server.Name, server.MacAddress, broadcastAddress, server.WakeOnLanPort);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Failed to send Wake-on-LAN packet for server {ServerId}", serverId);
+            result.ErrorMessage = $"Failed to send Wake-on-LAN packet: {ex.Message}";
         }
 
         return result;

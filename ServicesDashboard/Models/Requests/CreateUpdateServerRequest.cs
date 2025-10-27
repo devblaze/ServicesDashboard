@@ -27,4 +27,10 @@ public class CreateUpdateServerRequest
     public string? Tags { get; set; }
 
     public int? ParentServerId { get; set; }
+
+    [StringLength(17, ErrorMessage = "MAC address must not exceed 17 characters (format: XX:XX:XX:XX:XX:XX)")]
+    public string? MacAddress { get; set; }
+
+    [Range(1, 65535, ErrorMessage = "Wake-on-LAN port must be between 1 and 65535")]
+    public int WakeOnLanPort { get; set; } = 9;
 }

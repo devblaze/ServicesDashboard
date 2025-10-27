@@ -7,6 +7,8 @@ namespace ServicesDashboard.Endpoints.NetworkDiscovery;
 public class GetScanResultsRequest
 {
     public Guid ScanId { get; set; }
+    public string SortBy { get; set; } = "ip";
+    public string SortOrder { get; set; } = "asc";
 }
 
 public class GetScanResultsEndpoint : Endpoint<GetScanResultsRequest, IEnumerable<StoredDiscoveredService>>
@@ -32,7 +34,7 @@ public class GetScanResultsEndpoint : Endpoint<GetScanResultsRequest, IEnumerabl
     {
         try
         {
-            var results = await _backgroundScanService.GetScanResultsAsync(req.ScanId);
+            var results = await _backgroundScanService.GetScanResultsAsync(req.ScanId, req.SortBy, req.SortOrder);
             await Send.OkAsync(results, ct);
         }
         catch (Exception ex)

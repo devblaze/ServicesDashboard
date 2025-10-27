@@ -12,8 +12,8 @@ public interface IBackgroundNetworkScanService
     Task<Guid> StartScanAsync(string target, string scanType, int[]? ports = null, bool fullScan = false);
     Task<NetworkScanSession?> GetScanStatusAsync(Guid scanId);
     Task<IEnumerable<NetworkScanSession>> GetRecentScansAsync(int limit = 10);
-    Task<IEnumerable<StoredDiscoveredService>> GetScanResultsAsync(Guid scanId);
-    Task<IEnumerable<StoredDiscoveredService>> GetLatestDiscoveredServicesAsync(string target);
+    Task<IEnumerable<StoredDiscoveredService>> GetScanResultsAsync(Guid scanId, string sortBy = "ip", string sortOrder = "asc");
+    Task<IEnumerable<StoredDiscoveredService>> GetLatestDiscoveredServicesAsync(string target, string sortBy = "ip", string sortOrder = "asc");
     Task MarkServicesInactiveAsync(string target, IEnumerable<string> currentServiceKeys);
 }
 
@@ -102,19 +102,22 @@ public class BackgroundNetworkScan : BackgroundService, IBackgroundNetworkScanSe
             .ToListAsync();
     }
 
-    public async Task<IEnumerable<StoredDiscoveredService>> GetScanResultsAsync(Guid scanId)
+    public async Task<IEnumerable<StoredDiscoveredService>> GetScanResultsAsync(Guid scanId, string sortBy = "ip", string sortOrder = "asc")
     {
         using var scope = _serviceProvider.CreateScope();
         var context = scope.ServiceProvider.GetRequiredService<ServicesDashboardContext>();
 
-        return await context.StoredDiscoveredServices
+        var query = context.StoredDiscoveredServices
             .Where(s => s.ScanId == scanId)
-            .OrderBy(s => s.HostAddress)
-            .ThenBy(s => s.Port)
-            .ToListAsync();
+            .AsQueryable();
+
+        // Apply sorting
+        query = ApplySorting(query, sortBy, sortOrder);
+
+        return await query.ToListAsync();
     }
 
-    public async Task<IEnumerable<StoredDiscoveredService>> GetLatestDiscoveredServicesAsync(string target)
+    public async Task<IEnumerable<StoredDiscoveredService>> GetLatestDiscoveredServicesAsync(string target, string sortBy = "ip", string sortOrder = "asc")
     {
         using var scope = _serviceProvider.CreateScope();
         var context = scope.ServiceProvider.GetRequiredService<ServicesDashboardContext>();
@@ -128,11 +131,14 @@ public class BackgroundNetworkScan : BackgroundService, IBackgroundNetworkScanSe
         if (latestScan == null)
             return Enumerable.Empty<StoredDiscoveredService>();
 
-        return await context.StoredDiscoveredServices
+        var query = context.StoredDiscoveredServices
             .Where(s => s.ScanId == latestScan.Id)
-            .OrderBy(s => s.HostAddress)
-            .ThenBy(s => s.Port)
-            .ToListAsync();
+            .AsQueryable();
+
+        // Apply sorting
+        query = ApplySorting(query, sortBy, sortOrder);
+
+        return await query.ToListAsync();
     }
 
     public async Task MarkServicesInactiveAsync(string target, IEnumerable<string> currentServiceKeys)
@@ -476,6 +482,100 @@ public class BackgroundNetworkScan : BackgroundService, IBackgroundNetworkScanSe
         }
 
         await context.SaveChangesAsync();
+    }
+
+    private static IQueryable<StoredDiscoveredService> ApplySorting(
+        IQueryable<StoredDiscoveredService> query,
+        string sortBy,
+        string sortOrder)
+    {
+        // Sort by IP addresses numerically (not alphabetically)
+        if (sortBy.Equals("ip", StringComparison.OrdinalIgnoreCase))
+        {
+            if (sortOrder.Equals("desc", StringComparison.OrdinalIgnoreCase))
+            {
+                // For descending: Sort by each octet in reverse
+                return query
+                    .OrderByDescending(s => ConvertIpToSortableString(s.HostAddress))
+                    .ThenByDescending(s => s.Port);
+            }
+            else
+            {
+                // For ascending: Sort by each octet
+                return query
+                    .OrderBy(s => ConvertIpToSortableString(s.HostAddress))
+                    .ThenBy(s => s.Port);
+            }
+        }
+        // Sort by port
+        else if (sortBy.Equals("port", StringComparison.OrdinalIgnoreCase))
+        {
+            if (sortOrder.Equals("desc", StringComparison.OrdinalIgnoreCase))
+            {
+                return query
+                    .OrderByDescending(s => s.Port)
+                    .ThenBy(s => ConvertIpToSortableString(s.HostAddress));
+            }
+            else
+            {
+                return query
+                    .OrderBy(s => s.Port)
+                    .ThenBy(s => ConvertIpToSortableString(s.HostAddress));
+            }
+        }
+        // Sort by response time
+        else if (sortBy.Equals("responseTime", StringComparison.OrdinalIgnoreCase))
+        {
+            if (sortOrder.Equals("desc", StringComparison.OrdinalIgnoreCase))
+            {
+                return query
+                    .OrderByDescending(s => s.ResponseTimeMs)
+                    .ThenBy(s => ConvertIpToSortableString(s.HostAddress));
+            }
+            else
+            {
+                return query
+                    .OrderBy(s => s.ResponseTimeMs)
+                    .ThenBy(s => ConvertIpToSortableString(s.HostAddress));
+            }
+        }
+        // Default: sort by IP ascending
+        else
+        {
+            return query
+                .OrderBy(s => ConvertIpToSortableString(s.HostAddress))
+                .ThenBy(s => s.Port);
+        }
+    }
+
+    /// <summary>
+    /// Converts an IP address to a sortable string format.
+    /// Pads each octet to 3 digits so sorting works correctly: "192.168.001.001"
+    /// </summary>
+    private static string ConvertIpToSortableString(string ipAddress)
+    {
+        try
+        {
+            // Try to parse as IPv4
+            var parts = ipAddress.Split('.');
+            if (parts.Length == 4)
+            {
+                // Pad each octet to 3 digits
+                return string.Join(".", parts.Select(p =>
+                {
+                    if (int.TryParse(p, out var octet))
+                        return octet.ToString("000");
+                    return p.PadLeft(3, '0');
+                }));
+            }
+
+            // If not IPv4, return as-is (handles hostnames, IPv6, etc.)
+            return ipAddress;
+        }
+        catch
+        {
+            return ipAddress;
+        }
     }
 
     // Add this helper method to the BackgroundNetworkScan class

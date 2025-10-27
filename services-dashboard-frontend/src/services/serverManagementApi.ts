@@ -10,6 +10,7 @@ import type {
   ServerGroup,
   AlertType,
   AlertSeverity,
+  WakeOnLanResult,
 } from '../types/ServerManagement';
 import { mockServers } from '../mocks/mockServers';
 import { generateMockServerLogs, generateMockLogAnalysis } from '../mocks/mockServerLogs';
@@ -521,6 +522,7 @@ class ServerManagementApiClient extends BaseApiClient {
         ...existingServer,
         ...server,
         tags: server.tags === null ? undefined : server.tags ?? existingServer.tags,
+        macAddress: server.macAddress === null ? undefined : server.macAddress ?? existingServer.macAddress,
         updatedAt: new Date().toISOString(),
       };
     }
@@ -614,6 +616,24 @@ class ServerManagementApiClient extends BaseApiClient {
     }
 
     return this.request<UpdateReport>('post', `/servermanagement/${serverId}/check-updates`, {});
+  }
+
+  async sendWakeOnLan(serverId: number): Promise<WakeOnLanResult> {
+    if (isDemoMode()) {
+      await new Promise(resolve => setTimeout(resolve, 500));
+      const result: WakeOnLanResult = {
+        success: true,
+        message: 'Wake-on-LAN packet sent successfully (demo mode)',
+        macAddress: '00:11:22:33:44:55',
+        targetHost: 'demo-server',
+        port: 9,
+        sentAt: new Date().toISOString(),
+      };
+      console.log('Demo mode: simulating Wake-on-LAN packet', result);
+      return result;
+    }
+
+    return this.request<WakeOnLanResult>('post', `/servermanagement/${serverId}/wake-on-lan`, {});
   }
 
   async testServerConnection(server: ManagedServer): Promise<boolean> {

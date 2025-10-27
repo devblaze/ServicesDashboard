@@ -8,7 +8,8 @@ import {
   MemoryStick,
   Shield,
   CheckSquare,
-  Square
+  Square,
+  Power
 } from 'lucide-react';
 import type { ManagedServer } from '../../types/ServerManagement';
 import { serverManagementApi } from '../../services/serverManagementApi';
@@ -86,6 +87,18 @@ export const ServerCard: React.FC<ServerCardProps> = ({
           return s;
         });
       });
+    },
+  });
+
+  // Wake-on-LAN mutation
+  const wakeOnLanMutation = useMutation({
+    mutationFn: () => serverManagementApi.sendWakeOnLan(server.id),
+    onSuccess: (result) => {
+      if (result.success) {
+        console.log('Wake-on-LAN packet sent successfully:', result.message);
+      } else {
+        console.error('Wake-on-LAN failed:', result.errorMessage);
+      }
     },
   });
 
@@ -247,46 +260,71 @@ export const ServerCard: React.FC<ServerCardProps> = ({
 
         {/* Actions - Hide in selection mode */}
         {!isSelectionMode && (
-          <div className="flex space-x-2">
-            <button
-              onClick={(e) => {
-                e.stopPropagation();
-                healthCheckMutation.mutate();
-              }}
-              disabled={healthCheckMutation.isPending}
-              className={`flex items-center flex-1 px-3 py-2 rounded-lg text-sm font-medium transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed ${
-                darkMode
-                  ? 'bg-gray-700/50 hover:bg-gray-600/50 text-gray-300 hover:text-white'
-                  : 'bg-gray-100/50 hover:bg-gray-200/50 text-gray-700 hover:text-gray-900'
-              }`}
-            >
-              {healthCheckMutation.isPending ? (
-                <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-              ) : (
-                <Activity className="w-4 h-4 mr-2" />
-              )}
-              {healthCheckMutation.isPending ? 'Checking...' : 'Health Check'}
-            </button>
+          <div className="space-y-2">
+            <div className="flex space-x-2">
+              <button
+                onClick={(e) => {
+                  e.stopPropagation();
+                  healthCheckMutation.mutate();
+                }}
+                disabled={healthCheckMutation.isPending}
+                className={`flex items-center flex-1 px-3 py-2 rounded-lg text-sm font-medium transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed ${
+                  darkMode
+                    ? 'bg-gray-700/50 hover:bg-gray-600/50 text-gray-300 hover:text-white'
+                    : 'bg-gray-100/50 hover:bg-gray-200/50 text-gray-700 hover:text-gray-900'
+                }`}
+              >
+                {healthCheckMutation.isPending ? (
+                  <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                ) : (
+                  <Activity className="w-4 h-4 mr-2" />
+                )}
+                {healthCheckMutation.isPending ? 'Checking...' : 'Health Check'}
+              </button>
 
-            <button
-              onClick={(e) => {
-                e.stopPropagation();
-                updateCheckMutation.mutate();
-              }}
-              disabled={updateCheckMutation.isPending}
-              className={`flex items-center flex-1 px-3 py-2 rounded-lg text-sm font-medium transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed ${
-                darkMode
-                  ? 'bg-gray-700/50 hover:bg-gray-600/50 text-gray-300 hover:text-white'
-                  : 'bg-gray-100/50 hover:bg-gray-200/50 text-gray-700 hover:text-gray-900'
-              }`}
-            >
-              {updateCheckMutation.isPending ? (
-                <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-              ) : (
-                <Shield className="w-4 h-4 mr-2" />
-              )}
-              {updateCheckMutation.isPending ? 'Checking...' : 'Check Updates'}
-            </button>
+              <button
+                onClick={(e) => {
+                  e.stopPropagation();
+                  updateCheckMutation.mutate();
+                }}
+                disabled={updateCheckMutation.isPending}
+                className={`flex items-center flex-1 px-3 py-2 rounded-lg text-sm font-medium transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed ${
+                  darkMode
+                    ? 'bg-gray-700/50 hover:bg-gray-600/50 text-gray-300 hover:text-white'
+                    : 'bg-gray-100/50 hover:bg-gray-200/50 text-gray-700 hover:text-gray-900'
+                }`}
+              >
+                {updateCheckMutation.isPending ? (
+                  <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                ) : (
+                  <Shield className="w-4 h-4 mr-2" />
+                )}
+                {updateCheckMutation.isPending ? 'Checking...' : 'Check Updates'}
+              </button>
+            </div>
+
+            {/* Wake-on-LAN Button - Show when server is offline and has MAC address */}
+            {server.macAddress && server.status === 'Offline' && (
+              <button
+                onClick={(e) => {
+                  e.stopPropagation();
+                  wakeOnLanMutation.mutate();
+                }}
+                disabled={wakeOnLanMutation.isPending}
+                className={`flex items-center justify-center w-full px-3 py-2 rounded-lg text-sm font-medium transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed ${
+                  darkMode
+                    ? 'bg-green-900/30 hover:bg-green-800/40 text-green-300 hover:text-green-200 border border-green-700/50'
+                    : 'bg-green-50 hover:bg-green-100 text-green-700 hover:text-green-800 border border-green-200'
+                }`}
+              >
+                {wakeOnLanMutation.isPending ? (
+                  <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                ) : (
+                  <Power className="w-4 h-4 mr-2" />
+                )}
+                {wakeOnLanMutation.isPending ? 'Waking up...' : 'Wake Server'}
+              </button>
+            )}
           </div>
         )}
       </div>
