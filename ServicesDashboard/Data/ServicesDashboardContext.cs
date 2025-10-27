@@ -26,6 +26,7 @@ public class ServicesDashboardContext : DbContext
     public DbSet<TaskExecution> TaskExecutions { get; set; }
     public DbSet<GitProviderConnection> GitProviderConnections { get; set; }
     public DbSet<GitRepository> GitRepositories { get; set; }
+    public DbSet<GitBranch> GitBranches { get; set; }
     public DbSet<Deployment> Deployments { get; set; }
     public DbSet<DeploymentEnvironment> DeploymentEnvironments { get; set; }
     public DbSet<PortAllocation> PortAllocations { get; set; }
@@ -269,6 +270,26 @@ public class ServicesDashboardContext : DbContext
             entity.HasIndex(e => new { e.GitProviderConnectionId, e.FullName }).IsUnique();
         });
 
+        // Configure GitBranch
+        modelBuilder.Entity<GitBranch>(entity =>
+        {
+            entity.HasKey(e => e.Id);
+            entity.HasOne(e => e.Repository)
+                  .WithMany(e => e.Branches)
+                  .HasForeignKey(e => e.RepositoryId)
+                  .OnDelete(DeleteBehavior.Cascade);
+            entity.HasOne(e => e.Deployment)
+                  .WithOne()
+                  .HasForeignKey<GitBranch>(e => e.DeploymentId)
+                  .OnDelete(DeleteBehavior.SetNull);
+            entity.Property(e => e.Name).IsRequired().HasMaxLength(200);
+            entity.Property(e => e.CommitSha).IsRequired().HasMaxLength(100);
+            entity.Property(e => e.DetectedAt).HasDefaultValueSql("CURRENT_TIMESTAMP");
+            entity.Property(e => e.UpdatedAt).HasDefaultValueSql("CURRENT_TIMESTAMP");
+            entity.HasIndex(e => new { e.RepositoryId, e.Name }).IsUnique();
+            entity.HasIndex(e => e.HasAutoDeployment);
+        });
+
         // Configure Deployment
         modelBuilder.Entity<Deployment>(entity =>
         {
@@ -316,9 +337,13 @@ public class ServicesDashboardContext : DbContext
             entity.HasOne(e => e.Deployment)
                   .WithMany(e => e.AllocatedPorts)
                   .HasForeignKey(e => e.DeploymentId)
-                  .OnDelete(DeleteBehavior.Cascade);
-            entity.Property(e => e.AllocatedAt).HasDefaultValueSql("CURRENT_TIMESTAMP");
-            entity.HasIndex(e => new { e.ServerId, e.Port }).IsUnique();
+                  .OnDelete(DeleteBehavior.SetNull); // Changed to SetNull since DeploymentId is now optional
+            entity.Property(e => e.Status).HasConversion<string>();
+            entity.Property(e => e.AllocationType).HasConversion<string>();
+            entity.Property(e => e.CreatedAt).HasDefaultValueSql("CURRENT_TIMESTAMP");
+            entity.Property(e => e.UpdatedAt).HasDefaultValueSql("CURRENT_TIMESTAMP");
+            entity.HasIndex(e => new { e.ServerId, e.Port, e.Status });
+            entity.HasIndex(e => e.ServiceId);
         });
 
         // Configure Subnet

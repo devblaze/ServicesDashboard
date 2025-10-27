@@ -26,6 +26,7 @@ interface FormData {
   name: string;
   baseUrl: string;
   accessToken: string;
+  username: string;
   isActive: boolean;
 }
 
@@ -43,6 +44,7 @@ export const EditGitProviderModal: React.FC<EditGitProviderModalProps> = ({
     name: '',
     baseUrl: '',
     accessToken: '',
+    username: '',
     isActive: true,
   });
   const [errors, setErrors] = useState<FormErrors>({});
@@ -63,6 +65,7 @@ export const EditGitProviderModal: React.FC<EditGitProviderModalProps> = ({
         name: provider.name,
         baseUrl: provider.baseUrl,
         accessToken: '', // Never pre-fill tokens for security
+        username: '',
         isActive: provider.isActive,
       });
     }
@@ -96,10 +99,14 @@ export const EditGitProviderModal: React.FC<EditGitProviderModalProps> = ({
     },
     onSuccess: (result) => {
       setConnectionTestResult({
-        success: result.isSuccessful,
+        success: result.success,
         message: result.message,
-        userInfo: result.userInfo,
+        userInfo: result.username,
       });
+      // Update form data with the username from successful connection test
+      if (result.username) {
+        setFormData(prev => ({ ...prev, username: result.username || '' }));
+      }
       setIsTestingConnection(false);
     },
     onError: (error) => {
@@ -209,6 +216,11 @@ export const EditGitProviderModal: React.FC<EditGitProviderModalProps> = ({
       updateData.accessToken = formData.accessToken.trim();
     }
 
+    // Include username if available (from connection test)
+    if (formData.username.trim()) {
+      updateData.username = formData.username.trim();
+    }
+
     updateProviderMutation.mutate(updateData);
   }, [formData, provider, validateForm, updateProviderMutation]);
 
@@ -219,6 +231,7 @@ export const EditGitProviderModal: React.FC<EditGitProviderModalProps> = ({
       name: '',
       baseUrl: '',
       accessToken: '',
+      username: '',
       isActive: true,
     });
     setErrors({});

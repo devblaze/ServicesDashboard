@@ -16,6 +16,7 @@ const DockerServices = lazy(() => import('./components/pages/DockerServicesManag
 const NetworkDiscovery = lazy(() => import('./components/pages/NetworkDiscovery.tsx').then(module => ({ default: module.NetworkDiscovery })));
 const ScheduledTasksPage = lazy(() => import('./components/pages/ScheduledTasksPage.tsx').then(module => ({ default: module.ScheduledTasksPage })));
 const DeploymentsManagement = lazy(() => import('./components/pages/DeploymentsManagement.tsx').then(module => ({ default: module.DeploymentsManagement })));
+const SelfHostedServices = lazy(() => import('./components/pages/SelfHostedServices.tsx').then(module => ({ default: module.SelfHostedServices })));
 const ApplicationSettings = lazy(() => import('./components/pages/ApplicationSettings.tsx').then(module => ({ default: module.ApplicationSettings })));
 const IpManagementPage = lazy(() => import('./pages/IpManagementPage'));
 import {
@@ -36,7 +37,7 @@ import {
 } from 'lucide-react';
 import './App.css';
 
-type TabType = 'services' | 'servers' | 'docker' | 'network' | 'ip-management' | 'tasks' | 'deployments' | 'connection' | 'settings';
+type TabType = 'services' | 'servers' | 'docker' | 'self-hosted' | 'network' | 'ip-management' | 'tasks' | 'deployments' | 'connection' | 'settings';
 
 interface MenuItem {
   id: TabType;
@@ -93,6 +94,7 @@ function App() {
       items: [
         { id: 'servers' as const, name: 'Servers', icon: Server },
         { id: 'docker' as const, name: 'Docker Services', icon: Container },
+        { id: 'self-hosted' as const, name: 'Self-Hosted Services', icon: Server },
         { id: 'network' as const, name: 'Network Discovery', icon: Network },
         { id: 'ip-management' as const, name: 'IP Management', icon: Globe },
       ],
@@ -315,6 +317,7 @@ function App() {
                 <Route path="/services" element={<ServicesList darkMode={darkMode} />} />
                 <Route path="/servers" element={<ServerManagement darkMode={darkMode} />} />
                 <Route path="/docker" element={<DockerServices darkMode={darkMode} />} />
+                <Route path="/self-hosted" element={<SelfHostedServices darkMode={darkMode} />} />
                 <Route path="/network" element={<NetworkDiscovery darkMode={darkMode} />} />
                 <Route path="/ip-management" element={<IpManagementPage darkMode={darkMode} />} />
                 <Route path="/tasks" element={<ScheduledTasksPage darkMode={darkMode} />} />

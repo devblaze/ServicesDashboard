@@ -17,6 +17,7 @@ using ServicesDashboard.Services.Tasks;
 using ServicesDashboard.Hubs;
 using ServicesDashboard.Services.Deployment;
 using ServicesDashboard.Services.Git;
+using ServicesDashboard.Services.SelfHosted;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -98,6 +99,10 @@ builder.Services.AddScoped<IPortAllocationService, PortAllocationService>();
 builder.Services.AddScoped<IDeploymentService, DeploymentService>();
 builder.Services.AddScoped<IDeploymentExecutor, DeploymentExecutor>();
 builder.Services.AddScoped<IAiDeploymentAssistant, AiDeploymentAssistant>();
+
+// Self-Hosted Services (Unified Docker + Deployments)
+builder.Services.AddScoped<ISelfHostedServicesService, SelfHostedServicesService>();
+builder.Services.AddScoped<IPortManagementService, PortManagementService>();
 
 // Update Service
 builder.Services.AddScoped<IUpdateService, UpdateService>();
