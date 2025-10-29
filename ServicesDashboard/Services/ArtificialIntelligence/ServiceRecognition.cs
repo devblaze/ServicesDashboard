@@ -69,7 +69,17 @@ public class ServiceRecognition : IServiceRecognitionService
         _settings = settings.Value.Ollama;
         _logger = logger;
         _httpClient = httpClient;
-        _ollamaClient = new OllamaApiClient(new Uri(_settings.BaseUrl));
+
+        // Only initialize Ollama client if URL is valid
+        if (!string.IsNullOrWhiteSpace(_settings.BaseUrl) && Uri.TryCreate(_settings.BaseUrl, UriKind.Absolute, out var ollamaUri))
+        {
+            _ollamaClient = new OllamaApiClient(ollamaUri);
+        }
+        else
+        {
+            _logger.LogWarning("Ollama BaseUrl is not configured or invalid. AI features will be disabled.");
+            _ollamaClient = null!;
+        }
     }
 
     public async Task<ServiceRecognitionResult> RecognizeServiceAsync(
@@ -139,23 +149,23 @@ public class ServiceRecognition : IServiceRecognitionService
     }
 
     private async Task<AIAnalysisResult?> AnalyzeServiceWithAI(
-        string hostAddress, 
-        int port, 
-        string serviceType, 
-        string? banner, 
-        string? htmlContent, 
+        string hostAddress,
+        int port,
+        string serviceType,
+        string? banner,
+        string? htmlContent,
         string? title,
         CancellationToken cancellationToken)
     {
         try
         {
-            if (!_settings.EnableServiceRecognition)
+            if (!_settings.EnableServiceRecognition || _ollamaClient == null)
             {
                 return null;
             }
 
             var prompt = BuildAnalysisPrompt(hostAddress, port, serviceType, banner, htmlContent, title);
-        
+
             var request = new GenerateRequest
             {
                 Model = _settings.Model,
@@ -435,6 +445,12 @@ public class ServiceRecognition : IServiceRecognitionService
     {
         try
         {
+            if (_ollamaClient == null || string.IsNullOrWhiteSpace(_settings.BaseUrl))
+            {
+                _logger.LogWarning("Ollama is not configured");
+                return false;
+            }
+
             // Use direct HTTP call to test connection since API methods are unclear
             var response = await _httpClient.GetAsync($"{_settings.BaseUrl.TrimEnd('/')}/api/tags");
             return response.IsSuccessStatusCode;
