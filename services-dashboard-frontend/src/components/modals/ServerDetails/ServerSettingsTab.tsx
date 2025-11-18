@@ -29,6 +29,40 @@ const SERVER_TYPES: { value: ServerType; label: string; icon: string }[] = [
   { value: 'Container', label: 'Container', icon: '📦' },
 ];
 
+// Move FormField component outside to prevent re-creation on every render
+const FormField: React.FC<{
+  label: string;
+  value: string | number;
+  onChange: (value: string) => void;
+  type?: 'text' | 'number';
+  isEditing: boolean;
+  darkMode: boolean;
+}> = ({ label, value, onChange, type = 'text', isEditing, darkMode }) => (
+  <div>
+    <label className={`block text-sm font-medium mb-2 ${
+      darkMode ? 'text-gray-200' : 'text-gray-700'
+    }`}>
+      {label}
+    </label>
+    {isEditing ? (
+      <input
+        type={type}
+        value={value}
+        onChange={(e) => onChange(e.target.value)}
+        className={`w-full px-3 py-2 rounded-lg border ${
+          darkMode
+            ? 'bg-gray-700/50 border-gray-600/50 text-white'
+            : 'bg-white border-gray-300 text-gray-900'
+        } focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500/50`}
+      />
+    ) : (
+      <p className={`px-3 py-2 ${darkMode ? 'text-gray-200' : 'text-gray-800'}`}>
+        {value}
+      </p>
+    )}
+  </div>
+);
+
 export const SettingsTab: React.FC<SettingsTabProps> = ({
   server,
   darkMode,
@@ -88,37 +122,6 @@ export const SettingsTab: React.FC<SettingsTabProps> = ({
     updateServerMutation.mutate(updates);
   };
 
-  const FormField: React.FC<{
-    label: string;
-    value: string | number;
-    onChange: (value: string) => void;
-    type?: 'text' | 'number';
-  }> = ({ label, value, onChange, type = 'text' }) => (
-    <div>
-      <label className={`block text-sm font-medium mb-2 ${
-        darkMode ? 'text-gray-200' : 'text-gray-700'
-      }`}>
-        {label}
-      </label>
-      {isEditing ? (
-        <input
-          type={type}
-          value={value}
-          onChange={(e) => onChange(e.target.value)}
-          className={`w-full px-3 py-2 rounded-lg border ${
-            darkMode
-              ? 'bg-gray-700/50 border-gray-600/50 text-white'
-              : 'bg-white border-gray-300 text-gray-900'
-          } focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500/50`}
-        />
-      ) : (
-        <p className={`px-3 py-2 ${darkMode ? 'text-gray-200' : 'text-gray-800'}`}>
-          {value}
-        </p>
-      )}
-    </div>
-  );
-
   return (
     <div className="p-6">
       <div className="flex items-center justify-between mb-6">
@@ -177,22 +180,30 @@ export const SettingsTab: React.FC<SettingsTabProps> = ({
           label="Server Name"
           value={editForm.name}
           onChange={(value) => setEditForm({...editForm, name: value})}
+          isEditing={isEditing}
+          darkMode={darkMode}
         />
         <FormField
           label="Host Address"
           value={editForm.hostAddress}
           onChange={(value) => setEditForm({...editForm, hostAddress: value})}
+          isEditing={isEditing}
+          darkMode={darkMode}
         />
         <FormField
           label="SSH Port"
           value={editForm.sshPort}
           onChange={(value) => setEditForm({...editForm, sshPort: parseInt(value) || 22})}
           type="number"
+          isEditing={isEditing}
+          darkMode={darkMode}
         />
         <FormField
           label="Username"
           value={editForm.username}
           onChange={(value) => setEditForm({...editForm, username: value})}
+          isEditing={isEditing}
+          darkMode={darkMode}
         />
 
         {/* Server Type */}
@@ -291,6 +302,8 @@ export const SettingsTab: React.FC<SettingsTabProps> = ({
           label="Tags"
           value={editForm.tags}
           onChange={(value) => setEditForm({...editForm, tags: value})}
+          isEditing={isEditing}
+          darkMode={darkMode}
         />
       </div>
 

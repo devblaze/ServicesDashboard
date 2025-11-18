@@ -17,7 +17,7 @@ const DEFAULT_CONFIG: AutoMonitoringConfig = {
     enableServerConnectivityCheck: true,
     enableServerHealthCheck: true,
     enableServiceHealthCheck: true,
-    connectivityCheckInterval: 60 * 1000, // 1 minute
+    connectivityCheckInterval: 45 * 1000, // 45 seconds - more frequent status updates
     healthCheckInterval: 5 * 60 * 1000, // 5 minutes
 };
 
@@ -66,10 +66,11 @@ export const useAutoMonitoring = (config: Partial<AutoMonitoringConfig> = {}) =>
                         };
                     }
 
-                    // If connectivity check failed, mark as unknown
+                    // If connectivity check failed (promise rejected), mark as offline
+                    // since we couldn't reach the server to verify its status
                     return {
                         ...server,
-                        status: 'Unknown' as const,
+                        status: 'Offline' as const,
                         lastCheckTime: new Date().toISOString()
                     };
                 });
@@ -145,6 +146,15 @@ export const useAutoMonitoring = (config: Partial<AutoMonitoringConfig> = {}) =>
                                     status: newStatus,
                                     healthChecks: [healthCheck, ...(server.healthChecks || [])].slice(0, 10), // Keep last 10
                                     lastCheckTime: healthCheck.checkTime
+                                };
+                            }
+
+                            // If health check failed, mark as offline since we couldn't connect
+                            if (result.status === 'fulfilled' && !result.value.success) {
+                                return {
+                                    ...server,
+                                    status: 'Offline' as const,
+                                    lastCheckTime: new Date().toISOString()
                                 };
                             }
 

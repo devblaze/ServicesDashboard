@@ -110,11 +110,21 @@ export const AddServerModal: React.FC<AddServerModalProps> = ({
     mutationFn: async (data: CreateServerDto) => {
       return await serverManagementApi.addServer(data);
     },
-    onSuccess: () => {
+    onSuccess: async (newServer) => {
       // Invalidate and refetch servers list
       queryClient.invalidateQueries({ queryKey: ['managed-servers'] });
       queryClient.invalidateQueries({ queryKey: ['server-alerts'] });
-      
+
+      // Trigger immediate health check for the new server to get accurate status
+      try {
+        await serverManagementApi.performHealthCheck(newServer.id);
+        // Invalidate queries again to update with health check results
+        queryClient.invalidateQueries({ queryKey: ['managed-servers'] });
+      } catch (error) {
+        console.error('Initial health check failed:', error);
+        // Don't block modal closing if health check fails
+      }
+
       // Reset form and close modal
       handleClose();
     },

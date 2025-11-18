@@ -107,7 +107,7 @@ export const ServerCard: React.FC<ServerCardProps> = ({
       case 'Online': return 'border-green-500/50 bg-green-500/10';
       case 'Warning': return 'border-yellow-500/50 bg-yellow-500/10';
       case 'Critical': return 'border-red-500/50 bg-red-500/10';
-      case 'Offline': return 'border-gray-500/50 bg-gray-500/10';
+      case 'Offline': return 'border-orange-500/50 bg-orange-500/10';
       default: return 'border-gray-600/50 bg-gray-600/10';
     }
   };
@@ -180,7 +180,8 @@ export const ServerCard: React.FC<ServerCardProps> = ({
               server.status === 'Online' ? 'text-green-400 bg-green-500/20' :
                 server.status === 'Warning' ? 'text-yellow-400 bg-yellow-500/20' :
                   server.status === 'Critical' ? 'text-red-400 bg-red-500/20' :
-                    'text-gray-400 bg-gray-500/20'
+                    server.status === 'Offline' ? 'text-orange-400 bg-orange-500/20' :
+                      'text-gray-400 bg-gray-500/20'
             }`}>
               {getStatusIcon(server.status)}
               <span>{server.status}</span>
