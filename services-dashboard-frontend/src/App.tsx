@@ -10,7 +10,7 @@ import { UpdateNotification } from './components/UpdateNotification';
 import { VersionFooter } from './components/ui/VersionFooter';
 
 // Lazy load page components for better code splitting
-const ServicesList = lazy(() => import('./components/pages/ServicesList.tsx').then(module => ({ default: module.ServicesList })));
+const MonitoringDashboard = lazy(() => import('./components/pages/MonitoringDashboard.tsx').then(module => ({ default: module.MonitoringDashboard })));
 const ServerManagement = lazy(() => import('./components/pages/ServerManagement.tsx').then(module => ({ default: module.ServerManagement })));
 const DockerServices = lazy(() => import('./components/pages/DockerServicesManager.tsx').then(module => ({ default: module.DockerServices })));
 const NetworkDiscovery = lazy(() => import('./components/pages/NetworkDiscovery.tsx').then(module => ({ default: module.NetworkDiscovery })));
@@ -20,7 +20,6 @@ const SelfHostedServices = lazy(() => import('./components/pages/SelfHostedServi
 const ApplicationSettings = lazy(() => import('./components/pages/ApplicationSettings.tsx').then(module => ({ default: module.ApplicationSettings })));
 const IpManagementPage = lazy(() => import('./pages/IpManagementPage'));
 import {
-  Monitor,
   Server,
   Container,
   Network,
@@ -37,18 +36,18 @@ import {
 } from 'lucide-react';
 import './App.css';
 
-type TabType = 'services' | 'servers' | 'docker' | 'self-hosted' | 'network' | 'ip-management' | 'tasks' | 'deployments' | 'connection' | 'settings';
+type TabType = 'monitoring' | 'servers' | 'docker' | 'self-hosted' | 'network' | 'ip-management' | 'tasks' | 'deployments' | 'connection' | 'settings';
 
 interface MenuItem {
   id: TabType;
   name: string;
-  icon: typeof Monitor;
+  icon: typeof Activity;
 }
 
 interface MenuGroup {
   id: string;
   name: string;
-  icon: typeof Monitor;
+  icon: typeof Activity;
   items: MenuItem[];
 }
 
@@ -68,7 +67,7 @@ function App() {
   // Get current tab from URL path
   const getCurrentTab = (): TabType => {
     const path = location.pathname.substring(1); // Remove leading slash
-    return (path || 'services') as TabType;
+    return (path || 'monitoring') as TabType;
   };
 
   const activeTab = getCurrentTab();
@@ -86,7 +85,7 @@ function App() {
   }, []);
 
   const mainNavigation: NavItem[] = [
-    { id: 'services' as const, name: 'Services', icon: Monitor },
+    { id: 'monitoring' as const, name: 'Monitoring', icon: Activity },
     {
       id: 'infrastructure',
       name: 'Infrastructure',
@@ -313,8 +312,8 @@ function App() {
           <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
             <Suspense fallback={loadingFallback}>
               <Routes>
-                <Route path="/" element={<Navigate to="/services" replace />} />
-                <Route path="/services" element={<ServicesList darkMode={darkMode} />} />
+                <Route path="/" element={<Navigate to="/monitoring" replace />} />
+                <Route path="/monitoring" element={<MonitoringDashboard darkMode={darkMode} />} />
                 <Route path="/servers" element={<ServerManagement darkMode={darkMode} />} />
                 <Route path="/docker" element={<DockerServices darkMode={darkMode} />} />
                 <Route path="/self-hosted" element={<SelfHostedServices darkMode={darkMode} />} />
@@ -323,7 +322,7 @@ function App() {
                 <Route path="/tasks" element={<ScheduledTasksPage darkMode={darkMode} />} />
                 <Route path="/deployments" element={<DeploymentsManagement darkMode={darkMode} />} />
                 <Route path="/settings" element={<ApplicationSettings darkMode={darkMode} />} />
-                <Route path="*" element={<Navigate to="/services" replace />} />
+                <Route path="*" element={<Navigate to="/monitoring" replace />} />
               </Routes>
             </Suspense>
           </div>

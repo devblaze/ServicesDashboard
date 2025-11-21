@@ -88,6 +88,7 @@ builder.Services.AddScoped<ISettingsService, DatabaseSettingsService>();
 builder.Services.AddScoped<IDockerServicesService, DockerServicesService>();
 builder.Services.AddScoped<IScheduledTaskService, ScheduledTaskService>();
 builder.Services.AddHostedService<ScheduledTaskExecutorWorker>();
+builder.Services.AddHostedService<ServicesDashboard.Services.Metrics.ContainerMetricsCollector>();
 builder.Services.AddScoped<ServicesDashboard.Services.Database.IDatabaseMigrationService, ServicesDashboard.Services.Database.DatabaseMigrationService>();
 builder.Services.AddHttpClient();
 

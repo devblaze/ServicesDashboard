@@ -38,6 +38,9 @@ public class ServicesDashboardContext : DbContext
     public DbSet<IpReservation> IpReservations { get; set; }
     public DbSet<OmadaController> OmadaControllers { get; set; }
 
+    // Container Metrics
+    public DbSet<ContainerMetricsHistory> ContainerMetricsHistory { get; set; }
+
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
         base.OnModelCreating(modelBuilder);
@@ -425,6 +428,23 @@ public class ServicesDashboardContext : DbContext
             entity.Property(e => e.CreatedAt).HasDefaultValueSql("CURRENT_TIMESTAMP");
             entity.Property(e => e.UpdatedAt).HasDefaultValueSql("CURRENT_TIMESTAMP");
             entity.HasIndex(e => e.Name).IsUnique();
+        });
+
+        // Configure ContainerMetricsHistory
+        modelBuilder.Entity<ContainerMetricsHistory>(entity =>
+        {
+            entity.HasKey(e => e.Id);
+            entity.HasOne(e => e.Server)
+                  .WithMany()
+                  .HasForeignKey(e => e.ServerId)
+                  .OnDelete(DeleteBehavior.Cascade);
+            entity.Property(e => e.ContainerId).IsRequired().HasMaxLength(64);
+            entity.Property(e => e.ContainerName).IsRequired().HasMaxLength(255);
+            entity.Property(e => e.Timestamp).HasDefaultValueSql("CURRENT_TIMESTAMP");
+            // Indexes for efficient querying
+            entity.HasIndex(e => e.Timestamp);
+            entity.HasIndex(e => new { e.ServerId, e.ContainerId, e.Timestamp });
+            entity.HasIndex(e => new { e.ServerId, e.Timestamp });
         });
     }
 }
