@@ -1,26 +1,8 @@
-# SQL Server 2022 variant of production compose
-# Use: docker compose -f compose.sqlserver.yaml up -d
-services:
-  sqlserver:
-    image: mcr.microsoft.com/mssql/server:2022-latest
-    ports:
-      - "${DB_PORT:-1433}:1433"
-    environment:
-      ACCEPT_EULA: "Y"
-      MSSQL_SA_PASSWORD: ${DB_PASSWORD:-Admin123!}
-      MSSQL_PID: Express
-    volumes:
-      - sqlserver_data:/var/opt/mssql
-    networks:
-      - app_network
-    restart: unless-stopped
-    healthcheck:
-      test: ["CMD-SHELL", "/opt/mssql-tools18/bin/sqlcmd -S localhost -U sa -P ${DB_PASSWORD:-Admin123!} -C -Q 'SELECT 1' || exit 1"]
-      interval: 30s
-      timeout: 10s
-      retries: 5
-      start_period: 60s
+# Docker Compose for SQL Server deployments
+# Use this when deploying with an external SQL Server database
+# Usage: docker-compose -f compose.sqlserver.yaml up -d
 
+services:
   servicesdashboard:
     build:
       context: ./ServicesDashboard
@@ -30,10 +12,10 @@ services:
       - "${BACKEND_PORT:-5051}:5050"
     environment:
       - ASPNETCORE_ENVIRONMENT=Production
-      # Use SQL Server
+      # Database provider must be SqlServer
       - DatabaseProvider=SqlServer
-      # SQL Server connection
-      - ConnectionStrings__SqlServerConnection=Server=sqlserver;Database=servicesdashboard;User Id=sa;Password=${DB_PASSWORD:-Admin123!};TrustServerCertificate=true
+      # SQL Server connection string
+      - ConnectionStrings__SqlServerConnection=Server=${SQLSERVER_HOST:-localhost};Database=${SQLSERVER_DATABASE:-servicesdashboard};User Id=${DB_USER:-sa};Password=${DB_PASSWORD:-YourStrong@Passw0rd};TrustServerCertificate=true
       # Ollama settings (disabled by default in production)
       - AppSettings__Ollama__BaseUrl=${OLLAMA_URL:-}
       - AppSettings__Ollama__Enabled=${OLLAMA_ENABLED:-false}
@@ -41,16 +23,13 @@ services:
       - AppSettings__Ollama__Model=${OLLAMA_MODEL:-llama3.2:3b}
     networks:
       - app_network
-    depends_on:
-      sqlserver:
-        condition: service_healthy
     restart: unless-stopped
     healthcheck:
       test: ["CMD-SHELL", "curl -f http://localhost:5050/api/health || exit 1"]
       interval: 10s
       timeout: 10s
       retries: 10
-      start_period: 60s
+      start_period: 90s
 
   frontend:
     build:
@@ -76,6 +55,3 @@ services:
 networks:
   app_network:
     driver: bridge
-
-volumes:
-  sqlserver_data:

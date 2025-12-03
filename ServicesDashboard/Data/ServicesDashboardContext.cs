@@ -59,10 +59,11 @@ public class ServicesDashboardContext : DbContext
             entity.HasIndex(s => s.HostAddress).IsUnique();
 
             // Configure parent-child relationship
+            // SQL Server doesn't support SetNull on self-referencing FKs, use NoAction instead
             entity.HasOne(e => e.ParentServer)
                   .WithMany(e => e.ChildServers)
                   .HasForeignKey(e => e.ParentServerId)
-                  .OnDelete(DeleteBehavior.SetNull); // When parent is deleted, set child's ParentServerId to null
+                  .OnDelete(DeleteBehavior.NoAction);
         });
 
         // Configure DockerServiceArrangement
