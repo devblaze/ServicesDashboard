@@ -1,22 +1,22 @@
 services:
-  database:
-    image: postgres:16
-    ports:
-      - "${DB_PORT:-5432}:5432"
-    environment:
-      POSTGRES_DB: servicesdashboard
-      POSTGRES_USER: ${DB_USER:-admin}
-      POSTGRES_PASSWORD: ${DB_PASSWORD:-admin123}
-    volumes:
-      - postgres_data:/var/lib/postgresql/data
-    networks:
-      - app_network
-    restart: unless-stopped
-    healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U ${DB_USER:-admin} -d servicesdashboard"]
-      interval: 30s
-      timeout: 10s
-      retries: 3
+#  database:
+#    image: postgres:16
+#    ports:
+#      - "${DB_PORT:-5432}:5432"
+#    environment:
+#      POSTGRES_DB: servicesdashboard
+#      POSTGRES_USER: ${DB_USER:-admin}
+#      POSTGRES_PASSWORD: ${DB_PASSWORD:-admin123}
+#    volumes:
+#      - postgres_data:/var/lib/postgresql/data
+#    networks:
+#      - app_network
+#    restart: unless-stopped
+#    healthcheck:
+#      test: ["CMD-SHELL", "pg_isready -U ${DB_USER:-admin} -d servicesdashboard"]
+#      interval: 30s
+#      timeout: 10s
+#      retries: 3
 
   servicesdashboard:
     build:
@@ -40,9 +40,9 @@ services:
       - AppSettings__Ollama__Model=${OLLAMA_MODEL:-llama3.2:3b}
     networks:
       - app_network
-    depends_on:
-      database:
-        condition: service_healthy
+#    depends_on:
+#      database:
+#        condition: service_healthy
     restart: unless-stopped
     healthcheck:
       test: ["CMD-SHELL", "curl -f http://localhost:5050/api/health || exit 1"]
