@@ -172,6 +172,7 @@ builder.Services.ConfigureHttpJsonOptions(options =>
 {
     options.SerializerOptions.ReferenceHandler = ReferenceHandler.IgnoreCycles;
     options.SerializerOptions.WriteIndented = true;
+    options.SerializerOptions.PropertyNamingPolicy = System.Text.Json.JsonNamingPolicy.CamelCase;
     options.SerializerOptions.Converters.Add(new JsonStringEnumConverter());
 });
 
@@ -194,8 +195,13 @@ if (app.Environment.IsDevelopment())
 app.UseCors();
 app.UseAuthorization();
 
-// Use FastEndpoints
-app.UseFastEndpoints();
+// Use FastEndpoints with camelCase JSON serialization
+app.UseFastEndpoints(config =>
+{
+    config.Serializer.Options.PropertyNamingPolicy = System.Text.Json.JsonNamingPolicy.CamelCase;
+    config.Serializer.Options.ReferenceHandler = ReferenceHandler.IgnoreCycles;
+    config.Serializer.Options.Converters.Add(new JsonStringEnumConverter());
+});
 
 // Enable Swagger via FastEndpoints
 app.UseSwaggerGen();
