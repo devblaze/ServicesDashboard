@@ -1,22 +1,25 @@
+# SQL Server 2022 variant of production compose
+# Use: docker compose -f compose.sqlserver.yaml up -d
 services:
-  database:
-    image: postgres:16
+  sqlserver:
+    image: mcr.microsoft.com/mssql/server:2022-latest
     ports:
-      - "${DB_PORT:-5432}:5432"
+      - "${DB_PORT:-1433}:1433"
     environment:
-      POSTGRES_DB: servicesdashboard
-      POSTGRES_USER: ${DB_USER:-admin}
-      POSTGRES_PASSWORD: ${DB_PASSWORD:-admin123}
+      ACCEPT_EULA: "Y"
+      MSSQL_SA_PASSWORD: ${DB_PASSWORD:-Admin123!}
+      MSSQL_PID: Express
     volumes:
-      - postgres_data:/var/lib/postgresql/data
+      - sqlserver_data:/var/opt/mssql
     networks:
       - app_network
     restart: unless-stopped
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U ${DB_USER:-admin} -d servicesdashboard"]
+      test: ["CMD-SHELL", "/opt/mssql-tools18/bin/sqlcmd -S localhost -U sa -P ${DB_PASSWORD:-Admin123!} -C -Q 'SELECT 1' || exit 1"]
       interval: 30s
       timeout: 10s
-      retries: 3
+      retries: 5
+      start_period: 60s
 
   servicesdashboard:
     build:
@@ -27,12 +30,10 @@ services:
       - "${BACKEND_PORT:-5051}:5050"
     environment:
       - ASPNETCORE_ENVIRONMENT=Production
-      # Database provider: PostgreSQL, SqlServer, or SQLite
-      - DatabaseProvider=${DATABASE_PROVIDER:-PostgreSQL}
-      # PostgreSQL connection
-      - ConnectionStrings__DefaultConnection=Host=database;Database=servicesdashboard;Username=${DB_USER:-admin};Password=${DB_PASSWORD:-admin123}
-      # SQL Server connection (used when DATABASE_PROVIDER=SqlServer)
-      - ConnectionStrings__SqlServerConnection=Server=${SQLSERVER_HOST:-sqlserver};Database=servicesdashboard;User Id=${DB_USER:-sa};Password=${DB_PASSWORD:-Admin123!};TrustServerCertificate=true
+      # Use SQL Server
+      - DatabaseProvider=SqlServer
+      # SQL Server connection
+      - ConnectionStrings__SqlServerConnection=Server=sqlserver;Database=servicesdashboard;User Id=sa;Password=${DB_PASSWORD:-Admin123!};TrustServerCertificate=true
       # Ollama settings (disabled by default in production)
       - AppSettings__Ollama__BaseUrl=${OLLAMA_URL:-}
       - AppSettings__Ollama__Enabled=${OLLAMA_ENABLED:-false}
@@ -41,7 +42,7 @@ services:
     networks:
       - app_network
     depends_on:
-      database:
+      sqlserver:
         condition: service_healthy
     restart: unless-stopped
     healthcheck:
@@ -77,4 +78,4 @@ networks:
     driver: bridge
 
 volumes:
-  postgres_data:
+  sqlserver_data:

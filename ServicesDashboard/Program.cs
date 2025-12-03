@@ -32,21 +32,31 @@ builder.Services.AddEndpointsApiExplorer();
 // Add configuration
 builder.Services.Configure<AppSettings>(builder.Configuration.GetSection("AppSettings"));
 
-// Add Entity Framework with support for both PostgreSQL and SQLite
+// Add Entity Framework with support for PostgreSQL, SQLite, and SQL Server
 var databaseProvider = builder.Configuration.GetValue<string>("DatabaseProvider") ?? "PostgreSQL";
 builder.Services.AddDbContext<ServicesDashboardContext>(options =>
 {
-    if (databaseProvider.Equals("SQLite", StringComparison.OrdinalIgnoreCase))
+    switch (databaseProvider.ToLowerInvariant())
     {
-        var sqliteConnection = builder.Configuration.GetConnectionString("SQLiteConnection")
-            ?? "Data Source=servicesdashboard.db";
-        options.UseSqlite(sqliteConnection);
-        Console.WriteLine($"🗄️ Using SQLite database: {sqliteConnection}");
-    }
-    else
-    {
-        options.UseNpgsql(builder.Configuration.GetConnectionString("DefaultConnection"));
-        Console.WriteLine("🗄️ Using PostgreSQL database");
+        case "sqlite":
+            var sqliteConnection = builder.Configuration.GetConnectionString("SQLiteConnection")
+                ?? "Data Source=servicesdashboard.db";
+            options.UseSqlite(sqliteConnection);
+            Console.WriteLine($"🗄️ Using SQLite database: {sqliteConnection}");
+            break;
+
+        case "sqlserver":
+            var sqlServerConnection = builder.Configuration.GetConnectionString("SqlServerConnection")
+                ?? builder.Configuration.GetConnectionString("DefaultConnection");
+            options.UseSqlServer(sqlServerConnection);
+            Console.WriteLine("🗄️ Using SQL Server database");
+            break;
+
+        case "postgresql":
+        default:
+            options.UseNpgsql(builder.Configuration.GetConnectionString("DefaultConnection"));
+            Console.WriteLine("🗄️ Using PostgreSQL database");
+            break;
     }
 });
 
@@ -132,7 +142,13 @@ builder.Services.AddCors(options =>
 {
     options.AddDefaultPolicy(policy =>
     {
-        policy.WithOrigins("http://localhost:5173", "http://localhost:5050", "http://frontend:5173")
+        policy.WithOrigins(
+                "http://localhost:5173",   // Local dev frontend
+                "http://localhost:5050",   // Local production frontend
+                "http://frontend:5173",    // Docker dev frontend
+                "http://frontend:80",      // Docker production frontend
+                "http://frontend"          // Docker internal
+              )
               .AllowAnyMethod()
               .AllowAnyHeader()
               .AllowCredentials(); // Required for SignalR
