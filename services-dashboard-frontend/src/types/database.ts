@@ -117,3 +117,28 @@ export interface DatabaseImportResponse {
   tableCounts: Record<string, number>;
   warnings: string[];
 }
+
+// Remote Sync Types
+export interface GenerateSyncTokenResponse {
+  success: boolean;
+  token: string;
+  expiresAt: string;
+  message: string;
+  totalRecords: number;
+}
+
+export interface RemoteSyncRequest {
+  sourceUrl: string;
+  syncToken: string;
+  clearExistingData: boolean;
+}
+
+export interface RemoteSyncResponse {
+  success: boolean;
+  message: string;
+  error?: string;
+  recordsSynced: number;
+  sourceProvider?: string;
+  tableCounts: Record<string, number>;
+  warnings: string[];
+}

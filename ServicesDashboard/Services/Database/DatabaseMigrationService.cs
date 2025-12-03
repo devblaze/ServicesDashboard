@@ -18,6 +18,12 @@ public interface IDatabaseMigrationService
     Task<bool> SaveConfigurationAsync(UpdateDatabaseConfigurationRequest request);
     Task<DatabaseExportResponse> ExportDatabaseAsync();
     Task<DatabaseImportResponse> ImportDatabaseAsync(DatabaseImportRequest request);
+
+    // Remote sync methods
+    GenerateSyncTokenResponse GenerateSyncToken();
+    bool ValidateSyncToken(string token);
+    Task<DatabaseExportResponse> ExportWithTokenAsync(string token);
+    Task<RemoteSyncResponse> RemoteSyncAsync(RemoteSyncRequest request);
 }
 
 public class DatabaseMigrationService : IDatabaseMigrationService
@@ -25,15 +31,22 @@ public class DatabaseMigrationService : IDatabaseMigrationService
     private readonly ServicesDashboardContext _context;
     private readonly IConfiguration _configuration;
     private readonly ILogger<DatabaseMigrationService> _logger;
+    private readonly IHttpClientFactory _httpClientFactory;
+
+    // Static storage for sync tokens (token -> expiration time)
+    private static readonly Dictionary<string, DateTime> _syncTokens = new();
+    private static readonly object _tokenLock = new();
 
     public DatabaseMigrationService(
         ServicesDashboardContext context,
         IConfiguration configuration,
-        ILogger<DatabaseMigrationService> logger)
+        ILogger<DatabaseMigrationService> logger,
+        IHttpClientFactory httpClientFactory)
     {
         _context = context;
         _configuration = configuration;
         _logger = logger;
+        _httpClientFactory = httpClientFactory;
     }
 
     public async Task<DatabaseStatusResponse> GetDatabaseStatusAsync()
@@ -936,5 +949,229 @@ public class DatabaseMigrationService : IDatabaseMigrationService
             @"(Password|Pwd)=([^;]+)",
             "$1=***",
             System.Text.RegularExpressions.RegexOptions.IgnoreCase);
+    }
+
+    // Remote Sync Methods
+
+    public GenerateSyncTokenResponse GenerateSyncToken()
+    {
+        try
+        {
+            // Clean up expired tokens
+            CleanupExpiredTokens();
+
+            // Generate a unique token
+            var token = GenerateSecureToken();
+            var expiresAt = DateTime.UtcNow.AddMinutes(15); // Token valid for 15 minutes
+
+            lock (_tokenLock)
+            {
+                _syncTokens[token] = expiresAt;
+            }
+
+            var totalRecords = _context.ManagedServers.Count() +
+                               _context.SshCredentials.Count() +
+                               _context.ApplicationSettings.Count() +
+                               _context.DockerServiceArrangements.Count() +
+                               _context.ScheduledTasks.Count() +
+                               _context.StoredDiscoveredServices.Count() +
+                               _context.GitProviderConnections.Count() +
+                               _context.ServerHealthChecks.Count() +
+                               _context.UpdateReports.Count() +
+                               _context.ServerAlerts.Count();
+
+            _logger.LogInformation("Generated sync token, expires at {ExpiresAt}", expiresAt);
+
+            return new GenerateSyncTokenResponse
+            {
+                Success = true,
+                Token = token,
+                ExpiresAt = expiresAt,
+                Message = "Sync token generated successfully. Valid for 15 minutes.",
+                TotalRecords = totalRecords
+            };
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error generating sync token");
+            return new GenerateSyncTokenResponse
+            {
+                Success = false,
+                Message = "Failed to generate sync token"
+            };
+        }
+    }
+
+    public bool ValidateSyncToken(string token)
+    {
+        if (string.IsNullOrEmpty(token))
+            return false;
+
+        lock (_tokenLock)
+        {
+            if (_syncTokens.TryGetValue(token, out var expiresAt))
+            {
+                if (DateTime.UtcNow < expiresAt)
+                {
+                    return true;
+                }
+                else
+                {
+                    // Token expired, remove it
+                    _syncTokens.Remove(token);
+                }
+            }
+        }
+
+        return false;
+    }
+
+    public async Task<DatabaseExportResponse> ExportWithTokenAsync(string token)
+    {
+        if (!ValidateSyncToken(token))
+        {
+            return new DatabaseExportResponse
+            {
+                Success = false,
+                Message = "Invalid or expired sync token",
+                Error = "Token validation failed"
+            };
+        }
+
+        // Invalidate the token after use (one-time use)
+        lock (_tokenLock)
+        {
+            _syncTokens.Remove(token);
+        }
+
+        _logger.LogInformation("Processing export with valid sync token");
+
+        return await ExportDatabaseAsync();
+    }
+
+    public async Task<RemoteSyncResponse> RemoteSyncAsync(RemoteSyncRequest request)
+    {
+        try
+        {
+            _logger.LogInformation("Starting remote sync from {SourceUrl}", request.SourceUrl);
+
+            // Normalize the source URL
+            var sourceUrl = request.SourceUrl.TrimEnd('/');
+            if (!sourceUrl.StartsWith("http://") && !sourceUrl.StartsWith("https://"))
+            {
+                sourceUrl = "https://" + sourceUrl;
+            }
+
+            var exportUrl = $"{sourceUrl}/api/database/export-with-token?token={Uri.EscapeDataString(request.SyncToken)}";
+
+            var client = _httpClientFactory.CreateClient();
+            client.Timeout = TimeSpan.FromMinutes(5); // Allow 5 minutes for large exports
+
+            var response = await client.GetAsync(exportUrl);
+
+            if (!response.IsSuccessStatusCode)
+            {
+                var errorContent = await response.Content.ReadAsStringAsync();
+                _logger.LogError("Remote sync failed: {StatusCode} - {Error}", response.StatusCode, errorContent);
+
+                return new RemoteSyncResponse
+                {
+                    Success = false,
+                    Message = $"Failed to connect to source: {response.StatusCode}",
+                    Error = response.StatusCode == System.Net.HttpStatusCode.Unauthorized
+                        ? "Invalid or expired sync token"
+                        : errorContent
+                };
+            }
+
+            var jsonContent = await response.Content.ReadAsStringAsync();
+            var exportResponse = System.Text.Json.JsonSerializer.Deserialize<DatabaseExportResponse>(
+                jsonContent,
+                new System.Text.Json.JsonSerializerOptions { PropertyNameCaseInsensitive = true }
+            );
+
+            if (exportResponse == null || !exportResponse.Success || exportResponse.Data == null || exportResponse.Metadata == null)
+            {
+                return new RemoteSyncResponse
+                {
+                    Success = false,
+                    Message = "Invalid response from source server",
+                    Error = exportResponse?.Error ?? "Export data is null or invalid"
+                };
+            }
+
+            _logger.LogInformation("Retrieved {Records} records from source, starting import",
+                exportResponse.Metadata.TotalRecords);
+
+            // Import the data using existing import method
+            var importRequest = new DatabaseImportRequest
+            {
+                Data = exportResponse.Data,
+                Metadata = exportResponse.Metadata,
+                ClearExistingData = request.ClearExistingData
+            };
+
+            var importResult = await ImportDatabaseAsync(importRequest);
+
+            return new RemoteSyncResponse
+            {
+                Success = importResult.Success,
+                Message = importResult.Success
+                    ? $"Successfully synced {importResult.RecordsImported} records from remote database"
+                    : importResult.Message,
+                Error = importResult.Error,
+                RecordsSynced = importResult.RecordsImported,
+                SourceProvider = exportResponse.Metadata.SourceProvider,
+                TableCounts = importResult.TableCounts,
+                Warnings = importResult.Warnings
+            };
+        }
+        catch (HttpRequestException ex)
+        {
+            _logger.LogError(ex, "Network error during remote sync");
+            return new RemoteSyncResponse
+            {
+                Success = false,
+                Message = "Network error connecting to source server",
+                Error = ex.Message
+            };
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error during remote sync");
+            return new RemoteSyncResponse
+            {
+                Success = false,
+                Message = "Remote sync failed",
+                Error = ex.Message
+            };
+        }
+    }
+
+    private static string GenerateSecureToken()
+    {
+        var bytes = new byte[32];
+        using var rng = System.Security.Cryptography.RandomNumberGenerator.Create();
+        rng.GetBytes(bytes);
+        return Convert.ToBase64String(bytes)
+            .Replace("+", "-")
+            .Replace("/", "_")
+            .TrimEnd('=');
+    }
+
+    private void CleanupExpiredTokens()
+    {
+        lock (_tokenLock)
+        {
+            var expiredTokens = _syncTokens
+                .Where(kvp => DateTime.UtcNow >= kvp.Value)
+                .Select(kvp => kvp.Key)
+                .ToList();
+
+            foreach (var token in expiredTokens)
+            {
+                _syncTokens.Remove(token);
+            }
+        }
     }
 }

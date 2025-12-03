@@ -8,7 +8,10 @@ import type {
   MigrateDatabaseResponse,
   DatabaseExportResponse,
   DatabaseImportRequest,
-  DatabaseImportResponse
+  DatabaseImportResponse,
+  GenerateSyncTokenResponse,
+  RemoteSyncRequest,
+  RemoteSyncResponse
 } from '../types/database';
 
 class DatabaseApi extends BaseApiClient {
@@ -39,6 +42,14 @@ class DatabaseApi extends BaseApiClient {
   async importDatabase(request: DatabaseImportRequest): Promise<DatabaseImportResponse> {
     return await this.request<DatabaseImportResponse>('post', '/database/import', request);
   }
+
+  async generateSyncToken(): Promise<GenerateSyncTokenResponse> {
+    return await this.request<GenerateSyncTokenResponse>('post', '/database/generate-sync-token');
+  }
+
+  async remoteSync(request: RemoteSyncRequest): Promise<RemoteSyncResponse> {
+    return await this.request<RemoteSyncResponse>('post', '/database/remote-sync', request);
+  }
 }
 
 const databaseApiInstance = new DatabaseApi();
@@ -66,5 +77,13 @@ export const databaseApi = {
 
   importDatabase: (request: DatabaseImportRequest): Promise<DatabaseImportResponse> => {
     return databaseApiInstance.importDatabase(request);
+  },
+
+  generateSyncToken: (): Promise<GenerateSyncTokenResponse> => {
+    return databaseApiInstance.generateSyncToken();
+  },
+
+  remoteSync: (request: RemoteSyncRequest): Promise<RemoteSyncResponse> => {
+    return databaseApiInstance.remoteSync(request);
   }
 };

@@ -152,3 +152,36 @@ public class DatabaseImportResponse
     public Dictionary<string, int> TableCounts { get; set; } = new();
     public List<string> Warnings { get; set; } = new();
 }
+
+// Remote Sync DTOs
+public class GenerateSyncTokenResponse
+{
+    public bool Success { get; set; }
+    public string Token { get; set; } = string.Empty;
+    public DateTime ExpiresAt { get; set; }
+    public string Message { get; set; } = string.Empty;
+    public int TotalRecords { get; set; }
+}
+
+public class RemoteSyncRequest
+{
+    public string SourceUrl { get; set; } = string.Empty;
+    public string SyncToken { get; set; } = string.Empty;
+    public bool ClearExistingData { get; set; } = false;
+}
+
+public class RemoteSyncResponse
+{
+    public bool Success { get; set; }
+    public string Message { get; set; } = string.Empty;
+    public string? Error { get; set; }
+    public int RecordsSynced { get; set; }
+    public string? SourceProvider { get; set; }
+    public Dictionary<string, int> TableCounts { get; set; } = new();
+    public List<string> Warnings { get; set; } = new();
+}
+
+public class ValidateSyncTokenRequest
+{
+    public string Token { get; set; } = string.Empty;
+}

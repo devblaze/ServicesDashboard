@@ -18,7 +18,10 @@ import {
   Download,
   Upload,
   FileJson,
-  RefreshCw
+  RefreshCw,
+  Link,
+  Key,
+  Globe
 } from 'lucide-react';
 import { databaseApi } from '../../services/DatabaseApi';
 import type {
@@ -26,7 +29,9 @@ import type {
   MigrateDatabaseRequest,
   DatabaseProvider,
   DatabaseImportRequest,
-  DatabaseExportResponse
+  DatabaseExportResponse,
+  RemoteSyncRequest,
+  GenerateSyncTokenResponse
 } from '../../types/database';
 
 interface DatabaseSettingsProps {
@@ -104,6 +109,21 @@ export function DatabaseSettings({ darkMode }: DatabaseSettingsProps) {
   const [showImportConfirm, setShowImportConfirm] = useState(false);
   const [importData, setImportData] = useState<DatabaseImportRequest | null>(null);
   const [clearExistingData, setClearExistingData] = useState(false);
+
+  // Remote Sync state
+  const [syncToken, setSyncToken] = useState<GenerateSyncTokenResponse | null>(null);
+  const [copiedToken, setCopiedToken] = useState(false);
+  const [remoteSourceUrl, setRemoteSourceUrl] = useState('');
+  const [remoteSyncToken, setRemoteSyncToken] = useState('');
+  const [remoteClearData, setRemoteClearData] = useState(false);
+  const [remoteSyncResult, setRemoteSyncResult] = useState<{
+    success: boolean;
+    message: string;
+    error?: string;
+    recordsSynced?: number;
+    sourceProvider?: string;
+    warnings?: string[];
+  } | null>(null);
 
   // Generate environment variables string
   const generateEnvVariables = () => {
@@ -262,6 +282,73 @@ export function DatabaseSettings({ darkMode }: DatabaseSettingsProps) {
     }
   });
 
+  // Generate sync token mutation
+  const generateTokenMutation = useMutation({
+    mutationFn: () => databaseApi.generateSyncToken(),
+    onSuccess: (data) => {
+      setSyncToken(data);
+    },
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    onError: (error: any) => {
+      setSyncToken({
+        success: false,
+        token: '',
+        expiresAt: '',
+        message: error?.message || 'Failed to generate token',
+        totalRecords: 0
+      });
+    }
+  });
+
+  // Remote sync mutation
+  const remoteSyncMutation = useMutation({
+    mutationFn: (request: RemoteSyncRequest) => databaseApi.remoteSync(request),
+    onSuccess: (data) => {
+      setRemoteSyncResult(data);
+      if (data.success) {
+        queryClient.invalidateQueries({ queryKey: ['database-status'] });
+      }
+    },
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    onError: (error: any) => {
+      setRemoteSyncResult({
+        success: false,
+        message: 'Remote sync failed',
+        error: error?.message || 'Unknown error'
+      });
+    }
+  });
+
+  // Handle copy sync token
+  const handleCopyToken = async () => {
+    if (syncToken?.token) {
+      try {
+        await navigator.clipboard.writeText(syncToken.token);
+        setCopiedToken(true);
+        setTimeout(() => setCopiedToken(false), 2000);
+      } catch (err) {
+        console.error('Failed to copy:', err);
+      }
+    }
+  };
+
+  // Handle remote sync
+  const handleRemoteSync = () => {
+    if (!remoteSourceUrl || !remoteSyncToken) {
+      setRemoteSyncResult({
+        success: false,
+        message: 'Please enter both source URL and sync token',
+        error: 'Missing required fields'
+      });
+      return;
+    }
+    remoteSyncMutation.mutate({
+      sourceUrl: remoteSourceUrl,
+      syncToken: remoteSyncToken,
+      clearExistingData: remoteClearData
+    });
+  };
+
   // Handle file selection for import
   const handleFileSelect = (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
@@ -401,6 +488,55 @@ export function DatabaseSettings({ darkMode }: DatabaseSettingsProps) {
 
   return (
     <div className="space-y-6">
+      {/* Important: How to Change Database Provider */}
+      <div className={`p-4 rounded-xl border-2 ${
+        darkMode
+          ? 'bg-amber-900/20 border-amber-500/50'
+          : 'bg-amber-50 border-amber-300'
+      }`}>
+        <div className="flex items-start space-x-3">
+          <div className={`p-2 rounded-lg flex-shrink-0 ${
+            darkMode ? 'bg-amber-900/50' : 'bg-amber-100'
+          }`}>
+            <AlertTriangle className={`w-5 h-5 ${
+              darkMode ? 'text-amber-400' : 'text-amber-600'
+            }`} />
+          </div>
+          <div>
+            <p className={`font-semibold text-base ${darkMode ? 'text-amber-300' : 'text-amber-800'}`}>
+              How to Change Database Provider
+            </p>
+            <p className={`text-sm mt-2 ${darkMode ? 'text-amber-200/80' : 'text-amber-700'}`}>
+              To change the active database provider, update the{' '}
+              <code className={`font-mono px-1.5 py-0.5 rounded text-xs ${
+                darkMode ? 'bg-amber-900/50 text-amber-300' : 'bg-amber-100 text-amber-800'
+              }`}>DATABASE_PROVIDER</code>{' '}
+              environment variable to one of the following values and restart the application:
+            </p>
+            <div className="flex flex-wrap gap-2 mt-3">
+              <span className={`inline-flex items-center px-3 py-1 rounded-full text-xs font-medium ${
+                darkMode ? 'bg-blue-900/50 text-blue-300' : 'bg-blue-100 text-blue-700'
+              }`}>
+                <Database className="w-3 h-3 mr-1.5" />
+                PostgreSQL
+              </span>
+              <span className={`inline-flex items-center px-3 py-1 rounded-full text-xs font-medium ${
+                darkMode ? 'bg-red-900/50 text-red-300' : 'bg-red-100 text-red-700'
+              }`}>
+                <Server className="w-3 h-3 mr-1.5" />
+                SqlServer
+              </span>
+              <span className={`inline-flex items-center px-3 py-1 rounded-full text-xs font-medium ${
+                darkMode ? 'bg-emerald-900/50 text-emerald-300' : 'bg-emerald-100 text-emerald-700'
+              }`}>
+                <HardDrive className="w-3 h-3 mr-1.5" />
+                SQLite
+              </span>
+            </div>
+          </div>
+        </div>
+      </div>
+
       {/* Current Status Card */}
       {status && (
         <div className={`p-6 rounded-xl border-2 ${
@@ -1304,18 +1440,32 @@ export function DatabaseSettings({ darkMode }: DatabaseSettingsProps) {
               <span>Select Export File</span>
             </button>
 
-            {/* Clear existing data checkbox */}
-            <label className={`flex items-center space-x-2 mt-3 cursor-pointer`}>
-              <input
-                type="checkbox"
-                checked={clearExistingData}
-                onChange={(e) => setClearExistingData(e.target.checked)}
-                className="w-4 h-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500"
-              />
-              <span className={`text-sm ${darkMode ? 'text-gray-300' : 'text-gray-600'}`}>
-                Clear existing data before import
-              </span>
-            </label>
+            {/* Clear existing data toggle */}
+            <div className={`flex items-center justify-between p-3 mt-3 rounded-lg ${
+              darkMode ? 'bg-gray-800/50' : 'bg-gray-100'
+            }`}>
+              <div className="flex items-center space-x-2">
+                <AlertTriangle className={`w-4 h-4 ${clearExistingData ? (darkMode ? 'text-red-400' : 'text-red-500') : (darkMode ? 'text-gray-500' : 'text-gray-400')}`} />
+                <span className={`text-sm font-medium ${darkMode ? 'text-gray-300' : 'text-gray-700'}`}>
+                  Clear existing data before import
+                </span>
+              </div>
+              <button
+                type="button"
+                onClick={() => setClearExistingData(!clearExistingData)}
+                className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors duration-200 ease-in-out focus:outline-none focus:ring-2 focus:ring-offset-2 ${
+                  clearExistingData
+                    ? 'bg-red-500 focus:ring-red-500'
+                    : (darkMode ? 'bg-gray-600 focus:ring-gray-500' : 'bg-gray-300 focus:ring-gray-400')
+                }`}
+              >
+                <span
+                  className={`inline-block h-4 w-4 transform rounded-full bg-white shadow-sm transition-transform duration-200 ease-in-out ${
+                    clearExistingData ? 'translate-x-6' : 'translate-x-1'
+                  }`}
+                />
+              </button>
+            </div>
 
             {importResult && !showImportConfirm && (
               <div className={`mt-4 p-3 rounded-lg ${
@@ -1446,28 +1596,288 @@ export function DatabaseSettings({ darkMode }: DatabaseSettingsProps) {
         </div>
       </div>
 
-      {/* Environment Variable Note */}
-      <div className={`p-4 rounded-xl border ${
+      {/* Remote Sync Section */}
+      <div className={`p-6 rounded-xl border-2 ${
         darkMode
-          ? 'bg-gray-800/30 border-gray-700'
-          : 'bg-gray-50 border-gray-200'
+          ? 'bg-gray-800/50 border-gray-700'
+          : 'bg-white border-gray-200'
       }`}>
-        <div className="flex items-start space-x-3">
-          <Info className={`w-5 h-5 flex-shrink-0 mt-0.5 ${
-            darkMode ? 'text-gray-400' : 'text-gray-500'
-          }`} />
-          <div>
-            <p className={`font-medium ${darkMode ? 'text-gray-300' : 'text-gray-700'}`}>
-              Changing Database Provider
+        <h2 className={`text-lg font-semibold mb-4 flex items-center space-x-2 ${
+          darkMode ? 'text-white' : 'text-gray-900'
+        }`}>
+          <Link className="w-5 h-5" />
+          <span>Remote Database Sync</span>
+        </h2>
+
+        <p className={`text-sm mb-6 ${darkMode ? 'text-gray-400' : 'text-gray-600'}`}>
+          Sync your database directly from another running instance without manually transferring files.
+          Generate a one-time sync token on the source, then use it to pull data to this instance.
+        </p>
+
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+          {/* Generate Token Section (Source) */}
+          <div className={`p-4 rounded-xl border ${
+            darkMode ? 'bg-gray-700/30 border-gray-600' : 'bg-gray-50 border-gray-200'
+          }`}>
+            <div className="flex items-center space-x-3 mb-4">
+              <div className={`p-2 rounded-lg ${darkMode ? 'bg-purple-900/50' : 'bg-purple-100'}`}>
+                <Key className={`w-5 h-5 ${darkMode ? 'text-purple-400' : 'text-purple-600'}`} />
+              </div>
+              <div>
+                <h3 className={`font-semibold ${darkMode ? 'text-white' : 'text-gray-900'}`}>
+                  Generate Sync Token
+                </h3>
+                <p className={`text-xs ${darkMode ? 'text-gray-400' : 'text-gray-500'}`}>
+                  Use this on the SOURCE database
+                </p>
+              </div>
+            </div>
+
+            <p className={`text-sm mb-4 ${darkMode ? 'text-gray-400' : 'text-gray-600'}`}>
+              Generate a one-time token that allows another instance to pull your data. Token is valid for 15 minutes.
             </p>
-            <p className={`text-sm mt-1 ${darkMode ? 'text-gray-400' : 'text-gray-600'}`}>
-              To change the active database provider, update the <code className="font-mono bg-gray-200 dark:bg-gray-700 px-1 rounded">DATABASE_PROVIDER</code> environment
-              variable to <code className="font-mono bg-gray-200 dark:bg-gray-700 px-1 rounded">PostgreSQL</code>, <code className="font-mono bg-gray-200 dark:bg-gray-700 px-1 rounded">SqlServer</code>,
-              or <code className="font-mono bg-gray-200 dark:bg-gray-700 px-1 rounded">SQLite</code> and restart the application.
+
+            <button
+              onClick={() => generateTokenMutation.mutate()}
+              disabled={generateTokenMutation.isPending}
+              className={`w-full px-4 py-2.5 rounded-lg font-medium transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center space-x-2 ${
+                darkMode
+                  ? 'bg-purple-600 hover:bg-purple-700 text-white'
+                  : 'bg-purple-600 hover:bg-purple-700 text-white'
+              }`}
+            >
+              {generateTokenMutation.isPending ? (
+                <>
+                  <Loader2 className="w-4 h-4 animate-spin" />
+                  <span>Generating...</span>
+                </>
+              ) : (
+                <>
+                  <Key className="w-4 h-4" />
+                  <span>Generate Sync Token</span>
+                </>
+              )}
+            </button>
+
+            {syncToken && (
+              <div className={`mt-4 p-3 rounded-lg ${
+                syncToken.success
+                  ? (darkMode ? 'bg-purple-900/30' : 'bg-purple-50')
+                  : (darkMode ? 'bg-red-900/30' : 'bg-red-50')
+              }`}>
+                {syncToken.success ? (
+                  <div className="space-y-3">
+                    <div className="flex items-center justify-between">
+                      <span className={`text-sm font-medium ${darkMode ? 'text-purple-300' : 'text-purple-700'}`}>
+                        Sync Token Generated
+                      </span>
+                      <span className={`text-xs ${darkMode ? 'text-gray-400' : 'text-gray-500'}`}>
+                        {syncToken.totalRecords} records available
+                      </span>
+                    </div>
+
+                    <div className="flex items-center space-x-2">
+                      <code className={`flex-1 p-2 rounded text-xs font-mono truncate ${
+                        darkMode
+                          ? 'bg-gray-900 text-purple-400 border border-gray-700'
+                          : 'bg-white text-purple-700 border border-gray-200'
+                      }`}>
+                        {syncToken.token}
+                      </code>
+                      <button
+                        onClick={handleCopyToken}
+                        className={`p-2 rounded-lg transition-all duration-200 ${
+                          copiedToken
+                            ? (darkMode ? 'bg-green-900/50 text-green-400' : 'bg-green-100 text-green-700')
+                            : (darkMode ? 'bg-gray-700 hover:bg-gray-600 text-gray-300' : 'bg-gray-200 hover:bg-gray-300 text-gray-700')
+                        }`}
+                      >
+                        {copiedToken ? <Check className="w-4 h-4" /> : <Copy className="w-4 h-4" />}
+                      </button>
+                    </div>
+
+                    <p className={`text-xs ${darkMode ? 'text-gray-400' : 'text-gray-500'}`}>
+                      Expires: {new Date(syncToken.expiresAt).toLocaleString()}
+                    </p>
+                  </div>
+                ) : (
+                  <div className="flex items-start space-x-2">
+                    <XCircle className={`w-4 h-4 flex-shrink-0 mt-0.5 ${darkMode ? 'text-red-400' : 'text-red-600'}`} />
+                    <p className={`text-sm ${darkMode ? 'text-red-300' : 'text-red-700'}`}>
+                      {syncToken.message}
+                    </p>
+                  </div>
+                )}
+              </div>
+            )}
+          </div>
+
+          {/* Pull from Remote Section (Target) */}
+          <div className={`p-4 rounded-xl border ${
+            darkMode ? 'bg-gray-700/30 border-gray-600' : 'bg-gray-50 border-gray-200'
+          }`}>
+            <div className="flex items-center space-x-3 mb-4">
+              <div className={`p-2 rounded-lg ${darkMode ? 'bg-cyan-900/50' : 'bg-cyan-100'}`}>
+                <Globe className={`w-5 h-5 ${darkMode ? 'text-cyan-400' : 'text-cyan-600'}`} />
+              </div>
+              <div>
+                <h3 className={`font-semibold ${darkMode ? 'text-white' : 'text-gray-900'}`}>
+                  Sync from Remote
+                </h3>
+                <p className={`text-xs ${darkMode ? 'text-gray-400' : 'text-gray-500'}`}>
+                  Use this on the TARGET database
+                </p>
+              </div>
+            </div>
+
+            <div className="space-y-3">
+              <div>
+                <label className={`block text-sm font-medium mb-1.5 ${darkMode ? 'text-gray-300' : 'text-gray-700'}`}>
+                  Source URL
+                </label>
+                <input
+                  type="text"
+                  value={remoteSourceUrl}
+                  onChange={(e) => setRemoteSourceUrl(e.target.value)}
+                  placeholder="https://your-source-server.com"
+                  className={`w-full px-3 py-2 rounded-lg border ${
+                    darkMode
+                      ? 'bg-gray-800 border-gray-600 text-white placeholder-gray-500 focus:border-cyan-500'
+                      : 'bg-white border-gray-300 text-gray-900 placeholder-gray-400 focus:border-cyan-500'
+                  } focus:outline-none focus:ring-2 focus:ring-cyan-500/20`}
+                />
+              </div>
+
+              <div>
+                <label className={`block text-sm font-medium mb-1.5 ${darkMode ? 'text-gray-300' : 'text-gray-700'}`}>
+                  Sync Token
+                </label>
+                <input
+                  type="text"
+                  value={remoteSyncToken}
+                  onChange={(e) => setRemoteSyncToken(e.target.value)}
+                  placeholder="Paste sync token from source"
+                  className={`w-full px-3 py-2 rounded-lg border ${
+                    darkMode
+                      ? 'bg-gray-800 border-gray-600 text-white placeholder-gray-500 focus:border-cyan-500'
+                      : 'bg-white border-gray-300 text-gray-900 placeholder-gray-400 focus:border-cyan-500'
+                  } focus:outline-none focus:ring-2 focus:ring-cyan-500/20`}
+                />
+              </div>
+
+              <div className={`flex items-center justify-between p-3 rounded-lg ${
+                darkMode ? 'bg-gray-800/50' : 'bg-gray-100'
+              }`}>
+                <div className="flex items-center space-x-2">
+                  <AlertTriangle className={`w-4 h-4 ${remoteClearData ? (darkMode ? 'text-red-400' : 'text-red-500') : (darkMode ? 'text-gray-500' : 'text-gray-400')}`} />
+                  <span className={`text-sm font-medium ${darkMode ? 'text-gray-300' : 'text-gray-700'}`}>
+                    Clear existing data before sync
+                  </span>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setRemoteClearData(!remoteClearData)}
+                  className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors duration-200 ease-in-out focus:outline-none focus:ring-2 focus:ring-offset-2 ${
+                    remoteClearData
+                      ? 'bg-red-500 focus:ring-red-500'
+                      : (darkMode ? 'bg-gray-600 focus:ring-gray-500' : 'bg-gray-300 focus:ring-gray-400')
+                  }`}
+                >
+                  <span
+                    className={`inline-block h-4 w-4 transform rounded-full bg-white shadow-sm transition-transform duration-200 ease-in-out ${
+                      remoteClearData ? 'translate-x-6' : 'translate-x-1'
+                    }`}
+                  />
+                </button>
+              </div>
+
+              <button
+                onClick={handleRemoteSync}
+                disabled={remoteSyncMutation.isPending || !remoteSourceUrl || !remoteSyncToken}
+                className={`w-full px-4 py-2.5 rounded-lg font-medium transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center space-x-2 ${
+                  darkMode
+                    ? 'bg-cyan-600 hover:bg-cyan-700 text-white'
+                    : 'bg-cyan-600 hover:bg-cyan-700 text-white'
+                }`}
+              >
+                {remoteSyncMutation.isPending ? (
+                  <>
+                    <Loader2 className="w-4 h-4 animate-spin" />
+                    <span>Syncing...</span>
+                  </>
+                ) : (
+                  <>
+                    <RefreshCw className="w-4 h-4" />
+                    <span>Start Remote Sync</span>
+                  </>
+                )}
+              </button>
+            </div>
+
+            {remoteSyncResult && (
+              <div className={`mt-4 p-3 rounded-lg ${
+                remoteSyncResult.success
+                  ? (darkMode ? 'bg-green-900/30' : 'bg-green-50')
+                  : (darkMode ? 'bg-red-900/30' : 'bg-red-50')
+              }`}>
+                <div className="flex items-start space-x-2">
+                  {remoteSyncResult.success ? (
+                    <CheckCircle className={`w-4 h-4 flex-shrink-0 mt-0.5 ${darkMode ? 'text-green-400' : 'text-green-600'}`} />
+                  ) : (
+                    <XCircle className={`w-4 h-4 flex-shrink-0 mt-0.5 ${darkMode ? 'text-red-400' : 'text-red-600'}`} />
+                  )}
+                  <div>
+                    <p className={`text-sm font-medium ${
+                      remoteSyncResult.success
+                        ? (darkMode ? 'text-green-300' : 'text-green-700')
+                        : (darkMode ? 'text-red-300' : 'text-red-700')
+                    }`}>
+                      {remoteSyncResult.message}
+                    </p>
+                    {remoteSyncResult.recordsSynced !== undefined && remoteSyncResult.recordsSynced > 0 && (
+                      <p className={`text-xs mt-1 ${darkMode ? 'text-gray-400' : 'text-gray-500'}`}>
+                        {remoteSyncResult.recordsSynced} records synced from {remoteSyncResult.sourceProvider}
+                      </p>
+                    )}
+                    {remoteSyncResult.warnings && remoteSyncResult.warnings.length > 0 && (
+                      <ul className={`text-xs mt-1 ${darkMode ? 'text-yellow-400' : 'text-yellow-600'}`}>
+                        {remoteSyncResult.warnings.map((warning, idx) => (
+                          <li key={idx}>• {warning}</li>
+                        ))}
+                      </ul>
+                    )}
+                    {remoteSyncResult.error && (
+                      <p className={`text-xs mt-1 ${darkMode ? 'text-red-400' : 'text-red-600'}`}>
+                        {remoteSyncResult.error}
+                      </p>
+                    )}
+                  </div>
+                </div>
+              </div>
+            )}
+          </div>
+        </div>
+
+        {/* Remote Sync Help */}
+        <div className={`mt-6 flex items-start space-x-2 p-3 rounded-lg ${
+          darkMode ? 'bg-purple-900/20' : 'bg-purple-50'
+        }`}>
+          <Info className={`w-4 h-4 flex-shrink-0 mt-0.5 ${darkMode ? 'text-purple-400' : 'text-purple-600'}`} />
+          <div className={`text-sm ${darkMode ? 'text-purple-300' : 'text-purple-700'}`}>
+            <p className="font-medium">How Remote Sync Works:</p>
+            <ol className="list-decimal list-inside mt-2 space-y-1">
+              <li>On your <strong>source</strong> server (e.g., local PostgreSQL), click "Generate Sync Token"</li>
+              <li>Copy the generated token</li>
+              <li>On your <strong>target</strong> server (e.g., deployed SQL Server), enter the source URL and token</li>
+              <li>Click "Start Remote Sync" to pull all data from source to target</li>
+            </ol>
+            <p className="mt-2 text-xs opacity-80">
+              Note: The sync token is one-time use and expires after 15 minutes. Both servers must be accessible over the network.
             </p>
           </div>
         </div>
       </div>
+
     </div>
   );
 }
