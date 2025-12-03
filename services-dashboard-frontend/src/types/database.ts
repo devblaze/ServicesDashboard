@@ -125,6 +125,7 @@ export interface GenerateSyncTokenResponse {
   expiresAt: string;
   message: string;
   totalRecords: number;
+  sourceUrls: string[];
 }
 
 export interface RemoteSyncRequest {

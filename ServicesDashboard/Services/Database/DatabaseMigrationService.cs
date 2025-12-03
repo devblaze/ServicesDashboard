@@ -962,7 +962,7 @@ public class DatabaseMigrationService : IDatabaseMigrationService
 
             // Generate a unique token
             var token = GenerateSecureToken();
-            var expiresAt = DateTime.UtcNow.AddMinutes(15); // Token valid for 15 minutes
+            var expiresAt = DateTime.UtcNow.AddHours(1); // Token valid for 1 hour
 
             lock (_tokenLock)
             {
@@ -980,6 +980,9 @@ public class DatabaseMigrationService : IDatabaseMigrationService
                                _context.UpdateReports.Count() +
                                _context.ServerAlerts.Count();
 
+            // Get local IP addresses for the source URLs
+            var sourceUrls = GetLocalSourceUrls();
+
             _logger.LogInformation("Generated sync token, expires at {ExpiresAt}", expiresAt);
 
             return new GenerateSyncTokenResponse
@@ -987,8 +990,9 @@ public class DatabaseMigrationService : IDatabaseMigrationService
                 Success = true,
                 Token = token,
                 ExpiresAt = expiresAt,
-                Message = "Sync token generated successfully. Valid for 15 minutes.",
-                TotalRecords = totalRecords
+                Message = "Sync token generated successfully. Valid for 1 hour.",
+                TotalRecords = totalRecords,
+                SourceUrls = sourceUrls
             };
         }
         catch (Exception ex)
@@ -1000,6 +1004,49 @@ public class DatabaseMigrationService : IDatabaseMigrationService
                 Message = "Failed to generate sync token"
             };
         }
+    }
+
+    private List<string> GetLocalSourceUrls()
+    {
+        var urls = new List<string>();
+
+        try
+        {
+            // Get all network interfaces
+            var networkInterfaces = System.Net.NetworkInformation.NetworkInterface.GetAllNetworkInterfaces()
+                .Where(ni => ni.OperationalStatus == System.Net.NetworkInformation.OperationalStatus.Up
+                             && ni.NetworkInterfaceType != System.Net.NetworkInformation.NetworkInterfaceType.Loopback);
+
+            foreach (var networkInterface in networkInterfaces)
+            {
+                var ipProperties = networkInterface.GetIPProperties();
+                var unicastAddresses = ipProperties.UnicastAddresses
+                    .Where(ua => ua.Address.AddressFamily == System.Net.Sockets.AddressFamily.InterNetwork) // IPv4 only
+                    .Select(ua => ua.Address.ToString());
+
+                foreach (var ip in unicastAddresses)
+                {
+                    // Skip link-local addresses (169.254.x.x)
+                    if (!ip.StartsWith("169.254."))
+                    {
+                        urls.Add($"http://{ip}:5050");
+                    }
+                }
+            }
+
+            // Add localhost as fallback
+            if (!urls.Any())
+            {
+                urls.Add("http://localhost:5050");
+            }
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "Error getting local IP addresses");
+            urls.Add("http://localhost:5050");
+        }
+
+        return urls;
     }
 
     public bool ValidateSyncToken(string token)

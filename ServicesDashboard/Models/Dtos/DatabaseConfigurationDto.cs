@@ -161,6 +161,7 @@ public class GenerateSyncTokenResponse
     public DateTime ExpiresAt { get; set; }
     public string Message { get; set; } = string.Empty;
     public int TotalRecords { get; set; }
+    public List<string> SourceUrls { get; set; } = new();
 }
 
 public class RemoteSyncRequest

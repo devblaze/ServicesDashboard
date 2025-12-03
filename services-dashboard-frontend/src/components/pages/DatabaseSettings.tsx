@@ -113,6 +113,7 @@ export function DatabaseSettings({ darkMode }: DatabaseSettingsProps) {
   // Remote Sync state
   const [syncToken, setSyncToken] = useState<GenerateSyncTokenResponse | null>(null);
   const [copiedToken, setCopiedToken] = useState(false);
+  const [copiedSourceUrl, setCopiedSourceUrl] = useState<string | null>(null);
   const [remoteSourceUrl, setRemoteSourceUrl] = useState('');
   const [remoteSyncToken, setRemoteSyncToken] = useState('');
   const [remoteClearData, setRemoteClearData] = useState(false);
@@ -295,7 +296,8 @@ export function DatabaseSettings({ darkMode }: DatabaseSettingsProps) {
         token: '',
         expiresAt: '',
         message: error?.message || 'Failed to generate token',
-        totalRecords: 0
+        totalRecords: 0,
+        sourceUrls: []
       });
     }
   });
@@ -329,6 +331,17 @@ export function DatabaseSettings({ darkMode }: DatabaseSettingsProps) {
       } catch (err) {
         console.error('Failed to copy:', err);
       }
+    }
+  };
+
+  // Handle copy source URL
+  const handleCopySourceUrl = async (url: string) => {
+    try {
+      await navigator.clipboard.writeText(url);
+      setCopiedSourceUrl(url);
+      setTimeout(() => setCopiedSourceUrl(null), 2000);
+    } catch (err) {
+      console.error('Failed to copy:', err);
     }
   };
 
@@ -1634,7 +1647,7 @@ export function DatabaseSettings({ darkMode }: DatabaseSettingsProps) {
             </div>
 
             <p className={`text-sm mb-4 ${darkMode ? 'text-gray-400' : 'text-gray-600'}`}>
-              Generate a one-time token that allows another instance to pull your data. Token is valid for 15 minutes.
+              Generate a one-time token that allows another instance to pull your data. Token is valid for 1 hour.
             </p>
 
             <button
@@ -1676,24 +1689,60 @@ export function DatabaseSettings({ darkMode }: DatabaseSettingsProps) {
                       </span>
                     </div>
 
-                    <div className="flex items-center space-x-2">
-                      <code className={`flex-1 p-2 rounded text-xs font-mono truncate ${
-                        darkMode
-                          ? 'bg-gray-900 text-purple-400 border border-gray-700'
-                          : 'bg-white text-purple-700 border border-gray-200'
-                      }`}>
-                        {syncToken.token}
-                      </code>
-                      <button
-                        onClick={handleCopyToken}
-                        className={`p-2 rounded-lg transition-all duration-200 ${
-                          copiedToken
-                            ? (darkMode ? 'bg-green-900/50 text-green-400' : 'bg-green-100 text-green-700')
-                            : (darkMode ? 'bg-gray-700 hover:bg-gray-600 text-gray-300' : 'bg-gray-200 hover:bg-gray-300 text-gray-700')
-                        }`}
-                      >
-                        {copiedToken ? <Check className="w-4 h-4" /> : <Copy className="w-4 h-4" />}
-                      </button>
+                    {/* Source URLs */}
+                    {syncToken.sourceUrls && syncToken.sourceUrls.length > 0 && (
+                      <div className="space-y-2">
+                        <span className={`text-xs font-medium ${darkMode ? 'text-gray-400' : 'text-gray-600'}`}>
+                          Source URL (use one of these on the target):
+                        </span>
+                        {syncToken.sourceUrls.map((url, idx) => (
+                          <div key={idx} className="flex items-center space-x-2">
+                            <code className={`flex-1 p-2 rounded text-xs font-mono truncate ${
+                              darkMode
+                                ? 'bg-gray-900 text-cyan-400 border border-gray-700'
+                                : 'bg-white text-cyan-700 border border-gray-200'
+                            }`}>
+                              {url}
+                            </code>
+                            <button
+                              onClick={() => handleCopySourceUrl(url)}
+                              className={`p-2 rounded-lg transition-all duration-200 ${
+                                copiedSourceUrl === url
+                                  ? (darkMode ? 'bg-green-900/50 text-green-400' : 'bg-green-100 text-green-700')
+                                  : (darkMode ? 'bg-gray-700 hover:bg-gray-600 text-gray-300' : 'bg-gray-200 hover:bg-gray-300 text-gray-700')
+                              }`}
+                            >
+                              {copiedSourceUrl === url ? <Check className="w-4 h-4" /> : <Copy className="w-4 h-4" />}
+                            </button>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+
+                    {/* Sync Token */}
+                    <div className="space-y-2">
+                      <span className={`text-xs font-medium ${darkMode ? 'text-gray-400' : 'text-gray-600'}`}>
+                        Sync Token:
+                      </span>
+                      <div className="flex items-center space-x-2">
+                        <code className={`flex-1 p-2 rounded text-xs font-mono truncate ${
+                          darkMode
+                            ? 'bg-gray-900 text-purple-400 border border-gray-700'
+                            : 'bg-white text-purple-700 border border-gray-200'
+                        }`}>
+                          {syncToken.token}
+                        </code>
+                        <button
+                          onClick={handleCopyToken}
+                          className={`p-2 rounded-lg transition-all duration-200 ${
+                            copiedToken
+                              ? (darkMode ? 'bg-green-900/50 text-green-400' : 'bg-green-100 text-green-700')
+                              : (darkMode ? 'bg-gray-700 hover:bg-gray-600 text-gray-300' : 'bg-gray-200 hover:bg-gray-300 text-gray-700')
+                          }`}
+                        >
+                          {copiedToken ? <Check className="w-4 h-4" /> : <Copy className="w-4 h-4" />}
+                        </button>
+                      </div>
                     </div>
 
                     <p className={`text-xs ${darkMode ? 'text-gray-400' : 'text-gray-500'}`}>
@@ -1872,7 +1921,7 @@ export function DatabaseSettings({ darkMode }: DatabaseSettingsProps) {
               <li>Click "Start Remote Sync" to pull all data from source to target</li>
             </ol>
             <p className="mt-2 text-xs opacity-80">
-              Note: The sync token is one-time use and expires after 15 minutes. Both servers must be accessible over the network.
+              Note: The sync token is one-time use and expires after 1 hour. Both servers must be accessible over the network.
             </p>
           </div>
         </div>
