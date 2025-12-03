@@ -23,6 +23,10 @@ export const UpdateSettingsSection: React.FC<UpdateSettingsSectionProps> = ({ da
     staleTime: 5 * 60 * 1000, // Consider data fresh for 5 minutes
   });
 
+  // Handle both camelCase and PascalCase responses for compatibility
+  const currentVersion = versionInfo?.version || (versionInfo as any)?.Version;
+  const currentPlatform = versionInfo?.platform || (versionInfo as any)?.Platform;
+
   const handleCheckForUpdates = async () => {
     setChecking(true);
     try {
@@ -66,14 +70,14 @@ export const UpdateSettingsSection: React.FC<UpdateSettingsSectionProps> = ({ da
               {versionLoading ? (
                 <span className="text-sm opacity-50">Loading...</span>
               ) : (
-                versionInfo?.version || 'Unknown'
+                currentVersion || 'Unknown'
               )}
             </p>
-            {versionInfo?.platform && (
+            {currentPlatform && (
               <p className={`text-xs mt-1 ${
                 darkMode ? 'text-gray-400' : 'text-gray-600'
               }`}>
-                Platform: {versionInfo.platform}
+                Platform: {currentPlatform}
               </p>
             )}
           </div>
