@@ -20,7 +20,7 @@ public interface IDatabaseMigrationService
     Task<DatabaseImportResponse> ImportDatabaseAsync(DatabaseImportRequest request);
 
     // Remote sync methods
-    GenerateSyncTokenResponse GenerateSyncToken();
+    GenerateSyncTokenResponse GenerateSyncToken(string? requestUrl = null);
     bool ValidateSyncToken(string token);
     Task<DatabaseExportResponse> ExportWithTokenAsync(string token);
     Task<RemoteSyncResponse> RemoteSyncAsync(RemoteSyncRequest request);
@@ -36,6 +36,12 @@ public class DatabaseMigrationService : IDatabaseMigrationService
     // Static storage for sync tokens (token -> expiration time)
     private static readonly Dictionary<string, DateTime> _syncTokens = new();
     private static readonly object _tokenLock = new();
+
+    // Store the current active token info for reuse
+    private static string? _activeToken = null;
+    private static DateTime _activeTokenExpiry = DateTime.MinValue;
+    private static int _activeTokenRecordCount = 0;
+    private static List<string> _activeTokenSourceUrls = new();
 
     public DatabaseMigrationService(
         ServicesDashboardContext context,
@@ -953,21 +959,42 @@ public class DatabaseMigrationService : IDatabaseMigrationService
 
     // Remote Sync Methods
 
-    public GenerateSyncTokenResponse GenerateSyncToken()
+    public GenerateSyncTokenResponse GenerateSyncToken(string? requestUrl = null)
     {
         try
         {
             // Clean up expired tokens
             CleanupExpiredTokens();
 
-            // Generate a unique token
-            var token = GenerateSecureToken();
-            var expiresAt = DateTime.UtcNow.AddHours(1); // Token valid for 1 hour
-
+            // Check if there's an active token that's still valid
             lock (_tokenLock)
             {
-                _syncTokens[token] = expiresAt;
+                if (!string.IsNullOrEmpty(_activeToken) && _activeTokenExpiry > DateTime.UtcNow)
+                {
+                    // Update source URLs in case they've changed (e.g., accessed from different URL)
+                    var updatedSourceUrls = GetSourceUrls(requestUrl);
+                    if (updatedSourceUrls.Any() && !updatedSourceUrls.All(u => IsInternalUrl(u)))
+                    {
+                        _activeTokenSourceUrls = updatedSourceUrls;
+                    }
+
+                    _logger.LogInformation("Returning existing active sync token, expires at {ExpiresAt}", _activeTokenExpiry);
+
+                    return new GenerateSyncTokenResponse
+                    {
+                        Success = true,
+                        Token = _activeToken,
+                        ExpiresAt = _activeTokenExpiry,
+                        Message = "Active sync token found. Valid for 1 hour from generation.",
+                        TotalRecords = _activeTokenRecordCount,
+                        SourceUrls = _activeTokenSourceUrls
+                    };
+                }
             }
+
+            // Generate a new unique token
+            var token = GenerateSecureToken();
+            var expiresAt = DateTime.UtcNow.AddHours(1); // Token valid for 1 hour
 
             var totalRecords = _context.ManagedServers.Count() +
                                _context.SshCredentials.Count() +
@@ -980,10 +1007,21 @@ public class DatabaseMigrationService : IDatabaseMigrationService
                                _context.UpdateReports.Count() +
                                _context.ServerAlerts.Count();
 
-            // Get local IP addresses for the source URLs
-            var sourceUrls = GetLocalSourceUrls();
+            // Get source URLs - prefer the actual request URL, fall back to detected IPs
+            var sourceUrls = GetSourceUrls(requestUrl);
 
-            _logger.LogInformation("Generated sync token, expires at {ExpiresAt}", expiresAt);
+            lock (_tokenLock)
+            {
+                _syncTokens[token] = expiresAt;
+
+                // Store as the active token
+                _activeToken = token;
+                _activeTokenExpiry = expiresAt;
+                _activeTokenRecordCount = totalRecords;
+                _activeTokenSourceUrls = sourceUrls;
+            }
+
+            _logger.LogInformation("Generated new sync token, expires at {ExpiresAt}", expiresAt);
 
             return new GenerateSyncTokenResponse
             {
@@ -1006,7 +1044,64 @@ public class DatabaseMigrationService : IDatabaseMigrationService
         }
     }
 
-    private List<string> GetLocalSourceUrls()
+    private static bool IsInternalUrl(string url)
+    {
+        return url.Contains("localhost") ||
+               url.Contains("127.0.0.1") ||
+               url.Contains("172.") ||
+               // Docker service names (no dots, just alphanumeric and hyphens)
+               (Uri.TryCreate(url, UriKind.Absolute, out var uri) &&
+                !uri.Host.Contains('.') &&
+                uri.Host != "localhost");
+    }
+
+    private List<string> GetSourceUrls(string? requestUrl)
+    {
+        var urls = new List<string>();
+
+        // If we have a request URL (from the actual HTTP request), use it as the primary source
+        if (!string.IsNullOrEmpty(requestUrl))
+        {
+            // Clean up the URL - remove any trailing slashes
+            var cleanUrl = requestUrl.TrimEnd('/');
+
+            // Don't add internal URLs (localhost, Docker IPs, Docker service names)
+            if (!IsInternalUrl(cleanUrl))
+            {
+                urls.Add(cleanUrl);
+            }
+        }
+
+        // Also check for configured external URL from environment
+        var configuredUrl = _configuration.GetValue<string>("AppSettings:ExternalUrl");
+        if (!string.IsNullOrEmpty(configuredUrl) && !urls.Contains(configuredUrl))
+        {
+            urls.Add(configuredUrl.TrimEnd('/'));
+        }
+
+        // If no external URLs found, try to get local network IPs (useful for LAN sync)
+        if (!urls.Any() || urls.All(IsInternalUrl))
+        {
+            var localUrls = GetLocalNetworkUrls();
+            foreach (var url in localUrls)
+            {
+                if (!urls.Contains(url))
+                {
+                    urls.Add(url);
+                }
+            }
+        }
+
+        // Always add localhost as a fallback
+        if (!urls.Any())
+        {
+            urls.Add("http://localhost:5050");
+        }
+
+        return urls;
+    }
+
+    private List<string> GetLocalNetworkUrls()
     {
         var urls = new List<string>();
 
@@ -1026,24 +1121,17 @@ public class DatabaseMigrationService : IDatabaseMigrationService
 
                 foreach (var ip in unicastAddresses)
                 {
-                    // Skip link-local addresses (169.254.x.x)
-                    if (!ip.StartsWith("169.254."))
+                    // Skip link-local addresses (169.254.x.x) and Docker internal IPs (172.x.x.x)
+                    if (!ip.StartsWith("169.254.") && !ip.StartsWith("172."))
                     {
                         urls.Add($"http://{ip}:5050");
                     }
                 }
             }
-
-            // Add localhost as fallback
-            if (!urls.Any())
-            {
-                urls.Add("http://localhost:5050");
-            }
         }
         catch (Exception ex)
         {
-            _logger.LogWarning(ex, "Error getting local IP addresses");
-            urls.Add("http://localhost:5050");
+            _logger.LogWarning(ex, "Error getting local network IP addresses");
         }
 
         return urls;
@@ -1218,6 +1306,15 @@ public class DatabaseMigrationService : IDatabaseMigrationService
             foreach (var token in expiredTokens)
             {
                 _syncTokens.Remove(token);
+            }
+
+            // Also clear active token if expired
+            if (_activeTokenExpiry <= DateTime.UtcNow)
+            {
+                _activeToken = null;
+                _activeTokenExpiry = DateTime.MinValue;
+                _activeTokenRecordCount = 0;
+                _activeTokenSourceUrls = new List<string>();
             }
         }
     }

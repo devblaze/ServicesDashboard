@@ -21,7 +21,13 @@ public class GenerateSyncTokenEndpoint : EndpointWithoutRequest<GenerateSyncToke
 
     public override async Task HandleAsync(CancellationToken ct)
     {
-        var result = _databaseService.GenerateSyncToken();
+        // Get the actual URL from the request to show the user
+        var request = HttpContext.Request;
+        var scheme = request.Headers["X-Forwarded-Proto"].FirstOrDefault() ?? request.Scheme;
+        var host = request.Headers["X-Forwarded-Host"].FirstOrDefault() ?? request.Host.ToString();
+        var requestUrl = $"{scheme}://{host}";
+
+        var result = _databaseService.GenerateSyncToken(requestUrl);
         await Send.OkAsync(result, ct);
     }
 }
