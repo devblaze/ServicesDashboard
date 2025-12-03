@@ -58,6 +58,11 @@ builder.Services.AddDbContext<ServicesDashboardContext>(options =>
             Console.WriteLine("🗄️ Using PostgreSQL database");
             break;
     }
+
+    // Suppress the PendingModelChangesWarning for multi-provider scenarios
+    // The migrations are generated with PostgreSQL but work across all providers
+    options.ConfigureWarnings(warnings =>
+        warnings.Ignore(Microsoft.EntityFrameworkCore.Diagnostics.RelationalEventId.PendingModelChangesWarning));
 });
 
 // Add OllamaSharp client
