@@ -207,59 +207,90 @@ static async Task ApplyMigrationsAsync(IServiceProvider services)
     using var scope = services.CreateScope();
     var context = scope.ServiceProvider.GetRequiredService<ServicesDashboardContext>();
     var logger = scope.ServiceProvider.GetRequiredService<ILogger<Program>>();
-    
+    var configuration = scope.ServiceProvider.GetRequiredService<IConfiguration>();
+    var databaseProvider = configuration.GetValue<string>("DatabaseProvider") ?? "PostgreSQL";
+
     try
     {
-        logger.LogInformation("🗄️ Checking database connection...");
-        
-        // Check if database can be connected to
-        var canConnect = await context.Database.CanConnectAsync();
-        if (!canConnect)
+        logger.LogInformation("🗄️ Checking database connection for {Provider}...", databaseProvider);
+
+        // Retry connection with delay
+        var maxRetries = 5;
+        var retryCount = 0;
+        while (retryCount < maxRetries)
         {
-            logger.LogWarning("⚠️ Cannot connect to database, retrying in 5 seconds...");
+            var canConnect = await context.Database.CanConnectAsync();
+            if (canConnect)
+            {
+                break;
+            }
+
+            retryCount++;
+            logger.LogWarning("⚠️ Cannot connect to database (attempt {Attempt}/{MaxRetries}), retrying in 5 seconds...",
+                retryCount, maxRetries);
             await Task.Delay(5000);
         }
-        
-        logger.LogInformation("🔄 Applying database migrations...");
-        
-        // Get pending migrations
-        var pendingMigrations = await context.Database.GetPendingMigrationsAsync();
-        var appliedMigrations = await context.Database.GetAppliedMigrationsAsync();
-        
-        logger.LogInformation($"📊 Applied migrations: {appliedMigrations.Count()}");
-        logger.LogInformation($"🆕 Pending migrations: {pendingMigrations.Count()}");
-        
-        if (pendingMigrations.Any())
+
+        // For SQL Server, use EnsureCreated instead of migrations
+        // because the migrations are generated for PostgreSQL with PostgreSQL-specific types
+        if (databaseProvider.Equals("SqlServer", StringComparison.OrdinalIgnoreCase))
         {
-            logger.LogInformation("⚡ Applying pending migrations...");
-            foreach (var migration in pendingMigrations)
+            logger.LogInformation("🔄 Using EnsureCreated for SQL Server (migrations are PostgreSQL-specific)...");
+
+            var created = await context.Database.EnsureCreatedAsync();
+            if (created)
             {
-                logger.LogInformation($"   - {migration}");
+                logger.LogInformation("✅ SQL Server database schema created successfully!");
             }
-            
-            await context.Database.MigrateAsync();
-            logger.LogInformation("✅ Migrations applied successfully!");
+            else
+            {
+                logger.LogInformation("✅ SQL Server database schema already exists!");
+            }
         }
         else
         {
-            logger.LogInformation("✅ Database is up to date!");
+            // For PostgreSQL and SQLite, use migrations
+            logger.LogInformation("🔄 Applying database migrations...");
+
+            // Get pending migrations
+            var pendingMigrations = await context.Database.GetPendingMigrationsAsync();
+            var appliedMigrations = await context.Database.GetAppliedMigrationsAsync();
+
+            logger.LogInformation($"📊 Applied migrations: {appliedMigrations.Count()}");
+            logger.LogInformation($"🆕 Pending migrations: {pendingMigrations.Count()}");
+
+            if (pendingMigrations.Any())
+            {
+                logger.LogInformation("⚡ Applying pending migrations...");
+                foreach (var migration in pendingMigrations)
+                {
+                    logger.LogInformation($"   - {migration}");
+                }
+
+                await context.Database.MigrateAsync();
+                logger.LogInformation("✅ Migrations applied successfully!");
+            }
+            else
+            {
+                logger.LogInformation("✅ Database is up to date!");
+            }
         }
-        
+
         // Optionally seed some initial data
         await SeedInitialDataAsync(context, logger);
     }
     catch (Exception ex)
     {
-        logger.LogError(ex, "❌ Error during database migration: {ErrorMessage}", ex.Message);
-        
+        logger.LogError(ex, "❌ Error during database setup: {ErrorMessage}", ex.Message);
+
         // In development, you might want to continue anyway
         // In production, you might want to throw to prevent startup
         if (Environment.GetEnvironmentVariable("ASPNETCORE_ENVIRONMENT") != "Development")
         {
             throw;
         }
-        
-        logger.LogWarning("⚠️ Continuing startup despite migration error (Development mode)");
+
+        logger.LogWarning("⚠️ Continuing startup despite database setup error (Development mode)");
     }
 }
 
