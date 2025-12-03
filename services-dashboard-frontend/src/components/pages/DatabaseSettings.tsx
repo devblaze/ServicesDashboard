@@ -267,14 +267,18 @@ export function DatabaseSettings({ darkMode }: DatabaseSettingsProps) {
     mutationFn: (request: DatabaseImportRequest) => databaseApi.importDatabase(request),
     onSuccess: (data) => {
       setImportResult(data);
+      // Always close the dialog to show the result
+      setShowImportConfirm(false);
+      setImportData(null);
       if (data.success) {
         queryClient.invalidateQueries({ queryKey: ['database-status'] });
-        setShowImportConfirm(false);
-        setImportData(null);
       }
     },
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     onError: (error: any) => {
+      // Close the dialog and show the error
+      setShowImportConfirm(false);
+      setImportData(null);
       setImportResult({
         success: false,
         message: 'Import failed',

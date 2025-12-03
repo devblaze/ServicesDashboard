@@ -808,17 +808,44 @@ public class DatabaseMigrationService : IDatabaseMigrationService
             // Clear data in order that respects foreign key constraints
             // Delete in reverse order of dependencies
 
-            await context.Database.ExecuteSqlRawAsync("DELETE FROM \"ServerHealthChecks\"");
-            await context.Database.ExecuteSqlRawAsync("DELETE FROM \"UpdateReports\"");
-            await context.Database.ExecuteSqlRawAsync("DELETE FROM \"ServerAlerts\"");
-            await context.Database.ExecuteSqlRawAsync("DELETE FROM \"DockerServiceArrangements\"");
-            await context.Database.ExecuteSqlRawAsync("DELETE FROM \"ScheduledTaskServers\"");
-            await context.Database.ExecuteSqlRawAsync("DELETE FROM \"ScheduledTasks\"");
-            await context.Database.ExecuteSqlRawAsync("DELETE FROM \"ManagedServers\"");
-            await context.Database.ExecuteSqlRawAsync("DELETE FROM \"ApplicationSettings\"");
-            await context.Database.ExecuteSqlRawAsync("DELETE FROM \"StoredDiscoveredServices\"");
-            await context.Database.ExecuteSqlRawAsync("DELETE FROM \"SshCredentials\"");
-            await context.Database.ExecuteSqlRawAsync("DELETE FROM \"GitProviders\"");
+            // Detect provider to use correct identifier quoting
+            var provider = _configuration.GetValue<string>("DatabaseProvider") ?? "PostgreSQL";
+            var isSqlServer = provider.Equals("SqlServer", StringComparison.OrdinalIgnoreCase);
+
+            // Use square brackets for SQL Server, double quotes for PostgreSQL/SQLite
+            string Quote(string tableName) => isSqlServer ? $"[{tableName}]" : $"\"{tableName}\"";
+
+            _logger.LogInformation("Clearing database tables for provider: {Provider}", provider);
+
+            // Delete in order respecting foreign key constraints
+            var tablesToClear = new[]
+            {
+                "ServerHealthChecks",
+                "UpdateReports",
+                "ServerAlerts",
+                "DockerServiceArrangements",
+                "ScheduledTaskServers",
+                "ScheduledTasks",
+                "ManagedServers",
+                "ApplicationSettings",
+                "StoredDiscoveredServices",
+                "SshCredentials",
+                "GitProviderConnections"
+            };
+
+            foreach (var table in tablesToClear)
+            {
+                try
+                {
+                    await context.Database.ExecuteSqlRawAsync($"DELETE FROM {Quote(table)}");
+                    _logger.LogDebug("Cleared table: {Table}", table);
+                }
+                catch (Exception tableEx)
+                {
+                    // Table might not exist, continue with others
+                    _logger.LogDebug("Could not clear table {Table}: {Error}", table, tableEx.Message);
+                }
+            }
 
             _logger.LogInformation("Successfully cleared target database");
         }

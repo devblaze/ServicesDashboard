@@ -22,6 +22,12 @@ using ServicesDashboard.Services.SelfHosted;
 
 var builder = WebApplication.CreateBuilder(args);
 
+// Configure Kestrel to allow larger request bodies (100MB for database imports)
+builder.WebHost.ConfigureKestrel(serverOptions =>
+{
+    serverOptions.Limits.MaxRequestBodySize = 100 * 1024 * 1024; // 100 MB
+});
+
 // Add FastEndpoints
 builder.Services.AddFastEndpoints();
 
