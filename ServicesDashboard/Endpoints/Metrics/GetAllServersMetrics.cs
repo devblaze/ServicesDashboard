@@ -19,7 +19,10 @@ public class ServerMetricsSummary
     public int ContainerCount { get; set; }
 
     // Aggregated current values
+    // Note: TotalCpuPercentage is kept for backwards compatibility but now shows average CPU
     public float TotalCpuPercentage { get; set; }
+    public float AvgCpuPercentage { get; set; }
+    public float MaxCpuPercentage { get; set; }
     public long TotalMemoryUsageBytes { get; set; }
     public long TotalMemoryLimitBytes { get; set; }
     public long TotalNetworkRxBytes { get; set; }
@@ -67,6 +70,10 @@ public class GetAllServersMetricsEndpoint : Endpoint<GetAllServersMetricsRequest
         {
             var serverMetrics = latestMetrics.Where(m => m.ServerId == server.Id).ToList();
 
+            // Calculate CPU averages - use average instead of sum for meaningful percentages
+            var avgCpu = serverMetrics.Any() ? serverMetrics.Average(m => m.CpuPercentage) : 0;
+            var maxCpu = serverMetrics.Any() ? serverMetrics.Max(m => m.CpuPercentage) : 0;
+
             return new ServerMetricsSummary
             {
                 ServerId = server.Id,
@@ -74,7 +81,10 @@ public class GetAllServersMetricsEndpoint : Endpoint<GetAllServersMetricsRequest
                 HostAddress = server.HostAddress,
                 Status = server.Status.ToString(),
                 ContainerCount = serverMetrics.Count,
-                TotalCpuPercentage = serverMetrics.Sum(m => m.CpuPercentage),
+                // TotalCpuPercentage now shows average for backwards compatibility with frontend
+                TotalCpuPercentage = avgCpu,
+                AvgCpuPercentage = avgCpu,
+                MaxCpuPercentage = maxCpu,
                 TotalMemoryUsageBytes = serverMetrics.Sum(m => m.MemoryUsageBytes),
                 TotalMemoryLimitBytes = serverMetrics.Sum(m => m.MemoryLimitBytes),
                 TotalNetworkRxBytes = serverMetrics.Sum(m => m.NetworkRxBytes),

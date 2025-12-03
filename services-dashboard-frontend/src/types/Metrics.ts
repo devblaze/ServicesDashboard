@@ -56,7 +56,10 @@ export interface ServerMetricsSummary {
   containerCount: number;
 
   // Aggregated current values
+  // Note: totalCpuPercentage now shows average CPU (not sum) for meaningful display
   totalCpuPercentage: number;
+  avgCpuPercentage: number;
+  maxCpuPercentage: number;
   totalMemoryUsageBytes: number;
   totalMemoryLimitBytes: number;
   totalNetworkRxBytes: number;

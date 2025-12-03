@@ -19,6 +19,9 @@ services:
       retries: 3
 
   servicesdashboard:
+    build:
+      context: ./ServicesDashboard
+      dockerfile: Dockerfile
     image: ${DOCKER_USERNAME:-devblaze}/servicesdashboard-backend:${VERSION:-latest}
     ports:
       - "${BACKEND_PORT:-5051}:${BACKEND_INTERNAL_PORT:-8080}"
@@ -46,6 +49,9 @@ services:
       start_period: 40s
 
   frontend:
+    build:
+      context: ./services-dashboard-frontend
+      dockerfile: Dockerfile.prod
     image: ${DOCKER_USERNAME:-devblaze}/servicesdashboard-frontend:${VERSION:-latest}
     ports:
       - "${FRONTEND_PORT:-5050}:${FRONTEND_INTERNAL_PORT:-80}"

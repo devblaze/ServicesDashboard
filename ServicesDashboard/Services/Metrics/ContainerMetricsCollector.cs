@@ -115,6 +115,23 @@ public class ContainerMetricsCollector : BackgroundService
             using var client = CreateSshClient(server);
             client.Connect();
 
+            // Get the number of CPUs on the server for normalizing CPU percentage
+            int cpuCount = 1;
+            try
+            {
+                using var cpuCmd = client.CreateCommand("nproc");
+                cpuCmd.CommandTimeout = TimeSpan.FromSeconds(10);
+                var cpuResult = await Task.Run(() => cpuCmd.Execute(), stoppingToken);
+                if (int.TryParse(cpuResult.Trim(), out var parsedCpuCount) && parsedCpuCount > 0)
+                {
+                    cpuCount = parsedCpuCount;
+                }
+            }
+            catch (Exception ex)
+            {
+                _logger.LogDebug(ex, "Failed to get CPU count from server {ServerName}, using default of 1", server.Name);
+            }
+
             // Get all running containers with stats in one command
             var command = "docker stats --no-stream --format \"{{.ID}}|{{.Name}}|{{.CPUPerc}}|{{.MemUsage}}|{{.MemPerc}}|{{.NetIO}}|{{.BlockIO}}\"";
             using var cmd = client.CreateCommand(command);
@@ -134,13 +151,18 @@ public class ContainerMetricsCollector : BackgroundService
                         var (netRx, netTx) = ParseNetworkIO(parts[5]);
                         var (blockRead, blockWrite) = ParseBlockIO(parts[6]);
 
+                        // Normalize CPU percentage by dividing by the number of CPUs
+                        // Docker stats returns cumulative CPU across all cores (e.g., 200% on a 2-core system)
+                        var rawCpuPercentage = ParsePercentage(parts[2]);
+                        var normalizedCpuPercentage = rawCpuPercentage / cpuCount;
+
                         metrics.Add(new ContainerMetricsHistory
                         {
                             ServerId = server.Id,
                             ContainerId = parts[0],
                             ContainerName = parts[1],
                             Timestamp = timestamp,
-                            CpuPercentage = ParsePercentage(parts[2]),
+                            CpuPercentage = normalizedCpuPercentage,
                             MemoryUsageBytes = memUsage,
                             MemoryLimitBytes = memLimit,
                             MemoryPercentage = ParsePercentage(parts[4]),
