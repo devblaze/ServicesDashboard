@@ -1,6 +1,7 @@
 using Microsoft.EntityFrameworkCore;
 using ServicesDashboard.Data;
 using ServicesDashboard.Data.Entities;
+using ServicesDashboard.Models;
 using ServicesDashboard.Models.Dtos;
 using Npgsql;
 using Microsoft.Data.Sqlite;
@@ -15,6 +16,8 @@ public interface IDatabaseMigrationService
     Task<MigrateDatabaseResponse> MigrateDatabaseAsync(MigrateDatabaseRequest request);
     Task<DatabaseConfigurationDto> GetCurrentConfigurationAsync();
     Task<bool> SaveConfigurationAsync(UpdateDatabaseConfigurationRequest request);
+    Task<DatabaseExportResponse> ExportDatabaseAsync();
+    Task<DatabaseImportResponse> ImportDatabaseAsync(DatabaseImportRequest request);
 }
 
 public class DatabaseMigrationService : IDatabaseMigrationService
@@ -283,6 +286,319 @@ public class DatabaseMigrationService : IDatabaseMigrationService
             _logger.LogError(ex, "Error saving database configuration");
             return false;
         }
+    }
+
+    public async Task<DatabaseExportResponse> ExportDatabaseAsync()
+    {
+        try
+        {
+            _logger.LogInformation("Starting database export");
+
+            var provider = _configuration.GetValue<string>("DatabaseProvider") ?? "PostgreSQL";
+            var exportData = new DatabaseExportData();
+            var tableCounts = new Dictionary<string, int>();
+
+            // Export all tables
+            var servers = await _context.ManagedServers.AsNoTracking().ToListAsync();
+            exportData.ManagedServers = servers.Cast<object>().ToList();
+            tableCounts["ManagedServers"] = servers.Count;
+
+            var credentials = await _context.SshCredentials.AsNoTracking().ToListAsync();
+            exportData.SshCredentials = credentials.Cast<object>().ToList();
+            tableCounts["SshCredentials"] = credentials.Count;
+
+            var settings = await _context.ApplicationSettings.AsNoTracking().ToListAsync();
+            exportData.ApplicationSettings = settings.Cast<object>().ToList();
+            tableCounts["ApplicationSettings"] = settings.Count;
+
+            var arrangements = await _context.DockerServiceArrangements.AsNoTracking().ToListAsync();
+            exportData.DockerServiceArrangements = arrangements.Cast<object>().ToList();
+            tableCounts["DockerServiceArrangements"] = arrangements.Count;
+
+            var tasks = await _context.ScheduledTasks.AsNoTracking().ToListAsync();
+            exportData.ScheduledTasks = tasks.Cast<object>().ToList();
+            tableCounts["ScheduledTasks"] = tasks.Count;
+
+            var discoveredServices = await _context.StoredDiscoveredServices.AsNoTracking().ToListAsync();
+            exportData.StoredDiscoveredServices = discoveredServices.Cast<object>().ToList();
+            tableCounts["StoredDiscoveredServices"] = discoveredServices.Count;
+
+            var gitProviders = await _context.GitProviderConnections.AsNoTracking().ToListAsync();
+            exportData.GitProviderConnections = gitProviders.Cast<object>().ToList();
+            tableCounts["GitProviderConnections"] = gitProviders.Count;
+
+            var healthChecks = await _context.ServerHealthChecks.AsNoTracking().ToListAsync();
+            exportData.ServerHealthChecks = healthChecks.Cast<object>().ToList();
+            tableCounts["ServerHealthChecks"] = healthChecks.Count;
+
+            var updateReports = await _context.UpdateReports.AsNoTracking().ToListAsync();
+            exportData.UpdateReports = updateReports.Cast<object>().ToList();
+            tableCounts["UpdateReports"] = updateReports.Count;
+
+            var alerts = await _context.ServerAlerts.AsNoTracking().ToListAsync();
+            exportData.ServerAlerts = alerts.Cast<object>().ToList();
+            tableCounts["ServerAlerts"] = alerts.Count;
+
+            var totalRecords = tableCounts.Values.Sum();
+
+            var metadata = new DatabaseExportMetadata
+            {
+                ExportedAt = DateTime.UtcNow.ToString("O"),
+                SourceProvider = provider,
+                AppVersion = "1.0.0",
+                TotalRecords = totalRecords,
+                TableCounts = tableCounts
+            };
+
+            _logger.LogInformation("Database export completed: {TotalRecords} records from {TableCount} tables",
+                totalRecords, tableCounts.Count);
+
+            return new DatabaseExportResponse
+            {
+                Success = true,
+                Message = $"Successfully exported {totalRecords} records from {tableCounts.Count} tables",
+                FileName = $"servicesdashboard-export-{DateTime.UtcNow:yyyyMMdd-HHmmss}.json",
+                Data = exportData,
+                Metadata = metadata
+            };
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error exporting database");
+            return new DatabaseExportResponse
+            {
+                Success = false,
+                Message = "Export failed",
+                Error = ex.Message
+            };
+        }
+    }
+
+    public async Task<DatabaseImportResponse> ImportDatabaseAsync(DatabaseImportRequest request)
+    {
+        try
+        {
+            _logger.LogInformation("Starting database import from {SourceProvider} export",
+                request.Metadata.SourceProvider);
+
+            var warnings = new List<string>();
+            var tableCounts = new Dictionary<string, int>();
+            var totalImported = 0;
+
+            // Check if database has existing data
+            var existingRecords = await CountTotalRecordsAsync();
+            if (existingRecords > 0)
+            {
+                if (!request.ClearExistingData)
+                {
+                    return new DatabaseImportResponse
+                    {
+                        Success = false,
+                        Message = $"Database contains {existingRecords} existing records. Set ClearExistingData to true to overwrite, or use an empty database.",
+                        Error = "Database is not empty"
+                    };
+                }
+
+                _logger.LogWarning("Clearing {Count} existing records before import", existingRecords);
+                await ClearDatabaseAsync(_context);
+                warnings.Add($"Cleared {existingRecords} existing records before import");
+            }
+
+            // Import data in correct order (respecting foreign key constraints)
+            // 1. SSH Credentials (no dependencies)
+            if (request.Data.SshCredentials.Any())
+            {
+                var credentials = DeserializeList<Models.SshCredential>(request.Data.SshCredentials);
+                foreach (var cred in credentials)
+                {
+                    cred.Id = 0; // Reset ID to let database generate new ones
+                }
+                _context.SshCredentials.AddRange(credentials);
+                await _context.SaveChangesAsync();
+                tableCounts["SshCredentials"] = credentials.Count;
+                totalImported += credentials.Count;
+                _logger.LogInformation("Imported {Count} SSH credentials", credentials.Count);
+            }
+
+            // 2. Application Settings (no dependencies)
+            if (request.Data.ApplicationSettings.Any())
+            {
+                var settings = DeserializeList<Data.Entities.ApplicationSetting>(request.Data.ApplicationSettings);
+                foreach (var setting in settings)
+                {
+                    setting.Id = 0;
+                }
+                _context.ApplicationSettings.AddRange(settings);
+                await _context.SaveChangesAsync();
+                tableCounts["ApplicationSettings"] = settings.Count;
+                totalImported += settings.Count;
+                _logger.LogInformation("Imported {Count} application settings", settings.Count);
+            }
+
+            // 3. Managed Servers (may reference SSH credentials)
+            if (request.Data.ManagedServers.Any())
+            {
+                var servers = DeserializeList<Models.ManagedServer>(request.Data.ManagedServers);
+                foreach (var server in servers)
+                {
+                    server.Id = 0;
+                    server.SshCredentialId = null; // Clear credential references for now
+                }
+                _context.ManagedServers.AddRange(servers);
+                await _context.SaveChangesAsync();
+                tableCounts["ManagedServers"] = servers.Count;
+                totalImported += servers.Count;
+                _logger.LogInformation("Imported {Count} managed servers", servers.Count);
+            }
+
+            // 4. Docker Service Arrangements
+            if (request.Data.DockerServiceArrangements.Any())
+            {
+                var arrangements = DeserializeList<Data.Entities.DockerServiceArrangement>(request.Data.DockerServiceArrangements);
+                foreach (var arr in arrangements)
+                {
+                    arr.Id = 0;
+                }
+                _context.DockerServiceArrangements.AddRange(arrangements);
+                await _context.SaveChangesAsync();
+                tableCounts["DockerServiceArrangements"] = arrangements.Count;
+                totalImported += arrangements.Count;
+                _logger.LogInformation("Imported {Count} docker service arrangements", arrangements.Count);
+            }
+
+            // 5. Scheduled Tasks
+            if (request.Data.ScheduledTasks.Any())
+            {
+                var tasks = DeserializeList<Models.ScheduledTask>(request.Data.ScheduledTasks);
+                foreach (var task in tasks)
+                {
+                    task.Id = 0;
+                }
+                _context.ScheduledTasks.AddRange(tasks);
+                await _context.SaveChangesAsync();
+                tableCounts["ScheduledTasks"] = tasks.Count;
+                totalImported += tasks.Count;
+                _logger.LogInformation("Imported {Count} scheduled tasks", tasks.Count);
+            }
+
+            // 6. Stored Discovered Services
+            if (request.Data.StoredDiscoveredServices.Any())
+            {
+                var services = DeserializeList<Models.StoredDiscoveredService>(request.Data.StoredDiscoveredServices);
+                foreach (var svc in services)
+                {
+                    svc.Id = 0;
+                }
+                _context.StoredDiscoveredServices.AddRange(services);
+                await _context.SaveChangesAsync();
+                tableCounts["StoredDiscoveredServices"] = services.Count;
+                totalImported += services.Count;
+                _logger.LogInformation("Imported {Count} discovered services", services.Count);
+            }
+
+            // 7. Git Provider Connections
+            if (request.Data.GitProviderConnections.Any())
+            {
+                var providers = DeserializeList<Data.Entities.GitProviderConnection>(request.Data.GitProviderConnections);
+                foreach (var provider in providers)
+                {
+                    provider.Id = 0;
+                }
+                _context.GitProviderConnections.AddRange(providers);
+                await _context.SaveChangesAsync();
+                tableCounts["GitProviderConnections"] = providers.Count;
+                totalImported += providers.Count;
+                _logger.LogInformation("Imported {Count} git provider connections", providers.Count);
+            }
+
+            // 8. Server Health Checks (references servers)
+            if (request.Data.ServerHealthChecks.Any())
+            {
+                var checks = DeserializeList<Models.ServerHealthCheck>(request.Data.ServerHealthChecks);
+                foreach (var check in checks)
+                {
+                    check.Id = 0;
+                }
+                _context.ServerHealthChecks.AddRange(checks);
+                await _context.SaveChangesAsync();
+                tableCounts["ServerHealthChecks"] = checks.Count;
+                totalImported += checks.Count;
+                _logger.LogInformation("Imported {Count} health checks", checks.Count);
+            }
+
+            // 9. Update Reports
+            if (request.Data.UpdateReports.Any())
+            {
+                var reports = DeserializeList<Models.UpdateReport>(request.Data.UpdateReports);
+                foreach (var report in reports)
+                {
+                    report.Id = 0;
+                }
+                _context.UpdateReports.AddRange(reports);
+                await _context.SaveChangesAsync();
+                tableCounts["UpdateReports"] = reports.Count;
+                totalImported += reports.Count;
+                _logger.LogInformation("Imported {Count} update reports", reports.Count);
+            }
+
+            // 10. Server Alerts
+            if (request.Data.ServerAlerts.Any())
+            {
+                var alerts = DeserializeList<Models.ServerAlert>(request.Data.ServerAlerts);
+                foreach (var alert in alerts)
+                {
+                    alert.Id = 0;
+                }
+                _context.ServerAlerts.AddRange(alerts);
+                await _context.SaveChangesAsync();
+                tableCounts["ServerAlerts"] = alerts.Count;
+                totalImported += alerts.Count;
+                _logger.LogInformation("Imported {Count} server alerts", alerts.Count);
+            }
+
+            _logger.LogInformation("Database import completed: {TotalRecords} records imported", totalImported);
+
+            return new DatabaseImportResponse
+            {
+                Success = true,
+                Message = $"Successfully imported {totalImported} records",
+                RecordsImported = totalImported,
+                TableCounts = tableCounts,
+                Warnings = warnings
+            };
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error importing database");
+            return new DatabaseImportResponse
+            {
+                Success = false,
+                Message = "Import failed",
+                Error = ex.Message
+            };
+        }
+    }
+
+    private List<T> DeserializeList<T>(List<object> items) where T : class
+    {
+        var result = new List<T>();
+        foreach (var item in items)
+        {
+            if (item is System.Text.Json.JsonElement jsonElement)
+            {
+                var deserialized = System.Text.Json.JsonSerializer.Deserialize<T>(jsonElement.GetRawText(),
+                    new System.Text.Json.JsonSerializerOptions { PropertyNameCaseInsensitive = true });
+                if (deserialized != null)
+                {
+                    result.Add(deserialized);
+                }
+            }
+            else if (item is T typedItem)
+            {
+                result.Add(typedItem);
+            }
+        }
+        return result;
     }
 
     // Private helper methods

@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useRef } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import {
   Database,
@@ -14,10 +14,20 @@ import {
   Shield,
   Info,
   Copy,
-  Check
+  Check,
+  Download,
+  Upload,
+  FileJson,
+  RefreshCw
 } from 'lucide-react';
 import { databaseApi } from '../../services/DatabaseApi';
-import type { TestConnectionRequest, MigrateDatabaseRequest, DatabaseProvider } from '../../types/database';
+import type {
+  TestConnectionRequest,
+  MigrateDatabaseRequest,
+  DatabaseProvider,
+  DatabaseImportRequest,
+  DatabaseExportResponse
+} from '../../types/database';
 
 interface DatabaseSettingsProps {
   darkMode: boolean;
@@ -80,6 +90,20 @@ export function DatabaseSettings({ darkMode }: DatabaseSettingsProps) {
   const [showMigrationConfirm, setShowMigrationConfirm] = useState(false);
   const [copiedEnv, setCopiedEnv] = useState(false);
   const [copiedConnection, setCopiedConnection] = useState(false);
+
+  // Export/Import state
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  const [exportResult, setExportResult] = useState<DatabaseExportResponse | null>(null);
+  const [importResult, setImportResult] = useState<{
+    success: boolean;
+    message: string;
+    error?: string;
+    recordsImported?: number;
+    warnings?: string[];
+  } | null>(null);
+  const [showImportConfirm, setShowImportConfirm] = useState(false);
+  const [importData, setImportData] = useState<DatabaseImportRequest | null>(null);
+  const [clearExistingData, setClearExistingData] = useState(false);
 
   // Generate environment variables string
   const generateEnvVariables = () => {
@@ -184,6 +208,108 @@ export function DatabaseSettings({ darkMode }: DatabaseSettingsProps) {
       alert(`Migration failed: ${error?.message || 'Unknown error'}`);
     }
   });
+
+  // Export mutation
+  const exportMutation = useMutation({
+    mutationFn: () => databaseApi.exportDatabase(),
+    onSuccess: (data) => {
+      setExportResult(data);
+      if (data.success && data.data && data.metadata) {
+        // Auto-download the export file
+        const exportContent = {
+          data: data.data,
+          metadata: data.metadata
+        };
+        const blob = new Blob([JSON.stringify(exportContent, null, 2)], { type: 'application/json' });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = data.fileName || `servicesdashboard-export-${new Date().toISOString().split('T')[0]}.json`;
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        URL.revokeObjectURL(url);
+      }
+    },
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    onError: (error: any) => {
+      setExportResult({
+        success: false,
+        message: 'Export failed',
+        error: error?.message || 'Unknown error'
+      });
+    }
+  });
+
+  // Import mutation
+  const importMutation = useMutation({
+    mutationFn: (request: DatabaseImportRequest) => databaseApi.importDatabase(request),
+    onSuccess: (data) => {
+      setImportResult(data);
+      if (data.success) {
+        queryClient.invalidateQueries({ queryKey: ['database-status'] });
+        setShowImportConfirm(false);
+        setImportData(null);
+      }
+    },
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    onError: (error: any) => {
+      setImportResult({
+        success: false,
+        message: 'Import failed',
+        error: error?.message || 'Unknown error'
+      });
+    }
+  });
+
+  // Handle file selection for import
+  const handleFileSelect = (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (!file) return;
+
+    const reader = new FileReader();
+    reader.onload = (e) => {
+      try {
+        const content = JSON.parse(e.target?.result as string);
+        if (content.data && content.metadata) {
+          setImportData({
+            data: content.data,
+            metadata: content.metadata,
+            clearExistingData: clearExistingData
+          });
+          setShowImportConfirm(true);
+        } else {
+          setImportResult({
+            success: false,
+            message: 'Invalid export file format',
+            error: 'The file does not contain valid export data'
+          });
+        }
+      } catch {
+        setImportResult({
+          success: false,
+          message: 'Failed to parse file',
+          error: 'The file is not valid JSON'
+        });
+      }
+    };
+    reader.readAsText(file);
+
+    // Reset the file input
+    if (fileInputRef.current) {
+      fileInputRef.current.value = '';
+    }
+  };
+
+  // Handle import confirmation
+  const handleImport = () => {
+    if (importData) {
+      importMutation.mutate({
+        ...importData,
+        clearExistingData: clearExistingData
+      });
+    }
+  };
 
   const handleTestConnection = () => {
     setTestResult(null);
@@ -1043,6 +1169,282 @@ export function DatabaseSettings({ darkMode }: DatabaseSettingsProps) {
           )}
         </div>
       )}
+
+      {/* Export/Import Section */}
+      <div className={`p-6 rounded-xl border-2 ${
+        darkMode
+          ? 'bg-gray-800/50 border-gray-700'
+          : 'bg-white border-gray-200'
+      }`}>
+        <h2 className={`text-lg font-semibold mb-4 flex items-center space-x-2 ${
+          darkMode ? 'text-white' : 'text-gray-900'
+        }`}>
+          <RefreshCw className="w-5 h-5" />
+          <span>Export / Import Data</span>
+        </h2>
+
+        <p className={`text-sm mb-6 ${darkMode ? 'text-gray-400' : 'text-gray-600'}`}>
+          Export your database to a JSON file for backup or migration to another deployment. Import data from a previous export.
+        </p>
+
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+          {/* Export Section */}
+          <div className={`p-4 rounded-xl border ${
+            darkMode ? 'bg-gray-700/30 border-gray-600' : 'bg-gray-50 border-gray-200'
+          }`}>
+            <div className="flex items-center space-x-3 mb-4">
+              <div className={`p-2 rounded-lg ${darkMode ? 'bg-green-900/50' : 'bg-green-100'}`}>
+                <Download className={`w-5 h-5 ${darkMode ? 'text-green-400' : 'text-green-600'}`} />
+              </div>
+              <div>
+                <h3 className={`font-semibold ${darkMode ? 'text-white' : 'text-gray-900'}`}>
+                  Export Database
+                </h3>
+                <p className={`text-xs ${darkMode ? 'text-gray-400' : 'text-gray-500'}`}>
+                  Download all data as JSON
+                </p>
+              </div>
+            </div>
+
+            <button
+              onClick={() => exportMutation.mutate()}
+              disabled={exportMutation.isPending}
+              className={`w-full px-4 py-2.5 rounded-lg font-medium transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center space-x-2 ${
+                darkMode
+                  ? 'bg-green-600 hover:bg-green-700 text-white'
+                  : 'bg-green-600 hover:bg-green-700 text-white'
+              }`}
+            >
+              {exportMutation.isPending ? (
+                <>
+                  <Loader2 className="w-4 h-4 animate-spin" />
+                  <span>Exporting...</span>
+                </>
+              ) : (
+                <>
+                  <Download className="w-4 h-4" />
+                  <span>Export Database</span>
+                </>
+              )}
+            </button>
+
+            {exportResult && (
+              <div className={`mt-4 p-3 rounded-lg ${
+                exportResult.success
+                  ? (darkMode ? 'bg-green-900/30' : 'bg-green-50')
+                  : (darkMode ? 'bg-red-900/30' : 'bg-red-50')
+              }`}>
+                <div className="flex items-start space-x-2">
+                  {exportResult.success ? (
+                    <CheckCircle className={`w-4 h-4 flex-shrink-0 mt-0.5 ${darkMode ? 'text-green-400' : 'text-green-600'}`} />
+                  ) : (
+                    <XCircle className={`w-4 h-4 flex-shrink-0 mt-0.5 ${darkMode ? 'text-red-400' : 'text-red-600'}`} />
+                  )}
+                  <div>
+                    <p className={`text-sm font-medium ${
+                      exportResult.success
+                        ? (darkMode ? 'text-green-300' : 'text-green-700')
+                        : (darkMode ? 'text-red-300' : 'text-red-700')
+                    }`}>
+                      {exportResult.message}
+                    </p>
+                    {exportResult.metadata && (
+                      <p className={`text-xs mt-1 ${darkMode ? 'text-gray-400' : 'text-gray-500'}`}>
+                        {exportResult.metadata.totalRecords} records from {Object.keys(exportResult.metadata.tableCounts).length} tables
+                      </p>
+                    )}
+                    {exportResult.error && (
+                      <p className={`text-xs mt-1 ${darkMode ? 'text-red-400' : 'text-red-600'}`}>
+                        {exportResult.error}
+                      </p>
+                    )}
+                  </div>
+                </div>
+              </div>
+            )}
+          </div>
+
+          {/* Import Section */}
+          <div className={`p-4 rounded-xl border ${
+            darkMode ? 'bg-gray-700/30 border-gray-600' : 'bg-gray-50 border-gray-200'
+          }`}>
+            <div className="flex items-center space-x-3 mb-4">
+              <div className={`p-2 rounded-lg ${darkMode ? 'bg-blue-900/50' : 'bg-blue-100'}`}>
+                <Upload className={`w-5 h-5 ${darkMode ? 'text-blue-400' : 'text-blue-600'}`} />
+              </div>
+              <div>
+                <h3 className={`font-semibold ${darkMode ? 'text-white' : 'text-gray-900'}`}>
+                  Import Database
+                </h3>
+                <p className={`text-xs ${darkMode ? 'text-gray-400' : 'text-gray-500'}`}>
+                  Restore from JSON export
+                </p>
+              </div>
+            </div>
+
+            {/* Hidden file input */}
+            <input
+              type="file"
+              ref={fileInputRef}
+              onChange={handleFileSelect}
+              accept=".json"
+              className="hidden"
+            />
+
+            <button
+              onClick={() => fileInputRef.current?.click()}
+              disabled={importMutation.isPending}
+              className={`w-full px-4 py-2.5 rounded-lg font-medium transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center space-x-2 ${
+                darkMode
+                  ? 'bg-blue-600 hover:bg-blue-700 text-white'
+                  : 'bg-blue-600 hover:bg-blue-700 text-white'
+              }`}
+            >
+              <FileJson className="w-4 h-4" />
+              <span>Select Export File</span>
+            </button>
+
+            {/* Clear existing data checkbox */}
+            <label className={`flex items-center space-x-2 mt-3 cursor-pointer`}>
+              <input
+                type="checkbox"
+                checked={clearExistingData}
+                onChange={(e) => setClearExistingData(e.target.checked)}
+                className="w-4 h-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+              />
+              <span className={`text-sm ${darkMode ? 'text-gray-300' : 'text-gray-600'}`}>
+                Clear existing data before import
+              </span>
+            </label>
+
+            {importResult && !showImportConfirm && (
+              <div className={`mt-4 p-3 rounded-lg ${
+                importResult.success
+                  ? (darkMode ? 'bg-green-900/30' : 'bg-green-50')
+                  : (darkMode ? 'bg-red-900/30' : 'bg-red-50')
+              }`}>
+                <div className="flex items-start space-x-2">
+                  {importResult.success ? (
+                    <CheckCircle className={`w-4 h-4 flex-shrink-0 mt-0.5 ${darkMode ? 'text-green-400' : 'text-green-600'}`} />
+                  ) : (
+                    <XCircle className={`w-4 h-4 flex-shrink-0 mt-0.5 ${darkMode ? 'text-red-400' : 'text-red-600'}`} />
+                  )}
+                  <div>
+                    <p className={`text-sm font-medium ${
+                      importResult.success
+                        ? (darkMode ? 'text-green-300' : 'text-green-700')
+                        : (darkMode ? 'text-red-300' : 'text-red-700')
+                    }`}>
+                      {importResult.message}
+                    </p>
+                    {importResult.recordsImported !== undefined && (
+                      <p className={`text-xs mt-1 ${darkMode ? 'text-gray-400' : 'text-gray-500'}`}>
+                        {importResult.recordsImported} records imported
+                      </p>
+                    )}
+                    {importResult.warnings && importResult.warnings.length > 0 && (
+                      <ul className={`text-xs mt-1 ${darkMode ? 'text-yellow-400' : 'text-yellow-600'}`}>
+                        {importResult.warnings.map((warning, idx) => (
+                          <li key={idx}>• {warning}</li>
+                        ))}
+                      </ul>
+                    )}
+                    {importResult.error && (
+                      <p className={`text-xs mt-1 ${darkMode ? 'text-red-400' : 'text-red-600'}`}>
+                        {importResult.error}
+                      </p>
+                    )}
+                  </div>
+                </div>
+              </div>
+            )}
+          </div>
+        </div>
+
+        {/* Import Confirmation Modal */}
+        {showImportConfirm && importData && (
+          <div className={`mt-6 p-4 rounded-xl border-2 ${
+            darkMode
+              ? 'bg-yellow-900/20 border-yellow-500/50'
+              : 'bg-yellow-50 border-yellow-300'
+          }`}>
+            <div className="flex items-start space-x-3">
+              <AlertTriangle className={`w-5 h-5 flex-shrink-0 mt-0.5 ${
+                darkMode ? 'text-yellow-400' : 'text-yellow-600'
+              }`} />
+              <div className="flex-1">
+                <p className={`font-medium ${darkMode ? 'text-yellow-300' : 'text-yellow-800'}`}>
+                  Confirm Import
+                </p>
+                <div className={`text-sm mt-2 ${darkMode ? 'text-yellow-400' : 'text-yellow-700'}`}>
+                  <p>You are about to import data from:</p>
+                  <ul className="list-disc list-inside mt-2 space-y-1">
+                    <li>Source Provider: <strong>{importData.metadata.sourceProvider}</strong></li>
+                    <li>Export Date: <strong>{new Date(importData.metadata.exportedAt).toLocaleString()}</strong></li>
+                    <li>Total Records: <strong>{importData.metadata.totalRecords}</strong></li>
+                  </ul>
+                  {clearExistingData && (
+                    <p className={`mt-2 font-medium ${darkMode ? 'text-red-400' : 'text-red-600'}`}>
+                      Warning: This will clear all existing data before importing!
+                    </p>
+                  )}
+                </div>
+              </div>
+            </div>
+
+            <div className="flex space-x-3 mt-4">
+              <button
+                onClick={handleImport}
+                disabled={importMutation.isPending}
+                className={`px-4 py-2 rounded-lg font-medium transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center space-x-2 bg-blue-600 hover:bg-blue-700 text-white`}
+              >
+                {importMutation.isPending ? (
+                  <>
+                    <Loader2 className="w-4 h-4 animate-spin" />
+                    <span>Importing...</span>
+                  </>
+                ) : (
+                  <>
+                    <CheckCircle className="w-4 h-4" />
+                    <span>Confirm & Import</span>
+                  </>
+                )}
+              </button>
+
+              <button
+                onClick={() => {
+                  setShowImportConfirm(false);
+                  setImportData(null);
+                }}
+                disabled={importMutation.isPending}
+                className={`px-4 py-2 rounded-lg transition-colors ${
+                  darkMode
+                    ? 'bg-gray-700 hover:bg-gray-600 text-gray-300'
+                    : 'bg-gray-100 hover:bg-gray-200 text-gray-700'
+                } disabled:opacity-50 disabled:cursor-not-allowed`}
+              >
+                Cancel
+              </button>
+            </div>
+          </div>
+        )}
+
+        {/* Help text */}
+        <div className={`mt-6 flex items-start space-x-2 p-3 rounded-lg ${
+          darkMode ? 'bg-blue-900/20' : 'bg-blue-50'
+        }`}>
+          <Info className={`w-4 h-4 flex-shrink-0 mt-0.5 ${darkMode ? 'text-blue-400' : 'text-blue-600'}`} />
+          <div className={`text-sm ${darkMode ? 'text-blue-300' : 'text-blue-700'}`}>
+            <p className="font-medium">Workflow for migrating between deployments:</p>
+            <ol className="list-decimal list-inside mt-2 space-y-1">
+              <li>Export your database from your local/source deployment</li>
+              <li>Transfer the JSON file to your target deployment</li>
+              <li>Import the JSON file into the target database</li>
+              <li>Note: SSH credentials are imported but may need to be re-linked to servers</li>
+            </ol>
+          </div>
+        </div>
+      </div>
 
       {/* Environment Variable Note */}
       <div className={`p-4 rounded-xl border ${

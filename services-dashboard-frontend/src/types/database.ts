@@ -72,3 +72,48 @@ export interface MigrateDatabaseResponse {
   recordsMigrated: number;
   error?: string;
 }
+
+export interface DatabaseExportMetadata {
+  exportedAt: string;
+  sourceProvider: string;
+  appVersion: string;
+  totalRecords: number;
+  tableCounts: Record<string, number>;
+}
+
+export interface DatabaseExportData {
+  managedServers: unknown[];
+  sshCredentials: unknown[];
+  applicationSettings: unknown[];
+  dockerServiceArrangements: unknown[];
+  scheduledTasks: unknown[];
+  storedDiscoveredServices: unknown[];
+  gitProviderConnections: unknown[];
+  serverHealthChecks: unknown[];
+  updateReports: unknown[];
+  serverAlerts: unknown[];
+}
+
+export interface DatabaseExportResponse {
+  success: boolean;
+  message: string;
+  error?: string;
+  fileName?: string;
+  data?: DatabaseExportData;
+  metadata?: DatabaseExportMetadata;
+}
+
+export interface DatabaseImportRequest {
+  data: DatabaseExportData;
+  metadata: DatabaseExportMetadata;
+  clearExistingData: boolean;
+}
+
+export interface DatabaseImportResponse {
+  success: boolean;
+  message: string;
+  error?: string;
+  recordsImported: number;
+  tableCounts: Record<string, number>;
+  warnings: string[];
+}

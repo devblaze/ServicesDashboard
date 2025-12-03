@@ -102,3 +102,53 @@ public class DatabaseStatusResponse
     public int TotalRecords { get; set; }
     public bool RequiresSetup { get; set; }
 }
+
+public class DatabaseExportResponse
+{
+    public bool Success { get; set; }
+    public string Message { get; set; } = string.Empty;
+    public string? Error { get; set; }
+    public string? FileName { get; set; }
+    public DatabaseExportData? Data { get; set; }
+    public DatabaseExportMetadata? Metadata { get; set; }
+}
+
+public class DatabaseExportMetadata
+{
+    public string ExportedAt { get; set; } = string.Empty;
+    public string SourceProvider { get; set; } = string.Empty;
+    public string AppVersion { get; set; } = string.Empty;
+    public int TotalRecords { get; set; }
+    public Dictionary<string, int> TableCounts { get; set; } = new();
+}
+
+public class DatabaseExportData
+{
+    public List<object> ManagedServers { get; set; } = new();
+    public List<object> SshCredentials { get; set; } = new();
+    public List<object> ApplicationSettings { get; set; } = new();
+    public List<object> DockerServiceArrangements { get; set; } = new();
+    public List<object> ScheduledTasks { get; set; } = new();
+    public List<object> StoredDiscoveredServices { get; set; } = new();
+    public List<object> GitProviderConnections { get; set; } = new();
+    public List<object> ServerHealthChecks { get; set; } = new();
+    public List<object> UpdateReports { get; set; } = new();
+    public List<object> ServerAlerts { get; set; } = new();
+}
+
+public class DatabaseImportRequest
+{
+    public DatabaseExportData Data { get; set; } = new();
+    public DatabaseExportMetadata Metadata { get; set; } = new();
+    public bool ClearExistingData { get; set; } = false;
+}
+
+public class DatabaseImportResponse
+{
+    public bool Success { get; set; }
+    public string Message { get; set; } = string.Empty;
+    public string? Error { get; set; }
+    public int RecordsImported { get; set; }
+    public Dictionary<string, int> TableCounts { get; set; } = new();
+    public List<string> Warnings { get; set; } = new();
+}

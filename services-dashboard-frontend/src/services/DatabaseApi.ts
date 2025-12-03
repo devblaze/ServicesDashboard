@@ -5,7 +5,10 @@ import type {
   TestConnectionRequest,
   TestConnectionResponse,
   MigrateDatabaseRequest,
-  MigrateDatabaseResponse
+  MigrateDatabaseResponse,
+  DatabaseExportResponse,
+  DatabaseImportRequest,
+  DatabaseImportResponse
 } from '../types/database';
 
 class DatabaseApi extends BaseApiClient {
@@ -28,6 +31,14 @@ class DatabaseApi extends BaseApiClient {
   async migrateDatabase(request: MigrateDatabaseRequest): Promise<MigrateDatabaseResponse> {
     return await this.request<MigrateDatabaseResponse>('post', '/database/migrate', request);
   }
+
+  async exportDatabase(): Promise<DatabaseExportResponse> {
+    return await this.request<DatabaseExportResponse>('get', '/database/export');
+  }
+
+  async importDatabase(request: DatabaseImportRequest): Promise<DatabaseImportResponse> {
+    return await this.request<DatabaseImportResponse>('post', '/database/import', request);
+  }
 }
 
 const databaseApiInstance = new DatabaseApi();
@@ -47,5 +58,13 @@ export const databaseApi = {
 
   migrateDatabase: (request: MigrateDatabaseRequest): Promise<MigrateDatabaseResponse> => {
     return databaseApiInstance.migrateDatabase(request);
+  },
+
+  exportDatabase: (): Promise<DatabaseExportResponse> => {
+    return databaseApiInstance.exportDatabase();
+  },
+
+  importDatabase: (request: DatabaseImportRequest): Promise<DatabaseImportResponse> => {
+    return databaseApiInstance.importDatabase(request);
   }
 };
