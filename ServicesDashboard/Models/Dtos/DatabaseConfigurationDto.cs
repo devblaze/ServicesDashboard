@@ -36,12 +36,23 @@ public class UpdateDatabaseConfigurationRequest
 public class TestDatabaseConnectionRequest
 {
     public string Provider { get; set; } = "SQLite";
+
+    // SQLite settings
     public string? SQLitePath { get; set; }
+
+    // PostgreSQL settings
     public string? PostgreSQLHost { get; set; }
     public int PostgreSQLPort { get; set; } = 5432;
     public string? PostgreSQLDatabase { get; set; }
     public string? PostgreSQLUsername { get; set; }
     public string? PostgreSQLPassword { get; set; }
+
+    // SQL Server settings
+    public string? SqlServerHost { get; set; }
+    public int? SqlServerPort { get; set; } = 1433;
+    public string? SqlServerDatabase { get; set; }
+    public string? SqlServerUsername { get; set; }
+    public string? SqlServerPassword { get; set; }
 }
 
 public class TestDatabaseConnectionResponse
@@ -49,16 +60,27 @@ public class TestDatabaseConnectionResponse
     public bool Success { get; set; }
     public string Message { get; set; } = string.Empty;
     public string? Error { get; set; }
+    public string? ServerVersion { get; set; }
+    public int? ResponseTimeMs { get; set; }
 }
 
 public class MigrateDatabaseRequest
 {
     public string TargetProvider { get; set; } = "PostgreSQL";
+
+    // PostgreSQL settings
     public string? PostgreSQLHost { get; set; }
     public int PostgreSQLPort { get; set; } = 5432;
     public string? PostgreSQLDatabase { get; set; }
     public string? PostgreSQLUsername { get; set; }
     public string? PostgreSQLPassword { get; set; }
+
+    // SQL Server settings
+    public string? SqlServerHost { get; set; }
+    public int? SqlServerPort { get; set; } = 1433;
+    public string? SqlServerDatabase { get; set; }
+    public string? SqlServerUsername { get; set; }
+    public string? SqlServerPassword { get; set; }
 }
 
 public class MigrateDatabaseResponse

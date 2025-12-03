@@ -4,6 +4,7 @@ using ServicesDashboard.Data.Entities;
 using ServicesDashboard.Models.Dtos;
 using Npgsql;
 using Microsoft.Data.Sqlite;
+using Microsoft.Data.SqlClient;
 
 namespace ServicesDashboard.Services.Database;
 
@@ -102,11 +103,20 @@ public class DatabaseMigrationService : IDatabaseMigrationService
                     request.PostgreSQLUsername,
                     request.PostgreSQLPassword);
             }
+            else if (request.Provider.Equals("SqlServer", StringComparison.OrdinalIgnoreCase))
+            {
+                return await TestSqlServerConnectionAsync(
+                    request.SqlServerHost,
+                    request.SqlServerPort,
+                    request.SqlServerDatabase,
+                    request.SqlServerUsername,
+                    request.SqlServerPassword);
+            }
 
             return new TestDatabaseConnectionResponse
             {
                 Success = false,
-                Message = "Invalid database provider"
+                Message = $"Invalid database provider: {request.Provider}. Supported providers: SQLite, PostgreSQL, SqlServer"
             };
         }
         catch (Exception ex)
@@ -281,15 +291,20 @@ public class DatabaseMigrationService : IDatabaseMigrationService
     {
         try
         {
+            var stopwatch = System.Diagnostics.Stopwatch.StartNew();
             var connectionString = $"Data Source={path ?? "test.db"}";
             using var connection = new SqliteConnection(connectionString);
             await connection.OpenAsync();
+            var serverVersion = connection.ServerVersion;
             await connection.CloseAsync();
+            stopwatch.Stop();
 
             return new TestDatabaseConnectionResponse
             {
                 Success = true,
-                Message = "SQLite connection successful"
+                Message = "SQLite connection successful",
+                ServerVersion = $"SQLite {serverVersion}",
+                ResponseTimeMs = (int)stopwatch.ElapsedMilliseconds
             };
         }
         catch (Exception ex)
@@ -308,15 +323,20 @@ public class DatabaseMigrationService : IDatabaseMigrationService
     {
         try
         {
+            var stopwatch = System.Diagnostics.Stopwatch.StartNew();
             var connectionString = BuildPostgreSQLConnectionString(host, port, database, username, password);
             using var connection = new NpgsqlConnection(connectionString);
             await connection.OpenAsync();
+            var serverVersion = connection.ServerVersion;
             await connection.CloseAsync();
+            stopwatch.Stop();
 
             return new TestDatabaseConnectionResponse
             {
                 Success = true,
-                Message = "PostgreSQL connection successful"
+                Message = "PostgreSQL connection successful",
+                ServerVersion = $"PostgreSQL {serverVersion}",
+                ResponseTimeMs = (int)stopwatch.ElapsedMilliseconds
             };
         }
         catch (Exception ex)
@@ -328,6 +348,44 @@ public class DatabaseMigrationService : IDatabaseMigrationService
                 Error = ex.Message
             };
         }
+    }
+
+    private async Task<TestDatabaseConnectionResponse> TestSqlServerConnectionAsync(
+        string? host, int? port, string? database, string? username, string? password)
+    {
+        try
+        {
+            var stopwatch = System.Diagnostics.Stopwatch.StartNew();
+            var connectionString = BuildSqlServerConnectionString(host, port ?? 1433, database, username, password);
+            using var connection = new SqlConnection(connectionString);
+            await connection.OpenAsync();
+            var serverVersion = connection.ServerVersion;
+            await connection.CloseAsync();
+            stopwatch.Stop();
+
+            return new TestDatabaseConnectionResponse
+            {
+                Success = true,
+                Message = "SQL Server connection successful",
+                ServerVersion = $"SQL Server {serverVersion}",
+                ResponseTimeMs = (int)stopwatch.ElapsedMilliseconds
+            };
+        }
+        catch (Exception ex)
+        {
+            return new TestDatabaseConnectionResponse
+            {
+                Success = false,
+                Message = "SQL Server connection failed",
+                Error = ex.Message
+            };
+        }
+    }
+
+    private string BuildSqlServerConnectionString(
+        string? host, int port, string? database, string? username, string? password)
+    {
+        return $"Server={host ?? "localhost"},{port};Database={database ?? "servicesdashboard"};User Id={username ?? "sa"};Password={password};TrustServerCertificate=true;";
     }
 
     private string BuildPostgreSQLConnectionString(
