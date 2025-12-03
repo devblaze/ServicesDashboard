@@ -45,6 +45,10 @@ public class ServicesDashboardContext : DbContext
     {
         base.OnModelCreating(modelBuilder);
 
+        // NOTE: All foreign key delete behaviors are set to NoAction for SQL Server compatibility.
+        // SQL Server doesn't allow multiple cascade paths or SetNull on certain relationships.
+        // Application code must handle cascading deletes manually.
+
         // Configure ManagedServer
         modelBuilder.Entity<ManagedServer>(entity =>
         {
@@ -59,7 +63,6 @@ public class ServicesDashboardContext : DbContext
             entity.HasIndex(s => s.HostAddress).IsUnique();
 
             // Configure parent-child relationship
-            // SQL Server doesn't support SetNull on self-referencing FKs, use NoAction instead
             entity.HasOne(e => e.ParentServer)
                   .WithMany(e => e.ChildServers)
                   .HasForeignKey(e => e.ParentServerId)
@@ -77,7 +80,7 @@ public class ServicesDashboardContext : DbContext
             entity.HasOne(e => e.Server)
                   .WithMany()
                   .HasForeignKey(e => e.ServerId)
-                  .OnDelete(DeleteBehavior.Cascade);
+                  .OnDelete(DeleteBehavior.NoAction);
             entity.HasIndex(e => new { e.ServerId, e.ContainerId }).IsUnique();
             entity.HasIndex(e => e.Order);
         });
@@ -89,7 +92,7 @@ public class ServicesDashboardContext : DbContext
             entity.HasOne(e => e.Server)
                   .WithMany(e => e.HealthChecks)
                   .HasForeignKey(e => e.ServerId)
-                  .OnDelete(DeleteBehavior.Cascade);
+                  .OnDelete(DeleteBehavior.NoAction);
             entity.Property(e => e.CheckTime).HasDefaultValueSql("CURRENT_TIMESTAMP");
             entity.HasIndex(h => h.CheckTime);
         });
@@ -101,7 +104,7 @@ public class ServicesDashboardContext : DbContext
             entity.HasOne(e => e.Server)
                   .WithMany(e => e.UpdateReports)
                   .HasForeignKey(e => e.ServerId)
-                  .OnDelete(DeleteBehavior.Cascade);
+                  .OnDelete(DeleteBehavior.NoAction);
             entity.Property(e => e.Status).HasConversion<string>();
             entity.Property(e => e.ScanTime).HasDefaultValueSql("CURRENT_TIMESTAMP");
             entity.HasIndex(u => u.ScanTime);
@@ -114,7 +117,7 @@ public class ServicesDashboardContext : DbContext
             entity.HasOne(e => e.Server)
                   .WithMany(e => e.Alerts)
                   .HasForeignKey(e => e.ServerId)
-                  .OnDelete(DeleteBehavior.Cascade);
+                  .OnDelete(DeleteBehavior.NoAction);
             entity.Property(e => e.Type).HasConversion<string>();
             entity.Property(e => e.Severity).HasConversion<string>();
             entity.Property(e => e.Message).IsRequired().HasMaxLength(500);
@@ -131,7 +134,7 @@ public class ServicesDashboardContext : DbContext
             entity.Property(e => e.DateAdded).HasDefaultValueSql("CURRENT_TIMESTAMP");
             entity.Property(e => e.LastChecked).HasDefaultValueSql("CURRENT_TIMESTAMP");
         });
-        
+
         // Configure OllamaSettings
         modelBuilder.Entity<OllamaSettingsEntity>(entity =>
         {
@@ -162,13 +165,13 @@ public class ServicesDashboardContext : DbContext
             entity.Property(e => e.StartedAt).HasDefaultValueSql("CURRENT_TIMESTAMP");
             entity.HasIndex(s => new { s.Target, s.StartedAt });
         });
-        
+
         modelBuilder.Entity<NetworkScanSession>()
             .HasMany(s => s.DiscoveredServices)
             .WithOne(d => d.ScanSession)
             .HasForeignKey(d => d.ScanId)
-            .OnDelete(DeleteBehavior.Cascade);
-        
+            .OnDelete(DeleteBehavior.NoAction);
+
         // Configure StoredDiscoveredService
         modelBuilder.Entity<StoredDiscoveredService>(entity =>
         {
@@ -176,7 +179,7 @@ public class ServicesDashboardContext : DbContext
             entity.HasOne(e => e.ScanSession)
                   .WithMany(e => e.DiscoveredServices)
                   .HasForeignKey(e => e.ScanId)
-                  .OnDelete(DeleteBehavior.Cascade);
+                  .OnDelete(DeleteBehavior.NoAction);
             entity.Property(e => e.HostAddress).IsRequired().HasMaxLength(255);
             entity.Property(e => e.HostName).HasMaxLength(255);
             entity.Property(e => e.ServiceType).HasMaxLength(100);
@@ -219,11 +222,11 @@ public class ServicesDashboardContext : DbContext
             entity.HasOne(e => e.ScheduledTask)
                   .WithMany(e => e.TaskServers)
                   .HasForeignKey(e => e.ScheduledTaskId)
-                  .OnDelete(DeleteBehavior.Cascade);
+                  .OnDelete(DeleteBehavior.NoAction);
             entity.HasOne(e => e.Server)
                   .WithMany()
                   .HasForeignKey(e => e.ServerId)
-                  .OnDelete(DeleteBehavior.Cascade);
+                  .OnDelete(DeleteBehavior.NoAction);
             entity.HasIndex(e => new { e.ScheduledTaskId, e.ServerId }).IsUnique();
         });
 
@@ -234,11 +237,11 @@ public class ServicesDashboardContext : DbContext
             entity.HasOne(e => e.ScheduledTask)
                   .WithMany(e => e.Executions)
                   .HasForeignKey(e => e.ScheduledTaskId)
-                  .OnDelete(DeleteBehavior.Cascade);
+                  .OnDelete(DeleteBehavior.NoAction);
             entity.HasOne(e => e.Server)
                   .WithMany()
                   .HasForeignKey(e => e.ServerId)
-                  .OnDelete(DeleteBehavior.Restrict);
+                  .OnDelete(DeleteBehavior.NoAction);
             entity.Property(e => e.Status).HasConversion<string>();
             entity.Property(e => e.StartedAt).HasDefaultValueSql("CURRENT_TIMESTAMP");
             entity.HasIndex(e => e.StartedAt);
@@ -266,7 +269,7 @@ public class ServicesDashboardContext : DbContext
             entity.HasOne(e => e.GitProviderConnection)
                   .WithMany(e => e.Repositories)
                   .HasForeignKey(e => e.GitProviderConnectionId)
-                  .OnDelete(DeleteBehavior.Cascade);
+                  .OnDelete(DeleteBehavior.NoAction);
             entity.Property(e => e.Name).IsRequired().HasMaxLength(200);
             entity.Property(e => e.FullName).IsRequired().HasMaxLength(500);
             entity.Property(e => e.CreatedAt).HasDefaultValueSql("CURRENT_TIMESTAMP");
@@ -281,11 +284,11 @@ public class ServicesDashboardContext : DbContext
             entity.HasOne(e => e.Repository)
                   .WithMany(e => e.Branches)
                   .HasForeignKey(e => e.RepositoryId)
-                  .OnDelete(DeleteBehavior.Cascade);
+                  .OnDelete(DeleteBehavior.NoAction);
             entity.HasOne(e => e.Deployment)
                   .WithOne()
                   .HasForeignKey<GitBranch>(e => e.DeploymentId)
-                  .OnDelete(DeleteBehavior.SetNull);
+                  .OnDelete(DeleteBehavior.NoAction);
             entity.Property(e => e.Name).IsRequired().HasMaxLength(200);
             entity.Property(e => e.CommitSha).IsRequired().HasMaxLength(100);
             entity.Property(e => e.DetectedAt).HasDefaultValueSql("CURRENT_TIMESTAMP");
@@ -301,11 +304,11 @@ public class ServicesDashboardContext : DbContext
             entity.HasOne(e => e.GitRepository)
                   .WithMany(e => e.Deployments)
                   .HasForeignKey(e => e.GitRepositoryId)
-                  .OnDelete(DeleteBehavior.Cascade);
+                  .OnDelete(DeleteBehavior.NoAction);
             entity.HasOne(e => e.Server)
                   .WithMany()
                   .HasForeignKey(e => e.ServerId)
-                  .OnDelete(DeleteBehavior.Restrict);
+                  .OnDelete(DeleteBehavior.NoAction);
             entity.Property(e => e.Name).IsRequired().HasMaxLength(200);
             entity.Property(e => e.Type).HasConversion<string>();
             entity.Property(e => e.Status).HasConversion<string>();
@@ -322,7 +325,7 @@ public class ServicesDashboardContext : DbContext
             entity.HasOne(e => e.Deployment)
                   .WithMany(e => e.Environments)
                   .HasForeignKey(e => e.DeploymentId)
-                  .OnDelete(DeleteBehavior.Cascade);
+                  .OnDelete(DeleteBehavior.NoAction);
             entity.Property(e => e.Name).IsRequired().HasMaxLength(100);
             entity.Property(e => e.Type).HasConversion<string>();
             entity.Property(e => e.CreatedAt).HasDefaultValueSql("CURRENT_TIMESTAMP");
@@ -337,11 +340,11 @@ public class ServicesDashboardContext : DbContext
             entity.HasOne(e => e.Server)
                   .WithMany()
                   .HasForeignKey(e => e.ServerId)
-                  .OnDelete(DeleteBehavior.Cascade);
+                  .OnDelete(DeleteBehavior.NoAction);
             entity.HasOne(e => e.Deployment)
                   .WithMany(e => e.AllocatedPorts)
                   .HasForeignKey(e => e.DeploymentId)
-                  .OnDelete(DeleteBehavior.SetNull); // Changed to SetNull since DeploymentId is now optional
+                  .OnDelete(DeleteBehavior.NoAction);
             entity.Property(e => e.Status).HasConversion<string>();
             entity.Property(e => e.AllocationType).HasConversion<string>();
             entity.Property(e => e.CreatedAt).HasDefaultValueSql("CURRENT_TIMESTAMP");
@@ -374,11 +377,11 @@ public class ServicesDashboardContext : DbContext
             entity.HasOne(e => e.Subnet)
                   .WithMany(e => e.Devices)
                   .HasForeignKey(e => e.SubnetId)
-                  .OnDelete(DeleteBehavior.SetNull);
+                  .OnDelete(DeleteBehavior.NoAction);
             entity.HasOne(e => e.ManagedServer)
                   .WithMany()
                   .HasForeignKey(e => e.ManagedServerId)
-                  .OnDelete(DeleteBehavior.SetNull);
+                  .OnDelete(DeleteBehavior.NoAction);
             entity.HasIndex(e => e.IpAddress);
             entity.HasIndex(e => e.MacAddress);
             entity.HasIndex(e => new { e.IpAddress, e.MacAddress });
@@ -394,7 +397,7 @@ public class ServicesDashboardContext : DbContext
             entity.HasOne(e => e.NetworkDevice)
                   .WithMany(e => e.History)
                   .HasForeignKey(e => e.NetworkDeviceId)
-                  .OnDelete(DeleteBehavior.Cascade);
+                  .OnDelete(DeleteBehavior.NoAction);
             entity.HasIndex(e => e.EventTime);
             entity.HasIndex(e => new { e.NetworkDeviceId, e.EventTime });
         });
@@ -410,11 +413,11 @@ public class ServicesDashboardContext : DbContext
             entity.HasOne(e => e.Subnet)
                   .WithMany(e => e.Reservations)
                   .HasForeignKey(e => e.SubnetId)
-                  .OnDelete(DeleteBehavior.SetNull);
+                  .OnDelete(DeleteBehavior.NoAction);
             entity.HasOne(e => e.NetworkDevice)
                   .WithMany()
                   .HasForeignKey(e => e.NetworkDeviceId)
-                  .OnDelete(DeleteBehavior.SetNull);
+                  .OnDelete(DeleteBehavior.NoAction);
             entity.HasIndex(e => e.IpAddress);
             entity.HasIndex(e => new { e.IpAddress, e.IsActive });
         });
@@ -438,7 +441,7 @@ public class ServicesDashboardContext : DbContext
             entity.HasOne(e => e.Server)
                   .WithMany()
                   .HasForeignKey(e => e.ServerId)
-                  .OnDelete(DeleteBehavior.Cascade);
+                  .OnDelete(DeleteBehavior.NoAction);
             entity.Property(e => e.ContainerId).IsRequired().HasMaxLength(64);
             entity.Property(e => e.ContainerName).IsRequired().HasMaxLength(255);
             entity.Property(e => e.Timestamp).HasDefaultValueSql("CURRENT_TIMESTAMP");
