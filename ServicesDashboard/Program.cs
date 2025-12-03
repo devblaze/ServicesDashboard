@@ -6,6 +6,7 @@ using ServicesDashboard.Services.NetworkDiscovery;
 using ServicesDashboard.Data;
 using ServicesDashboard.Models;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore.Infrastructure;
 using Microsoft.OpenApi.Models;
 using OllamaSharp;
 using System.Text.Json.Serialization;
@@ -235,11 +236,20 @@ static async Task ApplyMigrationsAsync(IServiceProvider services)
         // because the migrations are generated for PostgreSQL with PostgreSQL-specific types
         if (databaseProvider.Equals("SqlServer", StringComparison.OrdinalIgnoreCase))
         {
-            logger.LogInformation("🔄 Using EnsureCreated for SQL Server (migrations are PostgreSQL-specific)...");
+            logger.LogInformation("🔄 Setting up SQL Server database schema...");
 
-            var created = await context.Database.EnsureCreatedAsync();
-            if (created)
+            // Check if the main table exists to determine if schema needs to be created
+            var tablesExist = await CheckIfTablesExistAsync(context);
+
+            if (!tablesExist)
             {
+                logger.LogInformation("📦 Tables not found, creating schema...");
+
+                // EnsureCreated won't work if DB exists but tables don't
+                // So we need to use the model to create the schema directly
+                var databaseCreator = context.Database.GetService<Microsoft.EntityFrameworkCore.Storage.IRelationalDatabaseCreator>();
+                await databaseCreator.CreateTablesAsync();
+
                 logger.LogInformation("✅ SQL Server database schema created successfully!");
             }
             else
@@ -327,6 +337,27 @@ static async Task SeedInitialDataAsync(ServicesDashboardContext context, ILogger
     {
         logger.LogError(ex, "❌ Error seeding initial data: {ErrorMessage}", ex.Message);
         // Don't throw - seeding is optional
+    }
+}
+
+// Check if database tables exist
+static async Task<bool> CheckIfTablesExistAsync(ServicesDashboardContext context)
+{
+    try
+    {
+        // Try to query the ManagedServers table - if it doesn't exist, this will throw
+        await context.Database.ExecuteSqlRawAsync(
+            "SELECT TOP 1 1 FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_NAME = 'ManagedServers'");
+
+        // Also check if we can actually query the table
+        var canQuery = await context.Database.ExecuteSqlRawAsync(
+            "IF EXISTS (SELECT 1 FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_NAME = 'ManagedServers') SELECT 1 ELSE SELECT 0");
+
+        return canQuery > 0;
+    }
+    catch
+    {
+        return false;
     }
 }
 

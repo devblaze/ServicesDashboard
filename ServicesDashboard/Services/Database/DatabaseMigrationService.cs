@@ -61,11 +61,20 @@ public class DatabaseMigrationService : IDatabaseMigrationService
         {
             var canConnect = await _context.Database.CanConnectAsync();
 
-            // Detect actual provider from connection string
+            // Get provider from configuration (DatabaseProvider env var)
+            var configuredProvider = _configuration.GetValue<string>("DatabaseProvider") ?? "PostgreSQL";
+
+            // Also detect from connection string as fallback
             var connectionString = _context.Database.GetConnectionString() ?? "";
-            var actualProvider = connectionString.Contains("Host=") || connectionString.Contains("Server=")
-                ? "PostgreSQL"
-                : "SQLite";
+            var detectedProvider = DetectProviderFromConnectionString(connectionString);
+
+            // Use configured provider, but log if there's a mismatch
+            var actualProvider = configuredProvider;
+            if (!string.IsNullOrEmpty(detectedProvider) && !detectedProvider.Equals(configuredProvider, StringComparison.OrdinalIgnoreCase))
+            {
+                _logger.LogWarning("Configured provider ({Configured}) doesn't match detected provider ({Detected})",
+                    configuredProvider, detectedProvider);
+            }
 
             var response = new DatabaseStatusResponse
             {
@@ -106,6 +115,27 @@ public class DatabaseMigrationService : IDatabaseMigrationService
                 RequiresSetup = true
             };
         }
+    }
+
+    private static string DetectProviderFromConnectionString(string connectionString)
+    {
+        if (string.IsNullOrEmpty(connectionString))
+            return "SQLite";
+
+        // PostgreSQL uses Host= and Username=
+        if (connectionString.Contains("Host=", StringComparison.OrdinalIgnoreCase))
+            return "PostgreSQL";
+
+        // SQL Server uses Server= and User Id=
+        if (connectionString.Contains("Server=", StringComparison.OrdinalIgnoreCase) &&
+            connectionString.Contains("User Id=", StringComparison.OrdinalIgnoreCase))
+            return "SqlServer";
+
+        // SQLite uses Data Source=
+        if (connectionString.Contains("Data Source=", StringComparison.OrdinalIgnoreCase))
+            return "SQLite";
+
+        return "SQLite"; // Default fallback
     }
 
     public async Task<TestDatabaseConnectionResponse> TestConnectionAsync(TestDatabaseConnectionRequest request)
