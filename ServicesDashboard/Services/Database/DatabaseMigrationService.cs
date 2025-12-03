@@ -997,11 +997,11 @@ public class DatabaseMigrationService : IDatabaseMigrationService
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Error generating sync token");
+            _logger.LogError(ex, "Error generating sync token: {Message}", ex.Message);
             return new GenerateSyncTokenResponse
             {
                 Success = false,
-                Message = "Failed to generate sync token"
+                Message = $"Failed to generate sync token: {ex.Message}"
             };
         }
     }
