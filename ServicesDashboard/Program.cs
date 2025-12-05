@@ -357,15 +357,37 @@ static async Task<bool> CheckIfTablesExistAsync(ServicesDashboardContext context
 {
     try
     {
-        // Try to query the ManagedServers table - if it doesn't exist, this will throw
-        await context.Database.ExecuteSqlRawAsync(
-            "SELECT TOP 1 1 FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_NAME = 'ManagedServers'");
+        // Check if ANY of our application tables exist
+        // If any exist, we assume the schema is set up (even if partial)
+        var tableNames = new[]
+        {
+            "ManagedServers",
+            "ApplicationSettings",
+            "SshCredentials",
+            "ServerHealthChecks",
+            "ScheduledTasks",
+            "GitProviderConnections"
+        };
 
-        // Also check if we can actually query the table
-        var canQuery = await context.Database.ExecuteSqlRawAsync(
-            "IF EXISTS (SELECT 1 FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_NAME = 'ManagedServers') SELECT 1 ELSE SELECT 0");
+        foreach (var tableName in tableNames)
+        {
+            var sql = $"SELECT COUNT(*) FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_NAME = '{tableName}'";
+            using var command = context.Database.GetDbConnection().CreateCommand();
+            command.CommandText = sql;
 
-        return canQuery > 0;
+            if (context.Database.GetDbConnection().State != System.Data.ConnectionState.Open)
+            {
+                await context.Database.GetDbConnection().OpenAsync();
+            }
+
+            var result = await command.ExecuteScalarAsync();
+            if (result != null && Convert.ToInt32(result) > 0)
+            {
+                return true; // At least one table exists
+            }
+        }
+
+        return false; // No tables exist
     }
     catch
     {
