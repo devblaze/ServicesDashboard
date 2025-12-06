@@ -22,6 +22,7 @@ public class ImportDatabaseEndpoint : Endpoint<DatabaseImportRequest, DatabaseIm
     {
         Post("/api/database/import");
         AllowAnonymous();
+        Options(x => x.WithMetadata(new Microsoft.AspNetCore.Mvc.RequestSizeLimitAttribute(100 * 1024 * 1024))); // 100 MB
     }
 
     public override async Task HandleAsync(DatabaseImportRequest req, CancellationToken ct)
