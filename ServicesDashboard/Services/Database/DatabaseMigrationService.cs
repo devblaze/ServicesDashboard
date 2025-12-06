@@ -631,12 +631,17 @@ public class DatabaseMigrationService : IDatabaseMigrationService
     private List<T> DeserializeList<T>(List<object> items) where T : class
     {
         var result = new List<T>();
+        var options = new System.Text.Json.JsonSerializerOptions
+        {
+            PropertyNameCaseInsensitive = true
+        };
+        options.Converters.Add(new System.Text.Json.Serialization.JsonStringEnumConverter());
+
         foreach (var item in items)
         {
             if (item is System.Text.Json.JsonElement jsonElement)
             {
-                var deserialized = System.Text.Json.JsonSerializer.Deserialize<T>(jsonElement.GetRawText(),
-                    new System.Text.Json.JsonSerializerOptions { PropertyNameCaseInsensitive = true });
+                var deserialized = System.Text.Json.JsonSerializer.Deserialize<T>(jsonElement.GetRawText(), options);
                 if (deserialized != null)
                 {
                     result.Add(deserialized);
@@ -1277,9 +1282,15 @@ public class DatabaseMigrationService : IDatabaseMigrationService
             }
 
             var jsonContent = await response.Content.ReadAsStringAsync();
+            var deserializeOptions = new System.Text.Json.JsonSerializerOptions
+            {
+                PropertyNameCaseInsensitive = true
+            };
+            deserializeOptions.Converters.Add(new System.Text.Json.Serialization.JsonStringEnumConverter());
+
             var exportResponse = System.Text.Json.JsonSerializer.Deserialize<DatabaseExportResponse>(
                 jsonContent,
-                new System.Text.Json.JsonSerializerOptions { PropertyNameCaseInsensitive = true }
+                deserializeOptions
             );
 
             if (exportResponse == null || !exportResponse.Success || exportResponse.Data == null || exportResponse.Metadata == null)
