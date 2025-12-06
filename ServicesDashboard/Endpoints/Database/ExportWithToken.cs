@@ -6,6 +6,7 @@ namespace ServicesDashboard.Endpoints.Database;
 
 public class ExportWithTokenRequest
 {
+    [BindFrom("token")]
     public string Token { get; set; } = string.Empty;
 }
 
