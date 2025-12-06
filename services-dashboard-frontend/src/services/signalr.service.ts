@@ -19,9 +19,15 @@ class SignalRService {
   }
 
   private getHubUrl(): string {
-    // Get the base URL from environment or default
-    const baseUrl = import.meta.env.VITE_API_BASE_URL || 'http://localhost:5050';
-    return `${baseUrl}/hubs/discovery`;
+    // Get the base URL from environment
+    // In production (empty VITE_API_BASE_URL), use relative URL so nginx can proxy
+    // In development, use the full URL (e.g., http://localhost:5050)
+    const baseUrl = import.meta.env.VITE_API_BASE_URL;
+    if (baseUrl) {
+      return `${baseUrl}/hubs/discovery`;
+    }
+    // Use relative URL for production (nginx will proxy /hubs/ to backend)
+    return '/hubs/discovery';
   }
 
   private async initializeConnection() {
