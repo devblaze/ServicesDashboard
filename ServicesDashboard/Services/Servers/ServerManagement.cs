@@ -30,6 +30,7 @@ public interface IServerManagementService
     Task<string> GetServerLogsAsync(ManagedServer server, int? lines = 100);
     Task<LogAnalysisResult> AnalyzeLogsWithAiAsync(int serverId, string logs);
     Task<CommandResult> ExecuteCommandAsync(int serverId, string command);
+    Task<TerminalOutputResult> GetTerminalOutputAsync(int serverId);
     Task<bool> CleanupTerminalSessionAsync(int serverId);
     Task<TmuxAvailabilityResult> CheckTmuxAvailabilityAsync(int serverId);
     Task<bool> InstallTmuxAsync(int serverId);
@@ -832,6 +833,63 @@ If some information cannot be determined, use null or reasonable defaults. Focus
             _logger.LogError(ex, "Failed to execute command on server {ServerId}: {Command}", serverId, command);
             result.Error = ex.Message;
             result.ExitCode = -1;
+            return result;
+        }
+    }
+
+    public async Task<TerminalOutputResult> GetTerminalOutputAsync(int serverId)
+    {
+        var result = new TerminalOutputResult
+        {
+            CapturedAt = DateTime.UtcNow
+        };
+
+        try
+        {
+            var server = await _context.ManagedServers.FindAsync(serverId);
+            if (server == null)
+            {
+                result.SessionExists = false;
+                return result;
+            }
+
+            using var client = CreateSshClient(server);
+            client.Connect();
+
+            if (!client.IsConnected)
+            {
+                result.SessionExists = false;
+                return result;
+            }
+
+            var sessionName = $"servicesdashboard_{serverId}";
+
+            // Check if session exists
+            var checkSessionCmd = client.CreateCommand($"tmux has-session -t {sessionName} 2>/dev/null; echo $?");
+            var checkResult = checkSessionCmd.Execute().Trim();
+
+            if (checkResult != "0")
+            {
+                result.SessionExists = false;
+                client.Disconnect();
+                return result;
+            }
+
+            result.SessionExists = true;
+
+            // Capture the pane output with scrollback history
+            var captureCmd = client.CreateCommand($"tmux capture-pane -t {sessionName} -p -S -100");
+            var output = captureCmd.Execute();
+
+            result.Output = output ?? "";
+
+            client.Disconnect();
+            return result;
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Failed to get terminal output for server {ServerId}", serverId);
+            result.SessionExists = false;
             return result;
         }
     }

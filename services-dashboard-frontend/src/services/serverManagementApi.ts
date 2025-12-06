@@ -119,6 +119,12 @@ export interface CommandResult {
   executedAt: string;
 }
 
+export interface TerminalOutputResult {
+  output: string;
+  sessionExists: boolean;
+  capturedAt: string;
+}
+
 export interface LogAnalysisResult {
   summary: string;
   issues: LogIssue[];
@@ -688,6 +694,18 @@ class ServerManagementApiClient extends BaseApiClient {
     }
 
     return this.request<CommandResult>('post', `/servermanagement/${id}/execute-command`, { command });
+  }
+
+  async getTerminalOutput(id: number): Promise<TerminalOutputResult> {
+    if (isDemoMode()) {
+      return {
+        output: 'Demo mode: Terminal output polling not available',
+        sessionExists: true,
+        capturedAt: new Date().toISOString(),
+      };
+    }
+
+    return this.request<TerminalOutputResult>('get', `/servermanagement/${id}/terminal-output`);
   }
 
   async cleanupTerminalSession(id: number): Promise<void> {
