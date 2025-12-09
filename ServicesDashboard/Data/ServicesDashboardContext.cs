@@ -41,6 +41,11 @@ public class ServicesDashboardContext : DbContext
     // Container Metrics
     public DbSet<ContainerMetricsHistory> ContainerMetricsHistory { get; set; }
 
+    // System Metrics
+    public DbSet<SystemMetricsHistory> SystemMetricsHistory { get; set; }
+    public DbSet<DiskMetricsHistory> DiskMetricsHistory { get; set; }
+    public DbSet<NetworkInterfaceMetricsHistory> NetworkInterfaceMetricsHistory { get; set; }
+
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
         base.OnModelCreating(modelBuilder);
@@ -449,6 +454,54 @@ public class ServicesDashboardContext : DbContext
             entity.HasIndex(e => e.Timestamp);
             entity.HasIndex(e => new { e.ServerId, e.ContainerId, e.Timestamp });
             entity.HasIndex(e => new { e.ServerId, e.Timestamp });
+        });
+
+        // Configure SystemMetricsHistory
+        modelBuilder.Entity<SystemMetricsHistory>(entity =>
+        {
+            entity.HasKey(e => e.Id);
+            entity.HasOne(e => e.Server)
+                  .WithMany()
+                  .HasForeignKey(e => e.ServerId)
+                  .OnDelete(DeleteBehavior.NoAction);
+            entity.Property(e => e.Timestamp).HasDefaultValueSql("CURRENT_TIMESTAMP");
+            entity.HasIndex(e => e.Timestamp);
+            entity.HasIndex(e => new { e.ServerId, e.Timestamp });
+        });
+
+        // Configure DiskMetricsHistory
+        modelBuilder.Entity<DiskMetricsHistory>(entity =>
+        {
+            entity.HasKey(e => e.Id);
+            entity.HasOne(e => e.Server)
+                  .WithMany()
+                  .HasForeignKey(e => e.ServerId)
+                  .OnDelete(DeleteBehavior.NoAction);
+            entity.Property(e => e.DiskName).IsRequired().HasMaxLength(100);
+            entity.Property(e => e.DiskType).IsRequired().HasMaxLength(50);
+            entity.Property(e => e.MountPoint).HasMaxLength(255);
+            entity.Property(e => e.Device).HasMaxLength(50);
+            entity.Property(e => e.Status).HasMaxLength(50);
+            entity.Property(e => e.Timestamp).HasDefaultValueSql("CURRENT_TIMESTAMP");
+            entity.HasIndex(e => e.Timestamp);
+            entity.HasIndex(e => new { e.ServerId, e.Timestamp });
+            entity.HasIndex(e => new { e.ServerId, e.DiskName, e.Timestamp });
+        });
+
+        // Configure NetworkInterfaceMetricsHistory
+        modelBuilder.Entity<NetworkInterfaceMetricsHistory>(entity =>
+        {
+            entity.HasKey(e => e.Id);
+            entity.HasOne(e => e.Server)
+                  .WithMany()
+                  .HasForeignKey(e => e.ServerId)
+                  .OnDelete(DeleteBehavior.NoAction);
+            entity.Property(e => e.InterfaceName).IsRequired().HasMaxLength(100);
+            entity.Property(e => e.InterfaceType).IsRequired().HasMaxLength(50);
+            entity.Property(e => e.Timestamp).HasDefaultValueSql("CURRENT_TIMESTAMP");
+            entity.HasIndex(e => e.Timestamp);
+            entity.HasIndex(e => new { e.ServerId, e.Timestamp });
+            entity.HasIndex(e => new { e.ServerId, e.InterfaceName, e.Timestamp });
         });
     }
 }

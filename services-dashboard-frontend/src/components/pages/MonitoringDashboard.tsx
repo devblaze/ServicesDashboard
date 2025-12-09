@@ -13,6 +13,8 @@ import {
   AlertCircle,
   Pin,
   X,
+  Thermometer,
+  Database,
 } from 'lucide-react';
 import {
   LineChart,
@@ -25,6 +27,9 @@ import {
   Legend,
   AreaChart,
   Area,
+  BarChart,
+  Bar,
+  Cell,
 } from 'recharts';
 import { metricsApi } from '../../services/metricsApi';
 import type {
@@ -59,6 +64,17 @@ const formatBytes = (bytes: number): string => {
   const sizes = ['B', 'KB', 'MB', 'GB', 'TB'];
   const i = Math.floor(Math.log(bytes) / Math.log(k));
   return `${parseFloat((bytes / Math.pow(k, i)).toFixed(2))} ${sizes[i]}`;
+};
+
+// Helper function to convert bytes to GB for chart display
+const bytesToGb = (bytes: number): number => {
+  return bytes / (1024 * 1024 * 1024);
+};
+
+// Helper function to format GB for Y-axis
+const formatGbAxis = (gb: number): string => {
+  if (gb < 0.01) return `${(gb * 1024).toFixed(0)} MB`;
+  return `${gb.toFixed(2)} GB`;
 };
 
 // Helper to convert TimeRange to minutes
@@ -97,6 +113,7 @@ interface CustomTooltipProps {
   coordinate?: { x: number; y: number };
   viewBox?: any;
   chartRef?: React.RefObject<HTMLDivElement | null>;
+  memoryDisplayMode?: 'percentage' | 'gb';
 }
 
 const CustomTooltip: React.FC<CustomTooltipProps> = ({
@@ -110,7 +127,8 @@ const CustomTooltip: React.FC<CustomTooltipProps> = ({
   onPin,
   coordinate,
   viewBox,
-  chartRef
+  chartRef,
+  memoryDisplayMode = 'percentage',
 }) => {
   const tooltipRef = useRef<HTMLDivElement>(null);
   const [position, setPosition] = useState({ x: 0, y: 0, placement: 'bottom' as 'top' | 'bottom' });
@@ -268,7 +286,9 @@ const CustomTooltip: React.FC<CustomTooltipProps> = ({
                 </span>
               </div>
               <span className={`text-sm font-semibold whitespace-nowrap ${darkMode ? 'text-white' : 'text-gray-900'}`}>
-                {entry.value.toFixed(1)}%
+                {metricType === 'memory' && memoryDisplayMode === 'gb'
+                  ? formatGbAxis(entry.value)
+                  : `${entry.value.toFixed(1)}%`}
               </span>
             </div>
           );
@@ -286,6 +306,7 @@ export const MonitoringDashboard: React.FC<MonitoringDashboardProps> = ({ darkMo
   const [selectedContainerId, setSelectedContainerId] = useState<string | null>(null);
   const [timeRange, setTimeRange] = useState<TimeRange>('1h');
   const [pinnedTooltip, setPinnedTooltip] = useState<{chartId: string; data: any; position: {x: number; y: number}} | null>(null);
+  const [memoryDisplayMode, setMemoryDisplayMode] = useState<'percentage' | 'gb'>('percentage');
 
   // Refs for comparison charts
   const cpuChartRef = useRef<HTMLDivElement>(null);
@@ -330,6 +351,26 @@ export const MonitoringDashboard: React.FC<MonitoringDashboardProps> = ({ darkMo
     refetchInterval: 30000,
   });
 
+  // Fetch system metrics (network bandwidth, temperatures)
+  const {
+    data: systemMetricsData,
+  } = useQuery({
+    queryKey: ['server-system-metrics', selectedServerId, minutes],
+    queryFn: () => metricsApi.getServerSystemMetrics(selectedServerId!, minutes),
+    enabled: selectedServerId !== null,
+    refetchInterval: 30000,
+  });
+
+  // Fetch disk metrics
+  const {
+    data: diskMetricsData,
+  } = useQuery({
+    queryKey: ['server-disk-metrics', selectedServerId, minutes],
+    queryFn: () => metricsApi.getServerDiskMetrics(selectedServerId!, minutes),
+    enabled: selectedServerId !== null,
+    refetchInterval: 30000,
+  });
+
   // Prepare chart data for selected container
   const chartData: ChartDataPoint[] = React.useMemo(() => {
     if (!selectedContainerId || !containersData) return [];
@@ -344,6 +385,7 @@ export const MonitoringDashboard: React.FC<MonitoringDashboardProps> = ({ darkMo
       timestamp: new Date(point.timestamp).getTime(),
       cpu: point.cpuPercentage,
       memory: point.memoryPercentage,
+      memoryGb: bytesToGb(point.memoryUsageBytes),
       memoryUsed: point.memoryUsageBytes,
       memoryLimit: point.memoryLimitBytes,
       networkRx: point.networkRxBytes,
@@ -380,6 +422,7 @@ export const MonitoringDashboard: React.FC<MonitoringDashboardProps> = ({ darkMo
         if (historyPoint) {
           dataPoint[`${container.containerName}_cpu`] = historyPoint.cpuPercentage;
           dataPoint[`${container.containerName}_memory`] = historyPoint.memoryPercentage;
+          dataPoint[`${container.containerName}_memoryGb`] = bytesToGb(historyPoint.memoryUsageBytes);
         }
       });
 
@@ -662,11 +705,26 @@ export const MonitoringDashboard: React.FC<MonitoringDashboardProps> = ({ darkMo
                 darkMode ? 'bg-gray-800/70 border-gray-700/50' : 'bg-white/70 border-gray-200'
               }`}
             >
-              <div className="flex items-center gap-2 mb-4">
-                <Activity className={`w-5 h-5 ${darkMode ? 'text-cyan-400' : 'text-cyan-600'}`} />
-                <h3 className={`font-bold text-lg ${darkMode ? 'text-white' : 'text-gray-900'}`}>
-                  CPU & Memory Usage
-                </h3>
+              <div className="flex items-center justify-between mb-4">
+                <div className="flex items-center gap-2">
+                  <Activity className={`w-5 h-5 ${darkMode ? 'text-cyan-400' : 'text-cyan-600'}`} />
+                  <h3 className={`font-bold text-lg ${darkMode ? 'text-white' : 'text-gray-900'}`}>
+                    CPU & Memory Usage
+                  </h3>
+                </div>
+                <div className="flex items-center gap-2">
+                  <span className={`text-sm ${darkMode ? 'text-gray-400' : 'text-gray-600'}`}>Memory:</span>
+                  <button
+                    onClick={() => setMemoryDisplayMode(memoryDisplayMode === 'percentage' ? 'gb' : 'percentage')}
+                    className={`px-3 py-1 rounded-lg text-sm font-medium transition-colors ${
+                      darkMode
+                        ? 'bg-purple-900/50 text-purple-300 hover:bg-purple-800/50 border border-purple-700/50'
+                        : 'bg-purple-100 text-purple-700 hover:bg-purple-200 border border-purple-300'
+                    }`}
+                  >
+                    {memoryDisplayMode === 'percentage' ? '%' : 'GB'}
+                  </button>
+                </div>
               </div>
               <ResponsiveContainer width="100%" height={300}>
                 <LineChart data={chartData}>
@@ -680,10 +738,19 @@ export const MonitoringDashboard: React.FC<MonitoringDashboardProps> = ({ darkMo
                     fontSize={12}
                   />
                   <YAxis
+                    yAxisId="cpu"
                     stroke={darkMode ? '#9ca3af' : '#6b7280'}
                     fontSize={12}
                     domain={[0, 100]}
                     tickFormatter={(value) => `${value}%`}
+                  />
+                  <YAxis
+                    yAxisId="memory"
+                    orientation="right"
+                    stroke={darkMode ? '#9ca3af' : '#6b7280'}
+                    fontSize={12}
+                    domain={memoryDisplayMode === 'percentage' ? [0, 100] : ['auto', 'auto']}
+                    tickFormatter={(value) => memoryDisplayMode === 'percentage' ? `${value}%` : formatGbAxis(value)}
                   />
                   <Tooltip
                     contentStyle={{
@@ -692,7 +759,15 @@ export const MonitoringDashboard: React.FC<MonitoringDashboardProps> = ({ darkMo
                       borderRadius: '8px',
                       color: darkMode ? '#ffffff' : '#000000',
                     }}
-                    formatter={(value: number) => [`${value.toFixed(1)}%`, '']}
+                    formatter={(value: number, name: string) => {
+                      if (name === 'CPU') {
+                        return [`${value.toFixed(1)}%`, name];
+                      }
+                      if (memoryDisplayMode === 'percentage') {
+                        return [`${value.toFixed(1)}%`, name];
+                      }
+                      return [formatGbAxis(value), name];
+                    }}
                   />
                   <Legend />
                   <Line
@@ -702,14 +777,16 @@ export const MonitoringDashboard: React.FC<MonitoringDashboardProps> = ({ darkMo
                     strokeWidth={2}
                     dot={false}
                     name="CPU"
+                    yAxisId="cpu"
                   />
                   <Line
                     type="monotone"
-                    dataKey="memory"
+                    dataKey={memoryDisplayMode === 'percentage' ? 'memory' : 'memoryGb'}
                     stroke="#a855f7"
                     strokeWidth={2}
                     dot={false}
                     name="Memory"
+                    yAxisId="memory"
                   />
                 </LineChart>
               </ResponsiveContainer>
@@ -842,11 +919,26 @@ export const MonitoringDashboard: React.FC<MonitoringDashboardProps> = ({ darkMo
                 darkMode ? 'bg-gray-800/70 border-gray-700/50' : 'bg-white/70 border-gray-200'
               }`}
             >
-              <div className="flex items-center gap-2 mb-4">
-                <HardDrive className={`w-5 h-5 ${darkMode ? 'text-purple-400' : 'text-purple-600'}`} />
-                <h3 className={`font-bold text-lg ${darkMode ? 'text-white' : 'text-gray-900'}`}>
-                  Container Memory Usage Comparison
-                </h3>
+              <div className="flex items-center justify-between mb-4">
+                <div className="flex items-center gap-2">
+                  <HardDrive className={`w-5 h-5 ${darkMode ? 'text-purple-400' : 'text-purple-600'}`} />
+                  <h3 className={`font-bold text-lg ${darkMode ? 'text-white' : 'text-gray-900'}`}>
+                    Container Memory Usage Comparison
+                  </h3>
+                </div>
+                <div className="flex items-center gap-2">
+                  <span className={`text-sm ${darkMode ? 'text-gray-400' : 'text-gray-600'}`}>Display:</span>
+                  <button
+                    onClick={() => setMemoryDisplayMode(memoryDisplayMode === 'percentage' ? 'gb' : 'percentage')}
+                    className={`px-3 py-1 rounded-lg text-sm font-medium transition-colors ${
+                      darkMode
+                        ? 'bg-purple-900/50 text-purple-300 hover:bg-purple-800/50 border border-purple-700/50'
+                        : 'bg-purple-100 text-purple-700 hover:bg-purple-200 border border-purple-300'
+                    }`}
+                  >
+                    {memoryDisplayMode === 'percentage' ? '%' : 'GB'}
+                  </button>
+                </div>
               </div>
               <div ref={memoryChartRef}>
                 <ResponsiveContainer width="100%" height={300}>
@@ -863,7 +955,8 @@ export const MonitoringDashboard: React.FC<MonitoringDashboardProps> = ({ darkMo
                     <YAxis
                       stroke={darkMode ? '#9ca3af' : '#6b7280'}
                       fontSize={12}
-                      tickFormatter={(value) => `${value}%`}
+                      domain={memoryDisplayMode === 'percentage' ? [0, 100] : ['auto', 'auto']}
+                      tickFormatter={(value) => memoryDisplayMode === 'percentage' ? `${value}%` : formatGbAxis(value)}
                     />
                     <Tooltip
                       content={<CustomTooltip
@@ -873,6 +966,7 @@ export const MonitoringDashboard: React.FC<MonitoringDashboardProps> = ({ darkMo
                         pinnedTooltip={pinnedTooltip}
                         onPin={(chartId, data, position) => setPinnedTooltip(chartId ? {chartId, data, position} : null)}
                         chartRef={memoryChartRef}
+                        memoryDisplayMode={memoryDisplayMode}
                       />}
                       wrapperStyle={{ zIndex: 9999, pointerEvents: 'auto' }}
                       allowEscapeViewBox={{ x: true, y: true }}
@@ -882,7 +976,7 @@ export const MonitoringDashboard: React.FC<MonitoringDashboardProps> = ({ darkMo
                     <Line
                       key={container.containerId}
                       type="monotone"
-                      dataKey={`${container.containerName}_memory`}
+                      dataKey={memoryDisplayMode === 'percentage' ? `${container.containerName}_memory` : `${container.containerName}_memoryGb`}
                       stroke={CHART_COLORS[index % CHART_COLORS.length]}
                       strokeWidth={2}
                       dot={false}
@@ -892,6 +986,305 @@ export const MonitoringDashboard: React.FC<MonitoringDashboardProps> = ({ darkMo
                 </LineChart>
               </ResponsiveContainer>
               </div>
+            </div>
+          </div>
+        )}
+
+        {/* System Metrics Charts - Show when server selected */}
+        {selectedServerId && systemMetricsData && (
+          <div className="mt-6 space-y-8">
+            {/* Network Bandwidth Chart */}
+            <div
+              className={`rounded-xl border backdrop-blur-sm shadow-xl p-6 ${
+                darkMode ? 'bg-gray-800/70 border-gray-700/50' : 'bg-white/70 border-gray-200'
+              }`}
+            >
+              <div className="flex items-center gap-2 mb-4">
+                <Network className={`w-5 h-5 ${darkMode ? 'text-blue-400' : 'text-blue-600'}`} />
+                <h3 className={`font-bold text-lg ${darkMode ? 'text-white' : 'text-gray-900'}`}>
+                  Network Bandwidth
+                </h3>
+              </div>
+              {systemMetricsData.network.history.length > 0 ? (
+                <ResponsiveContainer width="100%" height={300}>
+                  <AreaChart data={systemMetricsData.network.history.map(point => ({
+                    time: formatTime(point.timestamp),
+                    timestamp: new Date(point.timestamp).getTime(),
+                    rx: point.networkRxBytesPerSec,
+                    tx: point.networkTxBytesPerSec,
+                  }))}>
+                    <CartesianGrid
+                      strokeDasharray="3 3"
+                      stroke={darkMode ? '#374151' : '#e5e7eb'}
+                    />
+                    <XAxis
+                      dataKey="time"
+                      stroke={darkMode ? '#9ca3af' : '#6b7280'}
+                      fontSize={12}
+                    />
+                    <YAxis
+                      stroke={darkMode ? '#9ca3af' : '#6b7280'}
+                      fontSize={12}
+                      tickFormatter={(value) => formatBytes(value) + '/s'}
+                    />
+                    <Tooltip
+                      contentStyle={{
+                        backgroundColor: darkMode ? '#1f2937' : '#ffffff',
+                        border: `1px solid ${darkMode ? '#374151' : '#e5e7eb'}`,
+                        borderRadius: '8px',
+                        color: darkMode ? '#ffffff' : '#000000',
+                      }}
+                      formatter={(value: number) => [formatBytes(value) + '/s', '']}
+                    />
+                    <Legend />
+                    <Area
+                      type="monotone"
+                      dataKey="rx"
+                      stroke="#10b981"
+                      fill="#10b98133"
+                      strokeWidth={2}
+                      name="Download"
+                    />
+                    <Area
+                      type="monotone"
+                      dataKey="tx"
+                      stroke="#3b82f6"
+                      fill="#3b82f633"
+                      strokeWidth={2}
+                      name="Upload"
+                    />
+                  </AreaChart>
+                </ResponsiveContainer>
+              ) : (
+                <div className={`text-center py-8 ${darkMode ? 'text-gray-400' : 'text-gray-500'}`}>
+                  No network data available yet
+                </div>
+              )}
+            </div>
+
+            {/* Temperature Chart */}
+            {(systemMetricsData.temperatures.currentCpuTemperature !== null ||
+              systemMetricsData.temperatures.currentGpuTemperature !== null) && (
+              <div
+                className={`rounded-xl border backdrop-blur-sm shadow-xl p-6 ${
+                  darkMode ? 'bg-gray-800/70 border-gray-700/50' : 'bg-white/70 border-gray-200'
+                }`}
+              >
+                <div className="flex items-center gap-2 mb-4">
+                  <Thermometer className={`w-5 h-5 ${darkMode ? 'text-red-400' : 'text-red-600'}`} />
+                  <h3 className={`font-bold text-lg ${darkMode ? 'text-white' : 'text-gray-900'}`}>
+                    System Temperatures
+                  </h3>
+                </div>
+                {systemMetricsData.temperatures.history.length > 0 ? (
+                  <ResponsiveContainer width="100%" height={300}>
+                    <LineChart data={systemMetricsData.temperatures.history.map(point => ({
+                      time: formatTime(point.timestamp),
+                      timestamp: new Date(point.timestamp).getTime(),
+                      cpu: point.cpuTemperature,
+                      gpu: point.gpuTemperature,
+                    }))}>
+                      <CartesianGrid
+                        strokeDasharray="3 3"
+                        stroke={darkMode ? '#374151' : '#e5e7eb'}
+                      />
+                      <XAxis
+                        dataKey="time"
+                        stroke={darkMode ? '#9ca3af' : '#6b7280'}
+                        fontSize={12}
+                      />
+                      <YAxis
+                        stroke={darkMode ? '#9ca3af' : '#6b7280'}
+                        fontSize={12}
+                        domain={[0, 100]}
+                        tickFormatter={(value) => `${value}°C`}
+                      />
+                      <Tooltip
+                        contentStyle={{
+                          backgroundColor: darkMode ? '#1f2937' : '#ffffff',
+                          border: `1px solid ${darkMode ? '#374151' : '#e5e7eb'}`,
+                          borderRadius: '8px',
+                          color: darkMode ? '#ffffff' : '#000000',
+                        }}
+                        formatter={(value: number) => [`${value?.toFixed(1)}°C`, '']}
+                      />
+                      <Legend />
+                      {systemMetricsData.temperatures.currentCpuTemperature !== null && (
+                        <Line
+                          type="monotone"
+                          dataKey="cpu"
+                          stroke="#ef4444"
+                          strokeWidth={2}
+                          dot={false}
+                          name="CPU"
+                          connectNulls
+                        />
+                      )}
+                      {systemMetricsData.temperatures.currentGpuTemperature !== null && (
+                        <Line
+                          type="monotone"
+                          dataKey="gpu"
+                          stroke="#f59e0b"
+                          strokeWidth={2}
+                          dot={false}
+                          name="GPU"
+                          connectNulls
+                        />
+                      )}
+                    </LineChart>
+                  </ResponsiveContainer>
+                ) : (
+                  <div className={`text-center py-8 ${darkMode ? 'text-gray-400' : 'text-gray-500'}`}>
+                    No temperature data available yet
+                  </div>
+                )}
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* Disk Usage Chart - Show when server selected */}
+        {selectedServerId && diskMetricsData && diskMetricsData.disks.length > 0 && (
+          <div className="mt-6">
+            <div
+              className={`rounded-xl border backdrop-blur-sm shadow-xl p-6 ${
+                darkMode ? 'bg-gray-800/70 border-gray-700/50' : 'bg-white/70 border-gray-200'
+              }`}
+            >
+              <div className="flex items-center justify-between mb-4">
+                <div className="flex items-center gap-2">
+                  <Database className={`w-5 h-5 ${darkMode ? 'text-amber-400' : 'text-amber-600'}`} />
+                  <h3 className={`font-bold text-lg ${darkMode ? 'text-white' : 'text-gray-900'}`}>
+                    Disk Usage {diskMetricsData.serverType === 'unraid' && '(Unraid)'}
+                  </h3>
+                </div>
+              </div>
+
+              {/* Summary cards for Unraid */}
+              {diskMetricsData.serverType === 'unraid' && (
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
+                  {diskMetricsData.summary.arrayTotalBytes > 0 && (
+                    <div className={`p-4 rounded-lg ${darkMode ? 'bg-gray-900/50' : 'bg-gray-100'}`}>
+                      <div className={`text-sm font-medium ${darkMode ? 'text-gray-400' : 'text-gray-600'}`}>
+                        Array
+                      </div>
+                      <div className={`text-xl font-bold ${darkMode ? 'text-white' : 'text-gray-900'}`}>
+                        {formatBytes(diskMetricsData.summary.arrayUsedBytes)} / {formatBytes(diskMetricsData.summary.arrayTotalBytes)}
+                      </div>
+                      <div className={`w-full h-2 rounded-full mt-2 ${darkMode ? 'bg-gray-700' : 'bg-gray-300'}`}>
+                        <div
+                          className={`h-full rounded-full ${
+                            diskMetricsData.summary.arrayUsagePercentage > 85 ? 'bg-red-500' :
+                            diskMetricsData.summary.arrayUsagePercentage > 70 ? 'bg-yellow-500' : 'bg-green-500'
+                          }`}
+                          style={{ width: `${Math.min(diskMetricsData.summary.arrayUsagePercentage, 100)}%` }}
+                        />
+                      </div>
+                      <div className={`text-sm mt-1 ${darkMode ? 'text-gray-400' : 'text-gray-600'}`}>
+                        {diskMetricsData.summary.arrayUsagePercentage.toFixed(1)}% used
+                      </div>
+                    </div>
+                  )}
+                  {diskMetricsData.summary.cacheTotalBytes && diskMetricsData.summary.cacheTotalBytes > 0 && (
+                    <div className={`p-4 rounded-lg ${darkMode ? 'bg-gray-900/50' : 'bg-gray-100'}`}>
+                      <div className={`text-sm font-medium ${darkMode ? 'text-gray-400' : 'text-gray-600'}`}>
+                        Cache
+                      </div>
+                      <div className={`text-xl font-bold ${darkMode ? 'text-white' : 'text-gray-900'}`}>
+                        {formatBytes(diskMetricsData.summary.cacheUsedBytes || 0)} / {formatBytes(diskMetricsData.summary.cacheTotalBytes)}
+                      </div>
+                      <div className={`w-full h-2 rounded-full mt-2 ${darkMode ? 'bg-gray-700' : 'bg-gray-300'}`}>
+                        <div
+                          className={`h-full rounded-full ${
+                            (diskMetricsData.summary.cacheUsagePercentage || 0) > 85 ? 'bg-red-500' :
+                            (diskMetricsData.summary.cacheUsagePercentage || 0) > 70 ? 'bg-yellow-500' : 'bg-purple-500'
+                          }`}
+                          style={{ width: `${Math.min(diskMetricsData.summary.cacheUsagePercentage || 0, 100)}%` }}
+                        />
+                      </div>
+                      <div className={`text-sm mt-1 ${darkMode ? 'text-gray-400' : 'text-gray-600'}`}>
+                        {(diskMetricsData.summary.cacheUsagePercentage || 0).toFixed(1)}% used
+                      </div>
+                    </div>
+                  )}
+                  {diskMetricsData.summary.parityTotalBytes && diskMetricsData.summary.parityTotalBytes > 0 && (
+                    <div className={`p-4 rounded-lg ${darkMode ? 'bg-gray-900/50' : 'bg-gray-100'}`}>
+                      <div className={`text-sm font-medium ${darkMode ? 'text-gray-400' : 'text-gray-600'}`}>
+                        Parity
+                      </div>
+                      <div className={`text-xl font-bold ${darkMode ? 'text-white' : 'text-gray-900'}`}>
+                        {formatBytes(diskMetricsData.summary.parityTotalBytes)}
+                      </div>
+                      <div className={`text-sm mt-1 ${darkMode ? 'text-gray-400' : 'text-gray-600'}`}>
+                        Protection enabled
+                      </div>
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {/* Per-disk bar chart */}
+              <ResponsiveContainer width="100%" height={Math.max(200, diskMetricsData.disks.length * 40)}>
+                <BarChart
+                  data={diskMetricsData.disks.map(disk => ({
+                    name: disk.diskName,
+                    type: disk.diskType,
+                    used: disk.usedBytes,
+                    free: disk.freeBytes,
+                    percentage: disk.usagePercentage,
+                    temperature: disk.temperature,
+                  }))}
+                  layout="vertical"
+                  margin={{ left: 80, right: 30 }}
+                >
+                  <CartesianGrid
+                    strokeDasharray="3 3"
+                    stroke={darkMode ? '#374151' : '#e5e7eb'}
+                  />
+                  <XAxis
+                    type="number"
+                    stroke={darkMode ? '#9ca3af' : '#6b7280'}
+                    fontSize={12}
+                    tickFormatter={(value) => formatBytes(value)}
+                  />
+                  <YAxis
+                    type="category"
+                    dataKey="name"
+                    stroke={darkMode ? '#9ca3af' : '#6b7280'}
+                    fontSize={12}
+                    width={70}
+                  />
+                  <Tooltip
+                    contentStyle={{
+                      backgroundColor: darkMode ? '#1f2937' : '#ffffff',
+                      border: `1px solid ${darkMode ? '#374151' : '#e5e7eb'}`,
+                      borderRadius: '8px',
+                      color: darkMode ? '#ffffff' : '#000000',
+                    }}
+                    formatter={(value: number, name: string) => [formatBytes(value), name === 'used' ? 'Used' : 'Free']}
+                    labelFormatter={(label, payload) => {
+                      const disk = payload?.[0]?.payload;
+                      return `${label} (${disk?.type}) - ${disk?.percentage?.toFixed(1)}% used${disk?.temperature ? ` - ${disk.temperature}°C` : ''}`;
+                    }}
+                  />
+                  <Legend />
+                  <Bar dataKey="used" stackId="a" name="Used">
+                    {diskMetricsData.disks.map((disk, index) => (
+                      <Cell
+                        key={`used-${index}`}
+                        fill={
+                          disk.usagePercentage > 85 ? '#ef4444' :
+                          disk.usagePercentage > 70 ? '#f59e0b' :
+                          disk.diskType === 'cache' ? '#a855f7' :
+                          disk.diskType === 'parity' ? '#3b82f6' :
+                          '#10b981'
+                        }
+                      />
+                    ))}
+                  </Bar>
+                  <Bar dataKey="free" stackId="a" name="Free" fill={darkMode ? '#374151' : '#d1d5db'} />
+                </BarChart>
+              </ResponsiveContainer>
             </div>
           </div>
         )}

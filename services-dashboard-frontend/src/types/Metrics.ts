@@ -80,6 +80,7 @@ export interface ChartDataPoint {
   timestamp: number;
   cpu: number;
   memory: number;
+  memoryGb: number;
   memoryUsed: number;
   memoryLimit: number;
   networkRx: number;

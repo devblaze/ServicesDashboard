@@ -4,6 +4,10 @@ import type {
   ServerContainersMetricsResponse,
   ContainerMetricsHistoryResponse,
 } from '../types/Metrics';
+import type {
+  ServerSystemMetricsResponse,
+  ServerDiskMetricsResponse,
+} from '../types/SystemMetrics';
 
 class MetricsApiClient extends BaseApiClient {
   constructor() {
@@ -43,6 +47,36 @@ class MetricsApiClient extends BaseApiClient {
     return this.request<ContainerMetricsHistoryResponse>(
       'get',
       `/metrics/servers/${serverId}/containers/${containerId}/history`,
+      undefined,
+      { minutes }
+    );
+  }
+
+  /**
+   * Get system metrics for a server (network bandwidth, temperatures)
+   */
+  async getServerSystemMetrics(
+    serverId: number,
+    minutes: number = 60
+  ): Promise<ServerSystemMetricsResponse> {
+    return this.request<ServerSystemMetricsResponse>(
+      'get',
+      `/metrics/servers/${serverId}/system`,
+      undefined,
+      { minutes }
+    );
+  }
+
+  /**
+   * Get disk metrics for a server (array, cache, system disks)
+   */
+  async getServerDiskMetrics(
+    serverId: number,
+    minutes: number = 60
+  ): Promise<ServerDiskMetricsResponse> {
+    return this.request<ServerDiskMetricsResponse>(
+      'get',
+      `/metrics/servers/${serverId}/disks`,
       undefined,
       { minutes }
     );
