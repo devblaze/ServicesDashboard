@@ -678,14 +678,47 @@ export const MonitoringDashboard: React.FC<MonitoringDashboardProps> = ({ darkMo
                     color="purple"
                   />
 
-                  <StatCard
-                    icon={<Network className="w-5 h-5" />}
-                    label="Total Network I/O"
-                    value={`↓ ${formatBytes(selectedServerData.totalNetworkRxBytes)}`}
-                    subValue={`↑ ${formatBytes(selectedServerData.totalNetworkTxBytes)}`}
-                    darkMode={darkMode}
-                    color="green"
-                  />
+                  {/* System Network Bandwidth */}
+                  {systemMetricsData && (
+                    <StatCard
+                      icon={<Network className="w-5 h-5" />}
+                      label="Network Bandwidth"
+                      value={`↓ ${formatBytes(systemMetricsData.network.currentRxBytesPerSec)}/s`}
+                      subValue={`↑ ${formatBytes(systemMetricsData.network.currentTxBytesPerSec)}/s`}
+                      darkMode={darkMode}
+                      color="green"
+                    />
+                  )}
+
+                  {/* System Temperature */}
+                  {systemMetricsData && systemMetricsData.temperatures.currentCpuTemperature !== null && (
+                    <StatCard
+                      icon={<Thermometer className="w-5 h-5" />}
+                      label="CPU Temperature"
+                      value={`${systemMetricsData.temperatures.currentCpuTemperature?.toFixed(1)}°C`}
+                      subValue={systemMetricsData.temperatures.currentGpuTemperature !== null
+                        ? `GPU: ${systemMetricsData.temperatures.currentGpuTemperature?.toFixed(1)}°C`
+                        : 'GPU: N/A'}
+                      darkMode={darkMode}
+                      color="cyan"
+                    />
+                  )}
+
+                  {/* Disk Usage Summary */}
+                  {diskMetricsData && diskMetricsData.disks.length > 0 && (
+                    <StatCard
+                      icon={<Database className="w-5 h-5" />}
+                      label={diskMetricsData.serverType === 'unraid' ? 'Array Usage' : 'Disk Usage'}
+                      value={diskMetricsData.serverType === 'unraid'
+                        ? `${diskMetricsData.summary.arrayUsagePercentage.toFixed(1)}%`
+                        : `${diskMetricsData.summary.systemUsagePercentage.toFixed(1)}%`}
+                      subValue={diskMetricsData.serverType === 'unraid'
+                        ? `${formatBytes(diskMetricsData.summary.arrayUsedBytes)} / ${formatBytes(diskMetricsData.summary.arrayTotalBytes)}`
+                        : `${formatBytes(diskMetricsData.summary.systemUsedBytes)} / ${formatBytes(diskMetricsData.summary.systemTotalBytes)}`}
+                      darkMode={darkMode}
+                      color="purple"
+                    />
+                  )}
                 </div>
               ) : (
                 <div className={`text-center py-8 ${darkMode ? 'text-gray-400' : 'text-gray-500'}`}>
@@ -848,144 +881,6 @@ export const MonitoringDashboard: React.FC<MonitoringDashboardProps> = ({ darkMo
                   />
                 </AreaChart>
               </ResponsiveContainer>
-            </div>
-          </div>
-        )}
-
-        {/* Container Comparison Charts - Show when server selected but no specific container */}
-        {selectedServerId && !selectedContainerId && containersData && containersData.containers.length > 0 && comparisonChartData.length > 0 && (
-          <div className="mt-6 space-y-8">
-            {/* CPU Comparison Chart */}
-            <div
-              className={`rounded-xl border backdrop-blur-sm shadow-xl p-6 ${
-                darkMode ? 'bg-gray-800/70 border-gray-700/50' : 'bg-white/70 border-gray-200'
-              }`}
-            >
-              <div className="flex items-center gap-2 mb-4">
-                <Cpu className={`w-5 h-5 ${darkMode ? 'text-cyan-400' : 'text-cyan-600'}`} />
-                <h3 className={`font-bold text-lg ${darkMode ? 'text-white' : 'text-gray-900'}`}>
-                  Container CPU Usage Comparison
-                </h3>
-              </div>
-              <div ref={cpuChartRef}>
-                <ResponsiveContainer width="100%" height={300}>
-                  <LineChart data={comparisonChartData}>
-                    <CartesianGrid
-                      strokeDasharray="3 3"
-                      stroke={darkMode ? '#374151' : '#e5e7eb'}
-                    />
-                    <XAxis
-                      dataKey="time"
-                      stroke={darkMode ? '#9ca3af' : '#6b7280'}
-                      fontSize={12}
-                    />
-                    <YAxis
-                      stroke={darkMode ? '#9ca3af' : '#6b7280'}
-                      fontSize={12}
-                      tickFormatter={(value) => `${value}%`}
-                    />
-                    <Tooltip
-                      content={<CustomTooltip
-                        darkMode={darkMode}
-                        metricType="cpu"
-                        chartId="cpu-comparison"
-                        pinnedTooltip={pinnedTooltip}
-                        onPin={(chartId, data, position) => setPinnedTooltip(chartId ? {chartId, data, position} : null)}
-                        chartRef={cpuChartRef}
-                      />}
-                      wrapperStyle={{ zIndex: 9999, pointerEvents: 'auto' }}
-                      allowEscapeViewBox={{ x: true, y: true }}
-                      position={{ y: 0 }}
-                    />
-                  {containersData.containers.map((container, index) => (
-                    <Line
-                      key={container.containerId}
-                      type="monotone"
-                      dataKey={`${container.containerName}_cpu`}
-                      stroke={CHART_COLORS[index % CHART_COLORS.length]}
-                      strokeWidth={2}
-                      dot={false}
-                      name={container.containerName}
-                    />
-                  ))}
-                </LineChart>
-              </ResponsiveContainer>
-              </div>
-            </div>
-
-            {/* Memory Comparison Chart */}
-            <div
-              className={`rounded-xl border backdrop-blur-sm shadow-xl p-6 ${
-                darkMode ? 'bg-gray-800/70 border-gray-700/50' : 'bg-white/70 border-gray-200'
-              }`}
-            >
-              <div className="flex items-center justify-between mb-4">
-                <div className="flex items-center gap-2">
-                  <HardDrive className={`w-5 h-5 ${darkMode ? 'text-purple-400' : 'text-purple-600'}`} />
-                  <h3 className={`font-bold text-lg ${darkMode ? 'text-white' : 'text-gray-900'}`}>
-                    Container Memory Usage Comparison
-                  </h3>
-                </div>
-                <div className="flex items-center gap-2">
-                  <span className={`text-sm ${darkMode ? 'text-gray-400' : 'text-gray-600'}`}>Display:</span>
-                  <button
-                    onClick={() => setMemoryDisplayMode(memoryDisplayMode === 'percentage' ? 'gb' : 'percentage')}
-                    className={`px-3 py-1 rounded-lg text-sm font-medium transition-colors ${
-                      darkMode
-                        ? 'bg-purple-900/50 text-purple-300 hover:bg-purple-800/50 border border-purple-700/50'
-                        : 'bg-purple-100 text-purple-700 hover:bg-purple-200 border border-purple-300'
-                    }`}
-                  >
-                    {memoryDisplayMode === 'percentage' ? '%' : 'GB'}
-                  </button>
-                </div>
-              </div>
-              <div ref={memoryChartRef}>
-                <ResponsiveContainer width="100%" height={300}>
-                  <LineChart data={comparisonChartData}>
-                    <CartesianGrid
-                      strokeDasharray="3 3"
-                      stroke={darkMode ? '#374151' : '#e5e7eb'}
-                    />
-                    <XAxis
-                      dataKey="time"
-                      stroke={darkMode ? '#9ca3af' : '#6b7280'}
-                      fontSize={12}
-                    />
-                    <YAxis
-                      stroke={darkMode ? '#9ca3af' : '#6b7280'}
-                      fontSize={12}
-                      domain={memoryDisplayMode === 'percentage' ? [0, 100] : ['auto', 'auto']}
-                      tickFormatter={(value) => memoryDisplayMode === 'percentage' ? `${value}%` : formatGbAxis(value)}
-                    />
-                    <Tooltip
-                      content={<CustomTooltip
-                        darkMode={darkMode}
-                        metricType="memory"
-                        chartId="memory-comparison"
-                        pinnedTooltip={pinnedTooltip}
-                        onPin={(chartId, data, position) => setPinnedTooltip(chartId ? {chartId, data, position} : null)}
-                        chartRef={memoryChartRef}
-                        memoryDisplayMode={memoryDisplayMode}
-                      />}
-                      wrapperStyle={{ zIndex: 9999, pointerEvents: 'auto' }}
-                      allowEscapeViewBox={{ x: true, y: true }}
-                      position={{ y: 0 }}
-                    />
-                  {containersData.containers.map((container, index) => (
-                    <Line
-                      key={container.containerId}
-                      type="monotone"
-                      dataKey={memoryDisplayMode === 'percentage' ? `${container.containerName}_memory` : `${container.containerName}_memoryGb`}
-                      stroke={CHART_COLORS[index % CHART_COLORS.length]}
-                      strokeWidth={2}
-                      dot={false}
-                      name={container.containerName}
-                    />
-                  ))}
-                </LineChart>
-              </ResponsiveContainer>
-              </div>
             </div>
           </div>
         )}
@@ -1285,6 +1180,144 @@ export const MonitoringDashboard: React.FC<MonitoringDashboardProps> = ({ darkMo
                   <Bar dataKey="free" stackId="a" name="Free" fill={darkMode ? '#374151' : '#d1d5db'} />
                 </BarChart>
               </ResponsiveContainer>
+            </div>
+          </div>
+        )}
+
+        {/* Container Comparison Charts - Show when server selected but no specific container */}
+        {selectedServerId && !selectedContainerId && containersData && containersData.containers.length > 0 && comparisonChartData.length > 0 && (
+          <div className="mt-6 space-y-8">
+            {/* CPU Comparison Chart */}
+            <div
+              className={`rounded-xl border backdrop-blur-sm shadow-xl p-6 ${
+                darkMode ? 'bg-gray-800/70 border-gray-700/50' : 'bg-white/70 border-gray-200'
+              }`}
+            >
+              <div className="flex items-center gap-2 mb-4">
+                <Cpu className={`w-5 h-5 ${darkMode ? 'text-cyan-400' : 'text-cyan-600'}`} />
+                <h3 className={`font-bold text-lg ${darkMode ? 'text-white' : 'text-gray-900'}`}>
+                  Container CPU Usage Comparison
+                </h3>
+              </div>
+              <div ref={cpuChartRef}>
+                <ResponsiveContainer width="100%" height={300}>
+                  <LineChart data={comparisonChartData}>
+                    <CartesianGrid
+                      strokeDasharray="3 3"
+                      stroke={darkMode ? '#374151' : '#e5e7eb'}
+                    />
+                    <XAxis
+                      dataKey="time"
+                      stroke={darkMode ? '#9ca3af' : '#6b7280'}
+                      fontSize={12}
+                    />
+                    <YAxis
+                      stroke={darkMode ? '#9ca3af' : '#6b7280'}
+                      fontSize={12}
+                      tickFormatter={(value) => `${value}%`}
+                    />
+                    <Tooltip
+                      content={<CustomTooltip
+                        darkMode={darkMode}
+                        metricType="cpu"
+                        chartId="cpu-comparison"
+                        pinnedTooltip={pinnedTooltip}
+                        onPin={(chartId, data, position) => setPinnedTooltip(chartId ? {chartId, data, position} : null)}
+                        chartRef={cpuChartRef}
+                      />}
+                      wrapperStyle={{ zIndex: 9999, pointerEvents: 'auto' }}
+                      allowEscapeViewBox={{ x: true, y: true }}
+                      position={{ y: 0 }}
+                    />
+                  {containersData.containers.map((container, index) => (
+                    <Line
+                      key={container.containerId}
+                      type="monotone"
+                      dataKey={`${container.containerName}_cpu`}
+                      stroke={CHART_COLORS[index % CHART_COLORS.length]}
+                      strokeWidth={2}
+                      dot={false}
+                      name={container.containerName}
+                    />
+                  ))}
+                </LineChart>
+              </ResponsiveContainer>
+              </div>
+            </div>
+
+            {/* Memory Comparison Chart */}
+            <div
+              className={`rounded-xl border backdrop-blur-sm shadow-xl p-6 ${
+                darkMode ? 'bg-gray-800/70 border-gray-700/50' : 'bg-white/70 border-gray-200'
+              }`}
+            >
+              <div className="flex items-center justify-between mb-4">
+                <div className="flex items-center gap-2">
+                  <HardDrive className={`w-5 h-5 ${darkMode ? 'text-purple-400' : 'text-purple-600'}`} />
+                  <h3 className={`font-bold text-lg ${darkMode ? 'text-white' : 'text-gray-900'}`}>
+                    Container Memory Usage Comparison
+                  </h3>
+                </div>
+                <div className="flex items-center gap-2">
+                  <span className={`text-sm ${darkMode ? 'text-gray-400' : 'text-gray-600'}`}>Display:</span>
+                  <button
+                    onClick={() => setMemoryDisplayMode(memoryDisplayMode === 'percentage' ? 'gb' : 'percentage')}
+                    className={`px-3 py-1 rounded-lg text-sm font-medium transition-colors ${
+                      darkMode
+                        ? 'bg-purple-900/50 text-purple-300 hover:bg-purple-800/50 border border-purple-700/50'
+                        : 'bg-purple-100 text-purple-700 hover:bg-purple-200 border border-purple-300'
+                    }`}
+                  >
+                    {memoryDisplayMode === 'percentage' ? '%' : 'GB'}
+                  </button>
+                </div>
+              </div>
+              <div ref={memoryChartRef}>
+                <ResponsiveContainer width="100%" height={300}>
+                  <LineChart data={comparisonChartData}>
+                    <CartesianGrid
+                      strokeDasharray="3 3"
+                      stroke={darkMode ? '#374151' : '#e5e7eb'}
+                    />
+                    <XAxis
+                      dataKey="time"
+                      stroke={darkMode ? '#9ca3af' : '#6b7280'}
+                      fontSize={12}
+                    />
+                    <YAxis
+                      stroke={darkMode ? '#9ca3af' : '#6b7280'}
+                      fontSize={12}
+                      domain={memoryDisplayMode === 'percentage' ? [0, 100] : ['auto', 'auto']}
+                      tickFormatter={(value) => memoryDisplayMode === 'percentage' ? `${value}%` : formatGbAxis(value)}
+                    />
+                    <Tooltip
+                      content={<CustomTooltip
+                        darkMode={darkMode}
+                        metricType="memory"
+                        chartId="memory-comparison"
+                        pinnedTooltip={pinnedTooltip}
+                        onPin={(chartId, data, position) => setPinnedTooltip(chartId ? {chartId, data, position} : null)}
+                        chartRef={memoryChartRef}
+                        memoryDisplayMode={memoryDisplayMode}
+                      />}
+                      wrapperStyle={{ zIndex: 9999, pointerEvents: 'auto' }}
+                      allowEscapeViewBox={{ x: true, y: true }}
+                      position={{ y: 0 }}
+                    />
+                  {containersData.containers.map((container, index) => (
+                    <Line
+                      key={container.containerId}
+                      type="monotone"
+                      dataKey={memoryDisplayMode === 'percentage' ? `${container.containerName}_memory` : `${container.containerName}_memoryGb`}
+                      stroke={CHART_COLORS[index % CHART_COLORS.length]}
+                      strokeWidth={2}
+                      dot={false}
+                      name={container.containerName}
+                    />
+                  ))}
+                </LineChart>
+              </ResponsiveContainer>
+              </div>
             </div>
           </div>
         )}
