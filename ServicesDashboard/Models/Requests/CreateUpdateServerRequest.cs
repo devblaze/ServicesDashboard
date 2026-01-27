@@ -28,6 +28,8 @@ public class CreateUpdateServerRequest
 
     public int? ParentServerId { get; set; }
 
+    public int? SshCredentialId { get; set; }
+
     [StringLength(17, ErrorMessage = "MAC address must not exceed 17 characters (format: XX:XX:XX:XX:XX:XX)")]
     public string? MacAddress { get; set; }
 

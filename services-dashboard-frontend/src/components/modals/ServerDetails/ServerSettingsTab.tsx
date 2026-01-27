@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Edit3, Save, Loader2, Trash2 } from 'lucide-react';
+import { Edit3, Save, Loader2, Trash2, Eye, EyeOff } from 'lucide-react';
 import { useMutation, useQueryClient, useQuery } from '@tanstack/react-query';
 import type { ManagedServer, ServerType, ServerGroup, UpdateServerDto } from '../../../types/ServerManagement';
 import { serverManagementApi } from '../../../services/serverManagementApi';
@@ -16,6 +16,7 @@ interface EditForm {
   hostAddress: string;
   sshPort: number;
   username: string;
+  password: string;
   type: ServerType;
   group: ServerGroup;
   tags: string;
@@ -70,11 +71,14 @@ export const SettingsTab: React.FC<SettingsTabProps> = ({
   onClose
 }) => {
   const [isEditing, setIsEditing] = useState(false);
+  const [showPassword, setShowPassword] = useState(false);
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [editForm, setEditForm] = useState<EditForm>({
     name: server.name,
     hostAddress: server.hostAddress,
     sshPort: server.sshPort || 22,
     username: server.username || 'root',
+    password: '',
     type: server.type,
     group: server.group,
     tags: server.tags || '',
@@ -114,6 +118,7 @@ export const SettingsTab: React.FC<SettingsTabProps> = ({
       hostAddress: editForm.hostAddress,
       sshPort: editForm.sshPort,
       username: editForm.username,
+      password: editForm.password || undefined,
       type: editForm.type,
       group: editForm.group,
       tags: editForm.tags || undefined,
@@ -205,6 +210,41 @@ export const SettingsTab: React.FC<SettingsTabProps> = ({
           isEditing={isEditing}
           darkMode={darkMode}
         />
+
+        {/* SSH Password - only shown when editing */}
+        {isEditing && (
+          <div>
+            <label className={`block text-sm font-medium mb-2 ${
+              darkMode ? 'text-gray-200' : 'text-gray-700'
+            }`}>
+              SSH Password <span className="text-sm font-normal text-gray-500">(leave blank to keep current)</span>
+            </label>
+            <div className="relative">
+              <input
+                type={showPassword ? 'text' : 'password'}
+                value={editForm.password}
+                onChange={(e) => setEditForm({...editForm, password: e.target.value})}
+                placeholder="Enter new password"
+                className={`w-full px-3 py-2 pr-10 rounded-lg border ${
+                  darkMode
+                    ? 'bg-gray-700/50 border-gray-600/50 text-white placeholder-gray-400'
+                    : 'bg-white border-gray-300 text-gray-900 placeholder-gray-500'
+                } focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500/50`}
+              />
+              <button
+                type="button"
+                onClick={() => setShowPassword(!showPassword)}
+                className={`absolute right-2 top-1/2 -translate-y-1/2 p-1 rounded transition-colors ${
+                  darkMode
+                    ? 'text-gray-400 hover:text-white'
+                    : 'text-gray-600 hover:text-gray-900'
+                }`}
+              >
+                {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+              </button>
+            </div>
+          </div>
+        )}
 
         {/* Server Type */}
         <div>
@@ -317,22 +357,52 @@ export const SettingsTab: React.FC<SettingsTabProps> = ({
         <p className={`text-sm mb-3 ${darkMode ? 'text-red-400' : 'text-red-600'}`}>
           Permanently delete this server. This action cannot be undone.
         </p>
-        <button
-          onClick={() => deleteServerMutation.mutate()}
-          disabled={deleteServerMutation.isPending}
-          className={`flex items-center px-3 py-2 rounded-lg font-medium transition-colors ${
-            darkMode
-              ? 'bg-red-600 hover:bg-red-700 text-white'
-              : 'bg-red-500 hover:bg-red-600 text-white'
-          } disabled:opacity-50`}
-        >
-          {deleteServerMutation.isPending ? (
-            <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-          ) : (
+        {showDeleteConfirm ? (
+          <div className="flex items-center space-x-2">
+            <span className={`text-sm font-medium ${darkMode ? 'text-red-300' : 'text-red-700'}`}>
+              Are you sure?
+            </span>
+            <button
+              onClick={() => deleteServerMutation.mutate()}
+              disabled={deleteServerMutation.isPending}
+              className={`flex items-center px-3 py-2 rounded-lg font-medium transition-colors ${
+                darkMode
+                  ? 'bg-red-600 hover:bg-red-700 text-white'
+                  : 'bg-red-500 hover:bg-red-600 text-white'
+              } disabled:opacity-50`}
+            >
+              {deleteServerMutation.isPending ? (
+                <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+              ) : (
+                <Trash2 className="w-4 h-4 mr-2" />
+              )}
+              Yes, Delete
+            </button>
+            <button
+              onClick={() => setShowDeleteConfirm(false)}
+              disabled={deleteServerMutation.isPending}
+              className={`px-3 py-2 rounded-lg font-medium transition-colors ${
+                darkMode
+                  ? 'bg-gray-600 hover:bg-gray-700 text-white'
+                  : 'bg-gray-400 hover:bg-gray-500 text-white'
+              }`}
+            >
+              Cancel
+            </button>
+          </div>
+        ) : (
+          <button
+            onClick={() => setShowDeleteConfirm(true)}
+            className={`flex items-center px-3 py-2 rounded-lg font-medium transition-colors ${
+              darkMode
+                ? 'bg-red-600 hover:bg-red-700 text-white'
+                : 'bg-red-500 hover:bg-red-600 text-white'
+            }`}
+          >
             <Trash2 className="w-4 h-4 mr-2" />
-          )}
-          Delete Server
-        </button>
+            Delete Server
+          </button>
+        )}
       </div>
     </div>
   );

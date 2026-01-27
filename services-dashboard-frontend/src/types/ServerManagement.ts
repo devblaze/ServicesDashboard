@@ -39,6 +39,7 @@ export interface CreateServerDto {
   parentServerId?: number | null;
   macAddress?: string | null;
   wakeOnLanPort?: number;
+  sshCredentialId?: number | null;
 }
 
 export interface UpdateServerDto {

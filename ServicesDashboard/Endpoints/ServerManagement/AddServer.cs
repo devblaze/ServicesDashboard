@@ -40,7 +40,8 @@ public class AddServerEndpoint : Endpoint<CreateUpdateServerRequest, ManagedServ
                 Tags = req.Tags,
                 ParentServerId = req.ParentServerId,
                 MacAddress = req.MacAddress,
-                WakeOnLanPort = req.WakeOnLanPort
+                WakeOnLanPort = req.WakeOnLanPort,
+                SshCredentialId = req.SshCredentialId
             };
 
             var addedServer = await _serverManagementService.AddServerAsync(server);

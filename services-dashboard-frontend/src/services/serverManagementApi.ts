@@ -544,7 +544,7 @@ class ServerManagementApiClient extends BaseApiClient {
       return;
     }
 
-    return this.request<void>('delete', `/servermanagement/${id}`);
+    await this.client.delete(`/servermanagement/${id}`);
   }
 
   async getAlerts(): Promise<ServerAlert[]> {
