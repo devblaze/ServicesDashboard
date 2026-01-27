@@ -472,6 +472,62 @@ If some information cannot be determined, use null or reasonable defaults. Focus
         if (server == null)
             return false;
 
+        // Remove related entities that have NoAction delete behavior.
+        // Order matters: remove children of deployments before deployments.
+
+        // Deployment children first
+        var deploymentIds = await _context.Deployments
+            .Where(d => d.ServerId == id)
+            .Select(d => d.Id)
+            .ToListAsync();
+
+        if (deploymentIds.Count > 0)
+        {
+            _context.DeploymentEnvironments.RemoveRange(
+                _context.DeploymentEnvironments.Where(e => deploymentIds.Contains(e.DeploymentId)));
+            _context.PortAllocations.RemoveRange(
+                _context.PortAllocations.Where(p => p.DeploymentId != null && deploymentIds.Contains(p.DeploymentId.Value)));
+        }
+
+        // Direct server references
+        _context.ServerHealthChecks.RemoveRange(
+            _context.ServerHealthChecks.Where(h => h.ServerId == id));
+        _context.UpdateReports.RemoveRange(
+            _context.UpdateReports.Where(u => u.ServerId == id));
+        _context.ServerAlerts.RemoveRange(
+            _context.ServerAlerts.Where(a => a.ServerId == id));
+        _context.DockerServiceArrangements.RemoveRange(
+            _context.DockerServiceArrangements.Where(d => d.ServerId == id));
+        _context.ScheduledTaskServers.RemoveRange(
+            _context.ScheduledTaskServers.Where(s => s.ServerId == id));
+        _context.TaskExecutions.RemoveRange(
+            _context.TaskExecutions.Where(e => e.ServerId == id));
+        _context.PortAllocations.RemoveRange(
+            _context.PortAllocations.Where(p => p.ServerId == id));
+        _context.Deployments.RemoveRange(
+            _context.Deployments.Where(d => d.ServerId == id));
+        _context.ContainerMetricsHistory.RemoveRange(
+            _context.ContainerMetricsHistory.Where(c => c.ServerId == id));
+        _context.SystemMetricsHistory.RemoveRange(
+            _context.SystemMetricsHistory.Where(s => s.ServerId == id));
+        _context.DiskMetricsHistory.RemoveRange(
+            _context.DiskMetricsHistory.Where(d => d.ServerId == id));
+        _context.NetworkInterfaceMetricsHistory.RemoveRange(
+            _context.NetworkInterfaceMetricsHistory.Where(n => n.ServerId == id));
+
+        // Clear nullable FK references
+        var childServers = _context.ManagedServers.Where(s => s.ParentServerId == id);
+        await foreach (var child in childServers.AsAsyncEnumerable())
+        {
+            child.ParentServerId = null;
+        }
+
+        var linkedDevices = _context.NetworkDevices.Where(d => d.ManagedServerId == id);
+        await foreach (var device in linkedDevices.AsAsyncEnumerable())
+        {
+            device.ManagedServerId = null;
+        }
+
         _context.ManagedServers.Remove(server);
         await _context.SaveChangesAsync();
         return true;
