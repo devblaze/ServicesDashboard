@@ -337,7 +337,7 @@ export const MonitoringDashboard: React.FC<MonitoringDashboardProps> = ({ darkMo
   } = useQuery({
     queryKey: ['servers-metrics', minutes],
     queryFn: () => metricsApi.getAllServersMetrics(minutes),
-    refetchInterval: 30000, // Refresh every 30 seconds
+    refetchInterval: 60000, // Refresh every 60 seconds
   });
 
   // Fetch selected server containers
@@ -348,7 +348,7 @@ export const MonitoringDashboard: React.FC<MonitoringDashboardProps> = ({ darkMo
     queryKey: ['server-containers-metrics', selectedServerId, minutes],
     queryFn: () => metricsApi.getServerContainersMetrics(selectedServerId!, minutes),
     enabled: selectedServerId !== null,
-    refetchInterval: 30000,
+    refetchInterval: 60000,
   });
 
   // Fetch system metrics (network bandwidth, temperatures)
@@ -358,7 +358,7 @@ export const MonitoringDashboard: React.FC<MonitoringDashboardProps> = ({ darkMo
     queryKey: ['server-system-metrics', selectedServerId, minutes],
     queryFn: () => metricsApi.getServerSystemMetrics(selectedServerId!, minutes),
     enabled: selectedServerId !== null,
-    refetchInterval: 30000,
+    refetchInterval: 60000,
   });
 
   // Fetch disk metrics
@@ -368,7 +368,7 @@ export const MonitoringDashboard: React.FC<MonitoringDashboardProps> = ({ darkMo
     queryKey: ['server-disk-metrics', selectedServerId, minutes],
     queryFn: () => metricsApi.getServerDiskMetrics(selectedServerId!, minutes),
     enabled: selectedServerId !== null,
-    refetchInterval: 30000,
+    refetchInterval: 60000,
   });
 
   // Prepare chart data for selected container

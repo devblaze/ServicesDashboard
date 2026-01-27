@@ -11,6 +11,10 @@ public interface IDiscoveryNotificationClient
     Task ReceiveScanError(Guid scanId, string error);
     Task ReceiveHostDiscovered(Guid scanId, string host, int openPorts);
     Task ReceiveServiceDiscovered(Guid scanId, string host, int port, string serviceName);
+
+    // Server monitoring events (pushed by ServerMonitoringWorker)
+    Task ReceiveServerStatusUpdate(int serverId, string status, string lastCheckTime);
+    Task ReceiveServerHealthUpdate(int serverId, object healthCheck);
 }
 
 public class DiscoveryNotificationHub : Hub<IDiscoveryNotificationClient>

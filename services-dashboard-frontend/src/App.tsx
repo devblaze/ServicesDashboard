@@ -134,8 +134,6 @@ function App() {
         enableServerConnectivity={true}
         enableServerHealth={true}
         enableServiceHealth={true}
-        connectivityInterval={1} // 1 minute
-        healthInterval={5} // 5 minutes
       >
         <div className={`min-h-screen transition-colors duration-300 ${
           darkMode 

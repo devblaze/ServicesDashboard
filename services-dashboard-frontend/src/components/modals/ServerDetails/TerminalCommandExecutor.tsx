@@ -53,8 +53,30 @@ export const TerminalTab: React.FC<TerminalTabProps> = ({ serverId, darkMode }) 
       // Initial fetch
       pollTerminalOutput();
 
-      // Start polling interval
-      pollingIntervalRef.current = setInterval(pollTerminalOutput, 500);
+      // Start polling interval (2.5s to reduce CPU usage)
+      pollingIntervalRef.current = setInterval(pollTerminalOutput, 2500);
+
+      // Pause polling when tab is hidden
+      const handleVisibility = () => {
+        if (document.hidden) {
+          if (pollingIntervalRef.current) {
+            clearInterval(pollingIntervalRef.current);
+            pollingIntervalRef.current = null;
+          }
+        } else {
+          pollTerminalOutput();
+          pollingIntervalRef.current = setInterval(pollTerminalOutput, 2500);
+        }
+      };
+      document.addEventListener('visibilitychange', handleVisibility);
+
+      return () => {
+        document.removeEventListener('visibilitychange', handleVisibility);
+        if (pollingIntervalRef.current) {
+          clearInterval(pollingIntervalRef.current);
+          pollingIntervalRef.current = null;
+        }
+      };
     }
 
     return () => {

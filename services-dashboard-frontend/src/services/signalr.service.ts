@@ -1,6 +1,7 @@
 import * as signalR from '@microsoft/signalr';
 
 export type ScanNotificationType = 'started' | 'progress' | 'completed' | 'error' | 'hostDiscovered' | 'serviceDiscovered';
+export type ServerMonitoringType = 'serverStatusUpdate' | 'serverHealthUpdate';
 
 export interface ScanNotification {
   scanId: string;
@@ -9,9 +10,17 @@ export interface ScanNotification {
   data: any;
 }
 
+export interface ServerMonitoringEvent {
+  type: ServerMonitoringType;
+  serverId: number;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  data: any;
+}
+
 class SignalRService {
   private hubConnection: signalR.HubConnection | null = null;
   private notificationCallbacks: ((notification: ScanNotification) => void)[] = [];
+  private monitoringCallbacks: ((event: ServerMonitoringEvent) => void)[] = [];
   private connectionState: 'disconnected' | 'connecting' | 'connected' | 'error' = 'disconnected';
 
   constructor() {
@@ -121,6 +130,25 @@ class SignalRService {
       });
     });
 
+    // Handle server status updates (from ServerMonitoringWorker)
+    this.hubConnection.on('ReceiveServerStatusUpdate', (serverId: number, status: string, lastCheckTime: string) => {
+      this.notifyMonitoringCallbacks({
+        type: 'serverStatusUpdate',
+        serverId,
+        data: { status, lastCheckTime }
+      });
+    });
+
+    // Handle server health updates (from ServerMonitoringWorker)
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    this.hubConnection.on('ReceiveServerHealthUpdate', (serverId: number, healthCheck: any) => {
+      this.notifyMonitoringCallbacks({
+        type: 'serverHealthUpdate',
+        serverId,
+        data: { healthCheck }
+      });
+    });
+
     // Handle reconnecting
     this.hubConnection.onreconnecting((error) => {
       console.log('SignalR reconnecting...', error);
@@ -139,6 +167,16 @@ class SignalRService {
       this.connectionState = 'disconnected';
       // Try to reconnect after 5 seconds
       setTimeout(() => this.initializeConnection(), 5000);
+    });
+  }
+
+  private notifyMonitoringCallbacks(event: ServerMonitoringEvent) {
+    this.monitoringCallbacks.forEach(callback => {
+      try {
+        callback(event);
+      } catch (error) {
+        console.error('Error in monitoring callback:', error);
+      }
     });
   }
 
@@ -183,6 +221,17 @@ class SignalRService {
       const index = this.notificationCallbacks.indexOf(callback);
       if (index > -1) {
         this.notificationCallbacks.splice(index, 1);
+      }
+    };
+  }
+
+  public onServerMonitoring(callback: (event: ServerMonitoringEvent) => void): () => void {
+    this.monitoringCallbacks.push(callback);
+
+    return () => {
+      const index = this.monitoringCallbacks.indexOf(callback);
+      if (index > -1) {
+        this.monitoringCallbacks.splice(index, 1);
       }
     };
   }

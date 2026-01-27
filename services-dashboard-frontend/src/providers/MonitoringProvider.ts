@@ -8,8 +8,6 @@ interface MonitoringContextType {
     enableServerConnectivityCheck: boolean;
     enableServerHealthCheck: boolean;
     enableServiceHealthCheck: boolean;
-    connectivityCheckInterval: number;
-    healthCheckInterval: number;
   };
 }
 
@@ -28,8 +26,6 @@ interface MonitoringProviderProps {
   enableServerConnectivity?: boolean;
   enableServerHealth?: boolean;
   enableServiceHealth?: boolean;
-  connectivityInterval?: number; // in minutes
-  healthInterval?: number; // in minutes
 }
 
 export const MonitoringProvider: React.FC<MonitoringProviderProps> = ({
@@ -37,15 +33,11 @@ export const MonitoringProvider: React.FC<MonitoringProviderProps> = ({
   enableServerConnectivity = true,
   enableServerHealth = true,
   enableServiceHealth = true,
-  connectivityInterval = 1, // 1 minute default
-  healthInterval = 5 // 5 minutes default
 }) => {
   const monitoring = useAutoMonitoring({
     enableServerConnectivityCheck: enableServerConnectivity,
     enableServerHealthCheck: enableServerHealth,
     enableServiceHealthCheck: enableServiceHealth,
-    connectivityCheckInterval: connectivityInterval * 60 * 1000,
-    healthCheckInterval: healthInterval * 60 * 1000
   });
 
   return React.createElement(
