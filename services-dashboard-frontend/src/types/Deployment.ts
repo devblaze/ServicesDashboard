@@ -20,6 +20,7 @@ export interface UpdateGitProviderRequest {
   name: string;
   baseUrl: string;
   accessToken?: string;
+  username?: string;
   isActive: boolean;
 }
 
@@ -30,9 +31,10 @@ export interface TestGitProviderRequest {
 }
 
 export interface TestGitProviderResponse {
-  isSuccessful: boolean;
+  success: boolean;
   message: string;
-  userInfo?: string;
+  username?: string;
+  repositoryCount?: number;
 }
 
 // Git Repository Types

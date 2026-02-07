@@ -182,3 +182,4 @@ dotnet test --filter FullyQualifiedName~ServicesDashboard.Tests.ClassName.Method
 #### Collation version warnings
 - Non-critical warnings about PostgreSQL collation version mismatch
 - To fix: `ALTER DATABASE servicesdashboard REFRESH COLLATION VERSION;` in psql
+- Never commit or push code

@@ -6,6 +6,20 @@
         <ImplicitUsings>enable</ImplicitUsings>
         <DockerDefaultTargetOS>Linux</DockerDefaultTargetOS>
         <PreserveCompilationContext>true</PreserveCompilationContext>
+
+        <!-- Version Information -->
+        <Version>1.0.0</Version>
+        <AssemblyVersion>1.0.0.0</AssemblyVersion>
+        <FileVersion>1.0.0.0</FileVersion>
+        <InformationalVersion>1.0.0</InformationalVersion>
+
+        <!-- FastEndpoints configuration for ARM devices -->
+        <!-- Disable trimming to preserve endpoint discovery -->
+        <PublishTrimmed>false</PublishTrimmed>
+        <!-- If using single-file, ensure all assemblies are included -->
+        <IncludeAllContentForSelfExtract>true</IncludeAllContentForSelfExtract>
+        <!-- Preserve compilation references for reflection -->
+        <CopyRefAssembliesToPublishDirectory>true</CopyRefAssembliesToPublishDirectory>
     </PropertyGroup>
 
     <PropertyGroup>
@@ -26,6 +40,7 @@
           <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
         </PackageReference>
         <PackageReference Include="Microsoft.EntityFrameworkCore.Sqlite" Version="9.0.9" />
+        <PackageReference Include="Microsoft.EntityFrameworkCore.SqlServer" Version="9.0.4" />
         <PackageReference Include="Npgsql.EntityFrameworkCore.PostgreSQL" Version="9.0.4" />
         <PackageReference Include="OllamaSharp" Version="5.3.3" />
         <PackageReference Include="PuppeteerSharp" Version="20.2.2" />

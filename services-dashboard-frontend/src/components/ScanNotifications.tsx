@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useRef, useCallback } from 'react';
 import { X, Wifi, AlertCircle, CheckCircle, Activity } from 'lucide-react';
 import { signalRService } from '../services/signalr.service';
 import type { ScanNotification } from '../services/signalr.service';
@@ -21,13 +21,46 @@ export const ScanNotifications: React.FC<ScanNotificationsProps> = ({ onNavigate
   const [notifications, setNotifications] = useState<NotificationItem[]>([]);
   const [isExpanded, setIsExpanded] = useState(false);
 
+  // Debounce buffer for rapid-fire SignalR events
+  const bufferRef = useRef<NotificationItem[]>([]);
+  const flushTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const shouldExpandRef = useRef(false);
+
+  const flushBuffer = useCallback(() => {
+    flushTimerRef.current = null;
+    const buffered = bufferRef.current;
+    if (buffered.length === 0) return;
+    bufferRef.current = [];
+
+    setNotifications(prev => {
+      let merged = [...prev];
+      for (const item of buffered) {
+        // Remove old progress notifications for the same scan
+        if (item.title === 'Scan Progress') {
+          merged = merged.filter(n => !(n.scanId === item.scanId && n.title === 'Scan Progress'));
+        }
+        merged = [item, ...merged];
+      }
+      return merged.slice(0, 10);
+    });
+
+    if (shouldExpandRef.current) {
+      setIsExpanded(true);
+      shouldExpandRef.current = false;
+    }
+  }, []);
+
   useEffect(() => {
     // Subscribe to SignalR notifications
     const unsubscribe = signalRService.onNotification(handleNotification);
 
     return () => {
       unsubscribe();
+      if (flushTimerRef.current) {
+        clearTimeout(flushTimerRef.current);
+      }
     };
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   const handleNotification = (notification: ScanNotification) => {
@@ -79,19 +112,13 @@ export const ScanNotifications: React.FC<ScanNotificationsProps> = ({ onNavigate
         break;
     }
 
-    setNotifications(prev => {
-      // Remove old progress notifications for the same scan
-      const filtered = notification.type === 'progress'
-        ? prev.filter(n => !(n.scanId === notification.scanId && n.title === 'Scan Progress'))
-        : prev;
-
-      // Add new notification at the beginning
-      return [newNotification, ...filtered].slice(0, 10); // Keep max 10 notifications
-    });
-
-    // Auto-expand on new scan start
+    // Buffer the notification and flush at most once per 500ms
+    bufferRef.current.push(newNotification);
     if (notification.type === 'started') {
-      setIsExpanded(true);
+      shouldExpandRef.current = true;
+    }
+    if (!flushTimerRef.current) {
+      flushTimerRef.current = setTimeout(flushBuffer, 500);
     }
   };
 

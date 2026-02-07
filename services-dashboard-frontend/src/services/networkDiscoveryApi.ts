@@ -35,16 +35,16 @@ class NetworkDiscoveryApiClient extends BaseApiClient {
     return this.request<ScanProgress>('get', `/networkdiscovery/scan-progress/${scanId}`);
   }
 
-  async getScanResults(scanId: string): Promise<StoredDiscoveredService[]> {
-    return this.request<StoredDiscoveredService[]>('get', `/networkdiscovery/scan-results/${scanId}`);
+  async getScanResults(scanId: string, sortBy: string = 'ip', sortOrder: string = 'asc'): Promise<StoredDiscoveredService[]> {
+    return this.request<StoredDiscoveredService[]>('get', `/networkdiscovery/scan-results/${scanId}?sortBy=${sortBy}&sortOrder=${sortOrder}`);
   }
 
   async getRecentScans(limit: number = 10): Promise<NetworkScanSession[]> {
     return this.request<NetworkScanSession[]>('get', `/networkdiscovery/recent-scans?limit=${limit}`);
   }
 
-  async getLatestResults(target: string): Promise<StoredDiscoveredService[]> {
-    return this.request<StoredDiscoveredService[]>('get', `/networkdiscovery/latest-results/${encodeURIComponent(target)}`);
+  async getLatestResults(target: string, sortBy: string = 'ip', sortOrder: string = 'asc'): Promise<StoredDiscoveredService[]> {
+    return this.request<StoredDiscoveredService[]>('get', `/networkdiscovery/latest-results/${encodeURIComponent(target)}?sortBy=${sortBy}&sortOrder=${sortOrder}`);
   }
 
   // Quick scan for immediate results

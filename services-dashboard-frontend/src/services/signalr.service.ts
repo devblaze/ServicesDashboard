@@ -1,6 +1,7 @@
 import * as signalR from '@microsoft/signalr';
 
 export type ScanNotificationType = 'started' | 'progress' | 'completed' | 'error' | 'hostDiscovered' | 'serviceDiscovered';
+export type ServerMonitoringType = 'serverStatusUpdate' | 'serverHealthUpdate';
 
 export interface ScanNotification {
   scanId: string;
@@ -9,9 +10,28 @@ export interface ScanNotification {
   data: any;
 }
 
+export interface ServerMonitoringEvent {
+  type: ServerMonitoringType;
+  serverId: number;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  data: any;
+}
+
+export interface VMOperationUpdate {
+  operationId: string;
+  status: string;
+  progress: number;
+  stage: string;
+  ipAddress?: string;
+  sshConnectionString?: string;
+  errorMessage?: string;
+}
+
 class SignalRService {
   private hubConnection: signalR.HubConnection | null = null;
   private notificationCallbacks: ((notification: ScanNotification) => void)[] = [];
+  private monitoringCallbacks: ((event: ServerMonitoringEvent) => void)[] = [];
+  private vmOperationCallbacks: ((update: VMOperationUpdate) => void)[] = [];
   private connectionState: 'disconnected' | 'connecting' | 'connected' | 'error' = 'disconnected';
 
   constructor() {
@@ -19,9 +39,15 @@ class SignalRService {
   }
 
   private getHubUrl(): string {
-    // Get the base URL from environment or default
-    const baseUrl = import.meta.env.VITE_API_BASE_URL || 'http://localhost:5050';
-    return `${baseUrl}/hubs/discovery`;
+    // Get the base URL from environment
+    // In production (empty VITE_API_BASE_URL), use relative URL so nginx can proxy
+    // In development, use the full URL (e.g., http://localhost:5050)
+    const baseUrl = import.meta.env.VITE_API_BASE_URL;
+    if (baseUrl) {
+      return `${baseUrl}/hubs/discovery`;
+    }
+    // Use relative URL for production (nginx will proxy /hubs/ to backend)
+    return '/hubs/discovery';
   }
 
   private async initializeConnection() {
@@ -115,6 +141,47 @@ class SignalRService {
       });
     });
 
+    // Handle server status updates (from ServerMonitoringWorker)
+    this.hubConnection.on('ReceiveServerStatusUpdate', (serverId: number, status: string, lastCheckTime: string) => {
+      this.notifyMonitoringCallbacks({
+        type: 'serverStatusUpdate',
+        serverId,
+        data: { status, lastCheckTime }
+      });
+    });
+
+    // Handle server health updates (from ServerMonitoringWorker)
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    this.hubConnection.on('ReceiveServerHealthUpdate', (serverId: number, healthCheck: any) => {
+      this.notifyMonitoringCallbacks({
+        type: 'serverHealthUpdate',
+        serverId,
+        data: { healthCheck }
+      });
+    });
+
+    // Handle VM operation updates (from VMCreationWorker)
+    this.hubConnection.on('ReceiveVMOperationUpdate', (
+      operationId: string,
+      status: string,
+      progress: number,
+      stage: string,
+      ipAddress: string | null,
+      sshConnectionString: string | null,
+      errorMessage: string | null
+    ) => {
+      console.log(`VM Operation Update: ${operationId} - ${status} (${progress}%) - ${stage}`);
+      this.notifyVMOperationCallbacks({
+        operationId,
+        status,
+        progress,
+        stage,
+        ipAddress: ipAddress ?? undefined,
+        sshConnectionString: sshConnectionString ?? undefined,
+        errorMessage: errorMessage ?? undefined
+      });
+    });
+
     // Handle reconnecting
     this.hubConnection.onreconnecting((error) => {
       console.log('SignalR reconnecting...', error);
@@ -133,6 +200,26 @@ class SignalRService {
       this.connectionState = 'disconnected';
       // Try to reconnect after 5 seconds
       setTimeout(() => this.initializeConnection(), 5000);
+    });
+  }
+
+  private notifyMonitoringCallbacks(event: ServerMonitoringEvent) {
+    this.monitoringCallbacks.forEach(callback => {
+      try {
+        callback(event);
+      } catch (error) {
+        console.error('Error in monitoring callback:', error);
+      }
+    });
+  }
+
+  private notifyVMOperationCallbacks(update: VMOperationUpdate) {
+    this.vmOperationCallbacks.forEach(callback => {
+      try {
+        callback(update);
+      } catch (error) {
+        console.error('Error in VM operation callback:', error);
+      }
     });
   }
 
@@ -177,6 +264,28 @@ class SignalRService {
       const index = this.notificationCallbacks.indexOf(callback);
       if (index > -1) {
         this.notificationCallbacks.splice(index, 1);
+      }
+    };
+  }
+
+  public onServerMonitoring(callback: (event: ServerMonitoringEvent) => void): () => void {
+    this.monitoringCallbacks.push(callback);
+
+    return () => {
+      const index = this.monitoringCallbacks.indexOf(callback);
+      if (index > -1) {
+        this.monitoringCallbacks.splice(index, 1);
+      }
+    };
+  }
+
+  public onVMOperationUpdate(callback: (update: VMOperationUpdate) => void): () => void {
+    this.vmOperationCallbacks.push(callback);
+
+    return () => {
+      const index = this.vmOperationCallbacks.indexOf(callback);
+      if (index > -1) {
+        this.vmOperationCallbacks.splice(index, 1);
       }
     };
   }

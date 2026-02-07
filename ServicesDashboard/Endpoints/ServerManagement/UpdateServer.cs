@@ -17,6 +17,8 @@ public class UpdateServerRequest
     public string? Group { get; set; }
     public string? Tags { get; set; }
     public int? ParentServerId { get; set; }
+    public string? MacAddress { get; set; }
+    public int? WakeOnLanPort { get; set; }
 }
 
 public class UpdateServerEndpoint : Endpoint<UpdateServerRequest, ManagedServer>
@@ -102,6 +104,8 @@ public class UpdateServerEndpoint : Endpoint<UpdateServerRequest, ManagedServer>
             Group = UpdateEnum<ServerGroup>(request.Group, existingServer.Group),
             Tags = UpdateTags(request.Tags, existingServer.Tags),
             ParentServerId = request.ParentServerId, // Accept null to remove parent
+            MacAddress = UpdateField(request.MacAddress, existingServer.MacAddress),
+            WakeOnLanPort = request.WakeOnLanPort ?? existingServer.WakeOnLanPort,
 
             // Preserve existing values
             Status = existingServer.Status,

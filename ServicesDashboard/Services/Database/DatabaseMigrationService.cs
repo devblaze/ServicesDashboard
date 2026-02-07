@@ -1,9 +1,11 @@
 using Microsoft.EntityFrameworkCore;
 using ServicesDashboard.Data;
 using ServicesDashboard.Data.Entities;
+using ServicesDashboard.Models;
 using ServicesDashboard.Models.Dtos;
 using Npgsql;
 using Microsoft.Data.Sqlite;
+using Microsoft.Data.SqlClient;
 
 namespace ServicesDashboard.Services.Database;
 
@@ -14,6 +16,14 @@ public interface IDatabaseMigrationService
     Task<MigrateDatabaseResponse> MigrateDatabaseAsync(MigrateDatabaseRequest request);
     Task<DatabaseConfigurationDto> GetCurrentConfigurationAsync();
     Task<bool> SaveConfigurationAsync(UpdateDatabaseConfigurationRequest request);
+    Task<DatabaseExportResponse> ExportDatabaseAsync();
+    Task<DatabaseImportResponse> ImportDatabaseAsync(DatabaseImportRequest request);
+
+    // Remote sync methods
+    GenerateSyncTokenResponse GenerateSyncToken(string? requestUrl = null);
+    bool ValidateSyncToken(string token);
+    Task<DatabaseExportResponse> ExportWithTokenAsync(string token);
+    Task<RemoteSyncResponse> RemoteSyncAsync(RemoteSyncRequest request);
 }
 
 public class DatabaseMigrationService : IDatabaseMigrationService
@@ -21,15 +31,28 @@ public class DatabaseMigrationService : IDatabaseMigrationService
     private readonly ServicesDashboardContext _context;
     private readonly IConfiguration _configuration;
     private readonly ILogger<DatabaseMigrationService> _logger;
+    private readonly IHttpClientFactory _httpClientFactory;
+
+    // Static storage for sync tokens (token -> expiration time)
+    private static readonly Dictionary<string, DateTime> _syncTokens = new();
+    private static readonly object _tokenLock = new();
+
+    // Store the current active token info for reuse
+    private static string? _activeToken = null;
+    private static DateTime _activeTokenExpiry = DateTime.MinValue;
+    private static int _activeTokenRecordCount = 0;
+    private static List<string> _activeTokenSourceUrls = new();
 
     public DatabaseMigrationService(
         ServicesDashboardContext context,
         IConfiguration configuration,
-        ILogger<DatabaseMigrationService> logger)
+        ILogger<DatabaseMigrationService> logger,
+        IHttpClientFactory httpClientFactory)
     {
         _context = context;
         _configuration = configuration;
         _logger = logger;
+        _httpClientFactory = httpClientFactory;
     }
 
     public async Task<DatabaseStatusResponse> GetDatabaseStatusAsync()
@@ -38,11 +61,20 @@ public class DatabaseMigrationService : IDatabaseMigrationService
         {
             var canConnect = await _context.Database.CanConnectAsync();
 
-            // Detect actual provider from connection string
+            // Get provider from configuration (DatabaseProvider env var)
+            var configuredProvider = _configuration.GetValue<string>("DatabaseProvider") ?? "PostgreSQL";
+
+            // Also detect from connection string as fallback
             var connectionString = _context.Database.GetConnectionString() ?? "";
-            var actualProvider = connectionString.Contains("Host=") || connectionString.Contains("Server=")
-                ? "PostgreSQL"
-                : "SQLite";
+            var detectedProvider = DetectProviderFromConnectionString(connectionString);
+
+            // Use configured provider, but log if there's a mismatch
+            var actualProvider = configuredProvider;
+            if (!string.IsNullOrEmpty(detectedProvider) && !detectedProvider.Equals(configuredProvider, StringComparison.OrdinalIgnoreCase))
+            {
+                _logger.LogWarning("Configured provider ({Configured}) doesn't match detected provider ({Detected})",
+                    configuredProvider, detectedProvider);
+            }
 
             var response = new DatabaseStatusResponse
             {
@@ -85,6 +117,27 @@ public class DatabaseMigrationService : IDatabaseMigrationService
         }
     }
 
+    private static string DetectProviderFromConnectionString(string connectionString)
+    {
+        if (string.IsNullOrEmpty(connectionString))
+            return "SQLite";
+
+        // PostgreSQL uses Host= and Username=
+        if (connectionString.Contains("Host=", StringComparison.OrdinalIgnoreCase))
+            return "PostgreSQL";
+
+        // SQL Server uses Server= and User Id=
+        if (connectionString.Contains("Server=", StringComparison.OrdinalIgnoreCase) &&
+            connectionString.Contains("User Id=", StringComparison.OrdinalIgnoreCase))
+            return "SqlServer";
+
+        // SQLite uses Data Source=
+        if (connectionString.Contains("Data Source=", StringComparison.OrdinalIgnoreCase))
+            return "SQLite";
+
+        return "SQLite"; // Default fallback
+    }
+
     public async Task<TestDatabaseConnectionResponse> TestConnectionAsync(TestDatabaseConnectionRequest request)
     {
         try
@@ -102,11 +155,20 @@ public class DatabaseMigrationService : IDatabaseMigrationService
                     request.PostgreSQLUsername,
                     request.PostgreSQLPassword);
             }
+            else if (request.Provider.Equals("SqlServer", StringComparison.OrdinalIgnoreCase))
+            {
+                return await TestSqlServerConnectionAsync(
+                    request.SqlServerHost,
+                    request.SqlServerPort,
+                    request.SqlServerDatabase,
+                    request.SqlServerUsername,
+                    request.SqlServerPassword);
+            }
 
             return new TestDatabaseConnectionResponse
             {
                 Success = false,
-                Message = "Invalid database provider"
+                Message = $"Invalid database provider: {request.Provider}. Supported providers: SQLite, PostgreSQL, SqlServer"
             };
         }
         catch (Exception ex)
@@ -275,21 +337,344 @@ public class DatabaseMigrationService : IDatabaseMigrationService
         }
     }
 
+    public async Task<DatabaseExportResponse> ExportDatabaseAsync()
+    {
+        try
+        {
+            _logger.LogInformation("Starting database export");
+
+            var provider = _configuration.GetValue<string>("DatabaseProvider") ?? "PostgreSQL";
+            var exportData = new DatabaseExportData();
+            var tableCounts = new Dictionary<string, int>();
+
+            // Export all tables
+            var servers = await _context.ManagedServers.AsNoTracking().ToListAsync();
+            exportData.ManagedServers = servers.Cast<object>().ToList();
+            tableCounts["ManagedServers"] = servers.Count;
+
+            var credentials = await _context.SshCredentials.AsNoTracking().ToListAsync();
+            exportData.SshCredentials = credentials.Cast<object>().ToList();
+            tableCounts["SshCredentials"] = credentials.Count;
+
+            var settings = await _context.ApplicationSettings.AsNoTracking().ToListAsync();
+            exportData.ApplicationSettings = settings.Cast<object>().ToList();
+            tableCounts["ApplicationSettings"] = settings.Count;
+
+            var arrangements = await _context.DockerServiceArrangements.AsNoTracking().ToListAsync();
+            exportData.DockerServiceArrangements = arrangements.Cast<object>().ToList();
+            tableCounts["DockerServiceArrangements"] = arrangements.Count;
+
+            var tasks = await _context.ScheduledTasks.AsNoTracking().ToListAsync();
+            exportData.ScheduledTasks = tasks.Cast<object>().ToList();
+            tableCounts["ScheduledTasks"] = tasks.Count;
+
+            var discoveredServices = await _context.StoredDiscoveredServices.AsNoTracking().ToListAsync();
+            exportData.StoredDiscoveredServices = discoveredServices.Cast<object>().ToList();
+            tableCounts["StoredDiscoveredServices"] = discoveredServices.Count;
+
+            var gitProviders = await _context.GitProviderConnections.AsNoTracking().ToListAsync();
+            exportData.GitProviderConnections = gitProviders.Cast<object>().ToList();
+            tableCounts["GitProviderConnections"] = gitProviders.Count;
+
+            var healthChecks = await _context.ServerHealthChecks.AsNoTracking().ToListAsync();
+            exportData.ServerHealthChecks = healthChecks.Cast<object>().ToList();
+            tableCounts["ServerHealthChecks"] = healthChecks.Count;
+
+            var updateReports = await _context.UpdateReports.AsNoTracking().ToListAsync();
+            exportData.UpdateReports = updateReports.Cast<object>().ToList();
+            tableCounts["UpdateReports"] = updateReports.Count;
+
+            var alerts = await _context.ServerAlerts.AsNoTracking().ToListAsync();
+            exportData.ServerAlerts = alerts.Cast<object>().ToList();
+            tableCounts["ServerAlerts"] = alerts.Count;
+
+            var totalRecords = tableCounts.Values.Sum();
+
+            var metadata = new DatabaseExportMetadata
+            {
+                ExportedAt = DateTime.UtcNow.ToString("O"),
+                SourceProvider = provider,
+                AppVersion = "1.0.0",
+                TotalRecords = totalRecords,
+                TableCounts = tableCounts
+            };
+
+            _logger.LogInformation("Database export completed: {TotalRecords} records from {TableCount} tables",
+                totalRecords, tableCounts.Count);
+
+            return new DatabaseExportResponse
+            {
+                Success = true,
+                Message = $"Successfully exported {totalRecords} records from {tableCounts.Count} tables",
+                FileName = $"servicesdashboard-export-{DateTime.UtcNow:yyyyMMdd-HHmmss}.json",
+                Data = exportData,
+                Metadata = metadata
+            };
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error exporting database");
+            return new DatabaseExportResponse
+            {
+                Success = false,
+                Message = "Export failed",
+                Error = ex.Message
+            };
+        }
+    }
+
+    public async Task<DatabaseImportResponse> ImportDatabaseAsync(DatabaseImportRequest request)
+    {
+        try
+        {
+            _logger.LogInformation("Starting database import from {SourceProvider} export",
+                request.Metadata.SourceProvider);
+
+            var warnings = new List<string>();
+            var tableCounts = new Dictionary<string, int>();
+            var totalImported = 0;
+
+            // Check if database has existing data
+            var existingRecords = await CountTotalRecordsAsync();
+            if (existingRecords > 0)
+            {
+                if (!request.ClearExistingData)
+                {
+                    return new DatabaseImportResponse
+                    {
+                        Success = false,
+                        Message = $"Database contains {existingRecords} existing records. Set ClearExistingData to true to overwrite, or use an empty database.",
+                        Error = "Database is not empty"
+                    };
+                }
+
+                _logger.LogWarning("Clearing {Count} existing records before import", existingRecords);
+                await ClearDatabaseAsync(_context);
+                warnings.Add($"Cleared {existingRecords} existing records before import");
+            }
+
+            // Import data in correct order (respecting foreign key constraints)
+            // 1. SSH Credentials (no dependencies)
+            if (request.Data.SshCredentials.Any())
+            {
+                var credentials = DeserializeList<Models.SshCredential>(request.Data.SshCredentials);
+                foreach (var cred in credentials)
+                {
+                    cred.Id = 0; // Reset ID to let database generate new ones
+                }
+                _context.SshCredentials.AddRange(credentials);
+                await _context.SaveChangesAsync();
+                tableCounts["SshCredentials"] = credentials.Count;
+                totalImported += credentials.Count;
+                _logger.LogInformation("Imported {Count} SSH credentials", credentials.Count);
+            }
+
+            // 2. Application Settings (no dependencies)
+            if (request.Data.ApplicationSettings.Any())
+            {
+                var settings = DeserializeList<Data.Entities.ApplicationSetting>(request.Data.ApplicationSettings);
+                foreach (var setting in settings)
+                {
+                    setting.Id = 0;
+                }
+                _context.ApplicationSettings.AddRange(settings);
+                await _context.SaveChangesAsync();
+                tableCounts["ApplicationSettings"] = settings.Count;
+                totalImported += settings.Count;
+                _logger.LogInformation("Imported {Count} application settings", settings.Count);
+            }
+
+            // 3. Managed Servers (may reference SSH credentials)
+            if (request.Data.ManagedServers.Any())
+            {
+                var servers = DeserializeList<Models.ManagedServer>(request.Data.ManagedServers);
+                foreach (var server in servers)
+                {
+                    server.Id = 0;
+                    server.SshCredentialId = null; // Clear credential references for now
+                }
+                _context.ManagedServers.AddRange(servers);
+                await _context.SaveChangesAsync();
+                tableCounts["ManagedServers"] = servers.Count;
+                totalImported += servers.Count;
+                _logger.LogInformation("Imported {Count} managed servers", servers.Count);
+            }
+
+            // 4. Docker Service Arrangements
+            if (request.Data.DockerServiceArrangements.Any())
+            {
+                var arrangements = DeserializeList<Data.Entities.DockerServiceArrangement>(request.Data.DockerServiceArrangements);
+                foreach (var arr in arrangements)
+                {
+                    arr.Id = 0;
+                }
+                _context.DockerServiceArrangements.AddRange(arrangements);
+                await _context.SaveChangesAsync();
+                tableCounts["DockerServiceArrangements"] = arrangements.Count;
+                totalImported += arrangements.Count;
+                _logger.LogInformation("Imported {Count} docker service arrangements", arrangements.Count);
+            }
+
+            // 5. Scheduled Tasks
+            if (request.Data.ScheduledTasks.Any())
+            {
+                var tasks = DeserializeList<Models.ScheduledTask>(request.Data.ScheduledTasks);
+                foreach (var task in tasks)
+                {
+                    task.Id = 0;
+                }
+                _context.ScheduledTasks.AddRange(tasks);
+                await _context.SaveChangesAsync();
+                tableCounts["ScheduledTasks"] = tasks.Count;
+                totalImported += tasks.Count;
+                _logger.LogInformation("Imported {Count} scheduled tasks", tasks.Count);
+            }
+
+            // 6. Stored Discovered Services
+            if (request.Data.StoredDiscoveredServices.Any())
+            {
+                var services = DeserializeList<Models.StoredDiscoveredService>(request.Data.StoredDiscoveredServices);
+                foreach (var svc in services)
+                {
+                    svc.Id = 0;
+                }
+                _context.StoredDiscoveredServices.AddRange(services);
+                await _context.SaveChangesAsync();
+                tableCounts["StoredDiscoveredServices"] = services.Count;
+                totalImported += services.Count;
+                _logger.LogInformation("Imported {Count} discovered services", services.Count);
+            }
+
+            // 7. Git Provider Connections
+            if (request.Data.GitProviderConnections.Any())
+            {
+                var providers = DeserializeList<Data.Entities.GitProviderConnection>(request.Data.GitProviderConnections);
+                foreach (var provider in providers)
+                {
+                    provider.Id = 0;
+                }
+                _context.GitProviderConnections.AddRange(providers);
+                await _context.SaveChangesAsync();
+                tableCounts["GitProviderConnections"] = providers.Count;
+                totalImported += providers.Count;
+                _logger.LogInformation("Imported {Count} git provider connections", providers.Count);
+            }
+
+            // 8. Server Health Checks (references servers)
+            if (request.Data.ServerHealthChecks.Any())
+            {
+                var checks = DeserializeList<Models.ServerHealthCheck>(request.Data.ServerHealthChecks);
+                foreach (var check in checks)
+                {
+                    check.Id = 0;
+                }
+                _context.ServerHealthChecks.AddRange(checks);
+                await _context.SaveChangesAsync();
+                tableCounts["ServerHealthChecks"] = checks.Count;
+                totalImported += checks.Count;
+                _logger.LogInformation("Imported {Count} health checks", checks.Count);
+            }
+
+            // 9. Update Reports
+            if (request.Data.UpdateReports.Any())
+            {
+                var reports = DeserializeList<Models.UpdateReport>(request.Data.UpdateReports);
+                foreach (var report in reports)
+                {
+                    report.Id = 0;
+                }
+                _context.UpdateReports.AddRange(reports);
+                await _context.SaveChangesAsync();
+                tableCounts["UpdateReports"] = reports.Count;
+                totalImported += reports.Count;
+                _logger.LogInformation("Imported {Count} update reports", reports.Count);
+            }
+
+            // 10. Server Alerts
+            if (request.Data.ServerAlerts.Any())
+            {
+                var alerts = DeserializeList<Models.ServerAlert>(request.Data.ServerAlerts);
+                foreach (var alert in alerts)
+                {
+                    alert.Id = 0;
+                }
+                _context.ServerAlerts.AddRange(alerts);
+                await _context.SaveChangesAsync();
+                tableCounts["ServerAlerts"] = alerts.Count;
+                totalImported += alerts.Count;
+                _logger.LogInformation("Imported {Count} server alerts", alerts.Count);
+            }
+
+            _logger.LogInformation("Database import completed: {TotalRecords} records imported", totalImported);
+
+            return new DatabaseImportResponse
+            {
+                Success = true,
+                Message = $"Successfully imported {totalImported} records",
+                RecordsImported = totalImported,
+                TableCounts = tableCounts,
+                Warnings = warnings
+            };
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error importing database");
+            return new DatabaseImportResponse
+            {
+                Success = false,
+                Message = "Import failed",
+                Error = ex.Message
+            };
+        }
+    }
+
+    private List<T> DeserializeList<T>(List<object> items) where T : class
+    {
+        var result = new List<T>();
+        var options = new System.Text.Json.JsonSerializerOptions
+        {
+            PropertyNameCaseInsensitive = true
+        };
+        options.Converters.Add(new System.Text.Json.Serialization.JsonStringEnumConverter());
+
+        foreach (var item in items)
+        {
+            if (item is System.Text.Json.JsonElement jsonElement)
+            {
+                var deserialized = System.Text.Json.JsonSerializer.Deserialize<T>(jsonElement.GetRawText(), options);
+                if (deserialized != null)
+                {
+                    result.Add(deserialized);
+                }
+            }
+            else if (item is T typedItem)
+            {
+                result.Add(typedItem);
+            }
+        }
+        return result;
+    }
+
     // Private helper methods
 
     private async Task<TestDatabaseConnectionResponse> TestSQLiteConnectionAsync(string? path)
     {
         try
         {
+            var stopwatch = System.Diagnostics.Stopwatch.StartNew();
             var connectionString = $"Data Source={path ?? "test.db"}";
             using var connection = new SqliteConnection(connectionString);
             await connection.OpenAsync();
+            var serverVersion = connection.ServerVersion;
             await connection.CloseAsync();
+            stopwatch.Stop();
 
             return new TestDatabaseConnectionResponse
             {
                 Success = true,
-                Message = "SQLite connection successful"
+                Message = "SQLite connection successful",
+                ServerVersion = $"SQLite {serverVersion}",
+                ResponseTimeMs = (int)stopwatch.ElapsedMilliseconds
             };
         }
         catch (Exception ex)
@@ -308,15 +693,20 @@ public class DatabaseMigrationService : IDatabaseMigrationService
     {
         try
         {
+            var stopwatch = System.Diagnostics.Stopwatch.StartNew();
             var connectionString = BuildPostgreSQLConnectionString(host, port, database, username, password);
             using var connection = new NpgsqlConnection(connectionString);
             await connection.OpenAsync();
+            var serverVersion = connection.ServerVersion;
             await connection.CloseAsync();
+            stopwatch.Stop();
 
             return new TestDatabaseConnectionResponse
             {
                 Success = true,
-                Message = "PostgreSQL connection successful"
+                Message = "PostgreSQL connection successful",
+                ServerVersion = $"PostgreSQL {serverVersion}",
+                ResponseTimeMs = (int)stopwatch.ElapsedMilliseconds
             };
         }
         catch (Exception ex)
@@ -328,6 +718,44 @@ public class DatabaseMigrationService : IDatabaseMigrationService
                 Error = ex.Message
             };
         }
+    }
+
+    private async Task<TestDatabaseConnectionResponse> TestSqlServerConnectionAsync(
+        string? host, int? port, string? database, string? username, string? password)
+    {
+        try
+        {
+            var stopwatch = System.Diagnostics.Stopwatch.StartNew();
+            var connectionString = BuildSqlServerConnectionString(host, port ?? 1433, database, username, password);
+            using var connection = new SqlConnection(connectionString);
+            await connection.OpenAsync();
+            var serverVersion = connection.ServerVersion;
+            await connection.CloseAsync();
+            stopwatch.Stop();
+
+            return new TestDatabaseConnectionResponse
+            {
+                Success = true,
+                Message = "SQL Server connection successful",
+                ServerVersion = $"SQL Server {serverVersion}",
+                ResponseTimeMs = (int)stopwatch.ElapsedMilliseconds
+            };
+        }
+        catch (Exception ex)
+        {
+            return new TestDatabaseConnectionResponse
+            {
+                Success = false,
+                Message = "SQL Server connection failed",
+                Error = ex.Message
+            };
+        }
+    }
+
+    private string BuildSqlServerConnectionString(
+        string? host, int port, string? database, string? username, string? password)
+    {
+        return $"Server={host ?? "localhost"},{port};Database={database ?? "servicesdashboard"};User Id={username ?? "sa"};Password={password};TrustServerCertificate=true;";
     }
 
     private string BuildPostgreSQLConnectionString(
@@ -385,17 +813,44 @@ public class DatabaseMigrationService : IDatabaseMigrationService
             // Clear data in order that respects foreign key constraints
             // Delete in reverse order of dependencies
 
-            await context.Database.ExecuteSqlRawAsync("DELETE FROM \"ServerHealthChecks\"");
-            await context.Database.ExecuteSqlRawAsync("DELETE FROM \"UpdateReports\"");
-            await context.Database.ExecuteSqlRawAsync("DELETE FROM \"ServerAlerts\"");
-            await context.Database.ExecuteSqlRawAsync("DELETE FROM \"DockerServiceArrangements\"");
-            await context.Database.ExecuteSqlRawAsync("DELETE FROM \"ScheduledTaskServers\"");
-            await context.Database.ExecuteSqlRawAsync("DELETE FROM \"ScheduledTasks\"");
-            await context.Database.ExecuteSqlRawAsync("DELETE FROM \"ManagedServers\"");
-            await context.Database.ExecuteSqlRawAsync("DELETE FROM \"ApplicationSettings\"");
-            await context.Database.ExecuteSqlRawAsync("DELETE FROM \"StoredDiscoveredServices\"");
-            await context.Database.ExecuteSqlRawAsync("DELETE FROM \"SshCredentials\"");
-            await context.Database.ExecuteSqlRawAsync("DELETE FROM \"GitProviders\"");
+            // Detect provider to use correct identifier quoting
+            var provider = _configuration.GetValue<string>("DatabaseProvider") ?? "PostgreSQL";
+            var isSqlServer = provider.Equals("SqlServer", StringComparison.OrdinalIgnoreCase);
+
+            // Use square brackets for SQL Server, double quotes for PostgreSQL/SQLite
+            string Quote(string tableName) => isSqlServer ? $"[{tableName}]" : $"\"{tableName}\"";
+
+            _logger.LogInformation("Clearing database tables for provider: {Provider}", provider);
+
+            // Delete in order respecting foreign key constraints
+            var tablesToClear = new[]
+            {
+                "ServerHealthChecks",
+                "UpdateReports",
+                "ServerAlerts",
+                "DockerServiceArrangements",
+                "ScheduledTaskServers",
+                "ScheduledTasks",
+                "ManagedServers",
+                "ApplicationSettings",
+                "StoredDiscoveredServices",
+                "SshCredentials",
+                "GitProviderConnections"
+            };
+
+            foreach (var table in tablesToClear)
+            {
+                try
+                {
+                    await context.Database.ExecuteSqlRawAsync($"DELETE FROM {Quote(table)}");
+                    _logger.LogDebug("Cleared table: {Table}", table);
+                }
+                catch (Exception tableEx)
+                {
+                    // Table might not exist, continue with others
+                    _logger.LogDebug("Could not clear table {Table}: {Error}", table, tableEx.Message);
+                }
+            }
 
             _logger.LogInformation("Successfully cleared target database");
         }
@@ -562,5 +1017,373 @@ public class DatabaseMigrationService : IDatabaseMigrationService
             @"(Password|Pwd)=([^;]+)",
             "$1=***",
             System.Text.RegularExpressions.RegexOptions.IgnoreCase);
+    }
+
+    // Remote Sync Methods
+
+    public GenerateSyncTokenResponse GenerateSyncToken(string? requestUrl = null)
+    {
+        try
+        {
+            // Clean up expired tokens
+            CleanupExpiredTokens();
+
+            // Check if there's an active token that's still valid
+            lock (_tokenLock)
+            {
+                if (!string.IsNullOrEmpty(_activeToken) && _activeTokenExpiry > DateTime.UtcNow)
+                {
+                    // Update source URLs in case they've changed (e.g., accessed from different URL)
+                    var updatedSourceUrls = GetSourceUrls(requestUrl);
+                    if (updatedSourceUrls.Any() && !updatedSourceUrls.All(u => IsInternalUrl(u)))
+                    {
+                        _activeTokenSourceUrls = updatedSourceUrls;
+                    }
+
+                    _logger.LogInformation("Returning existing active sync token, expires at {ExpiresAt}", _activeTokenExpiry);
+
+                    return new GenerateSyncTokenResponse
+                    {
+                        Success = true,
+                        Token = _activeToken,
+                        ExpiresAt = _activeTokenExpiry,
+                        Message = "Active sync token found. Valid for 1 hour from generation.",
+                        TotalRecords = _activeTokenRecordCount,
+                        SourceUrls = _activeTokenSourceUrls
+                    };
+                }
+            }
+
+            // Generate a new unique token
+            var token = GenerateSecureToken();
+            var expiresAt = DateTime.UtcNow.AddHours(1); // Token valid for 1 hour
+
+            var totalRecords = _context.ManagedServers.Count() +
+                               _context.SshCredentials.Count() +
+                               _context.ApplicationSettings.Count() +
+                               _context.DockerServiceArrangements.Count() +
+                               _context.ScheduledTasks.Count() +
+                               _context.StoredDiscoveredServices.Count() +
+                               _context.GitProviderConnections.Count() +
+                               _context.ServerHealthChecks.Count() +
+                               _context.UpdateReports.Count() +
+                               _context.ServerAlerts.Count();
+
+            // Get source URLs - prefer the actual request URL, fall back to detected IPs
+            var sourceUrls = GetSourceUrls(requestUrl);
+
+            lock (_tokenLock)
+            {
+                _syncTokens[token] = expiresAt;
+
+                // Store as the active token
+                _activeToken = token;
+                _activeTokenExpiry = expiresAt;
+                _activeTokenRecordCount = totalRecords;
+                _activeTokenSourceUrls = sourceUrls;
+            }
+
+            _logger.LogInformation("Generated new sync token, expires at {ExpiresAt}", expiresAt);
+
+            return new GenerateSyncTokenResponse
+            {
+                Success = true,
+                Token = token,
+                ExpiresAt = expiresAt,
+                Message = "Sync token generated successfully. Valid for 1 hour.",
+                TotalRecords = totalRecords,
+                SourceUrls = sourceUrls
+            };
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error generating sync token: {Message}", ex.Message);
+            return new GenerateSyncTokenResponse
+            {
+                Success = false,
+                Message = $"Failed to generate sync token: {ex.Message}"
+            };
+        }
+    }
+
+    private static bool IsInternalUrl(string url)
+    {
+        return url.Contains("localhost") ||
+               url.Contains("127.0.0.1") ||
+               url.Contains("172.") ||
+               // Docker service names (no dots, just alphanumeric and hyphens)
+               (Uri.TryCreate(url, UriKind.Absolute, out var uri) &&
+                !uri.Host.Contains('.') &&
+                uri.Host != "localhost");
+    }
+
+    private List<string> GetSourceUrls(string? requestUrl)
+    {
+        var urls = new List<string>();
+
+        // If we have a request URL (from the actual HTTP request), use it as the primary source
+        if (!string.IsNullOrEmpty(requestUrl))
+        {
+            // Clean up the URL - remove any trailing slashes
+            var cleanUrl = requestUrl.TrimEnd('/');
+
+            // Don't add internal URLs (localhost, Docker IPs, Docker service names)
+            if (!IsInternalUrl(cleanUrl))
+            {
+                urls.Add(cleanUrl);
+            }
+        }
+
+        // Also check for configured external URL from environment
+        var configuredUrl = _configuration.GetValue<string>("AppSettings:ExternalUrl");
+        if (!string.IsNullOrEmpty(configuredUrl) && !urls.Contains(configuredUrl))
+        {
+            urls.Add(configuredUrl.TrimEnd('/'));
+        }
+
+        // If no external URLs found, try to get local network IPs (useful for LAN sync)
+        if (!urls.Any() || urls.All(IsInternalUrl))
+        {
+            var localUrls = GetLocalNetworkUrls();
+            foreach (var url in localUrls)
+            {
+                if (!urls.Contains(url))
+                {
+                    urls.Add(url);
+                }
+            }
+        }
+
+        // Always add localhost as a fallback
+        if (!urls.Any())
+        {
+            urls.Add("http://localhost:5050");
+        }
+
+        return urls;
+    }
+
+    private List<string> GetLocalNetworkUrls()
+    {
+        var urls = new List<string>();
+
+        try
+        {
+            // Get all network interfaces
+            var networkInterfaces = System.Net.NetworkInformation.NetworkInterface.GetAllNetworkInterfaces()
+                .Where(ni => ni.OperationalStatus == System.Net.NetworkInformation.OperationalStatus.Up
+                             && ni.NetworkInterfaceType != System.Net.NetworkInformation.NetworkInterfaceType.Loopback);
+
+            foreach (var networkInterface in networkInterfaces)
+            {
+                var ipProperties = networkInterface.GetIPProperties();
+                var unicastAddresses = ipProperties.UnicastAddresses
+                    .Where(ua => ua.Address.AddressFamily == System.Net.Sockets.AddressFamily.InterNetwork) // IPv4 only
+                    .Select(ua => ua.Address.ToString());
+
+                foreach (var ip in unicastAddresses)
+                {
+                    // Skip link-local addresses (169.254.x.x) and Docker internal IPs (172.x.x.x)
+                    if (!ip.StartsWith("169.254.") && !ip.StartsWith("172."))
+                    {
+                        urls.Add($"http://{ip}:5050");
+                    }
+                }
+            }
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "Error getting local network IP addresses");
+        }
+
+        return urls;
+    }
+
+    public bool ValidateSyncToken(string token)
+    {
+        if (string.IsNullOrEmpty(token))
+            return false;
+
+        lock (_tokenLock)
+        {
+            if (_syncTokens.TryGetValue(token, out var expiresAt))
+            {
+                if (DateTime.UtcNow < expiresAt)
+                {
+                    return true;
+                }
+                else
+                {
+                    // Token expired, remove it
+                    _syncTokens.Remove(token);
+                }
+            }
+        }
+
+        return false;
+    }
+
+    public async Task<DatabaseExportResponse> ExportWithTokenAsync(string token)
+    {
+        if (!ValidateSyncToken(token))
+        {
+            return new DatabaseExportResponse
+            {
+                Success = false,
+                Message = "Invalid or expired sync token",
+                Error = "Token validation failed"
+            };
+        }
+
+        // Invalidate the token after use (one-time use)
+        lock (_tokenLock)
+        {
+            _syncTokens.Remove(token);
+        }
+
+        _logger.LogInformation("Processing export with valid sync token");
+
+        return await ExportDatabaseAsync();
+    }
+
+    public async Task<RemoteSyncResponse> RemoteSyncAsync(RemoteSyncRequest request)
+    {
+        try
+        {
+            _logger.LogInformation("Starting remote sync from {SourceUrl}", request.SourceUrl);
+
+            // Normalize the source URL
+            var sourceUrl = request.SourceUrl.TrimEnd('/');
+            if (!sourceUrl.StartsWith("http://") && !sourceUrl.StartsWith("https://"))
+            {
+                sourceUrl = "https://" + sourceUrl;
+            }
+
+            var exportUrl = $"{sourceUrl}/api/database/export-with-token?token={Uri.EscapeDataString(request.SyncToken)}";
+
+            var client = _httpClientFactory.CreateClient();
+            client.Timeout = TimeSpan.FromMinutes(5); // Allow 5 minutes for large exports
+
+            var response = await client.GetAsync(exportUrl);
+
+            if (!response.IsSuccessStatusCode)
+            {
+                var errorContent = await response.Content.ReadAsStringAsync();
+                _logger.LogError("Remote sync failed: {StatusCode} - {Error}", response.StatusCode, errorContent);
+
+                return new RemoteSyncResponse
+                {
+                    Success = false,
+                    Message = $"Failed to connect to source: {response.StatusCode}",
+                    Error = response.StatusCode == System.Net.HttpStatusCode.Unauthorized
+                        ? "Invalid or expired sync token"
+                        : errorContent
+                };
+            }
+
+            var jsonContent = await response.Content.ReadAsStringAsync();
+            var deserializeOptions = new System.Text.Json.JsonSerializerOptions
+            {
+                PropertyNameCaseInsensitive = true
+            };
+            deserializeOptions.Converters.Add(new System.Text.Json.Serialization.JsonStringEnumConverter());
+
+            var exportResponse = System.Text.Json.JsonSerializer.Deserialize<DatabaseExportResponse>(
+                jsonContent,
+                deserializeOptions
+            );
+
+            if (exportResponse == null || !exportResponse.Success || exportResponse.Data == null || exportResponse.Metadata == null)
+            {
+                return new RemoteSyncResponse
+                {
+                    Success = false,
+                    Message = "Invalid response from source server",
+                    Error = exportResponse?.Error ?? "Export data is null or invalid"
+                };
+            }
+
+            _logger.LogInformation("Retrieved {Records} records from source, starting import",
+                exportResponse.Metadata.TotalRecords);
+
+            // Import the data using existing import method
+            var importRequest = new DatabaseImportRequest
+            {
+                Data = exportResponse.Data,
+                Metadata = exportResponse.Metadata,
+                ClearExistingData = request.ClearExistingData
+            };
+
+            var importResult = await ImportDatabaseAsync(importRequest);
+
+            return new RemoteSyncResponse
+            {
+                Success = importResult.Success,
+                Message = importResult.Success
+                    ? $"Successfully synced {importResult.RecordsImported} records from remote database"
+                    : importResult.Message,
+                Error = importResult.Error,
+                RecordsSynced = importResult.RecordsImported,
+                SourceProvider = exportResponse.Metadata.SourceProvider,
+                TableCounts = importResult.TableCounts,
+                Warnings = importResult.Warnings
+            };
+        }
+        catch (HttpRequestException ex)
+        {
+            _logger.LogError(ex, "Network error during remote sync");
+            return new RemoteSyncResponse
+            {
+                Success = false,
+                Message = "Network error connecting to source server",
+                Error = ex.Message
+            };
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error during remote sync");
+            return new RemoteSyncResponse
+            {
+                Success = false,
+                Message = "Remote sync failed",
+                Error = ex.Message
+            };
+        }
+    }
+
+    private static string GenerateSecureToken()
+    {
+        var bytes = new byte[32];
+        using var rng = System.Security.Cryptography.RandomNumberGenerator.Create();
+        rng.GetBytes(bytes);
+        return Convert.ToBase64String(bytes)
+            .Replace("+", "-")
+            .Replace("/", "_")
+            .TrimEnd('=');
+    }
+
+    private void CleanupExpiredTokens()
+    {
+        lock (_tokenLock)
+        {
+            var expiredTokens = _syncTokens
+                .Where(kvp => DateTime.UtcNow >= kvp.Value)
+                .Select(kvp => kvp.Key)
+                .ToList();
+
+            foreach (var token in expiredTokens)
+            {
+                _syncTokens.Remove(token);
+            }
+
+            // Also clear active token if expired
+            if (_activeTokenExpiry <= DateTime.UtcNow)
+            {
+                _activeToken = null;
+                _activeTokenExpiry = DateTime.MinValue;
+                _activeTokenRecordCount = 0;
+                _activeTokenSourceUrls = new List<string>();
+            }
+        }
     }
 }

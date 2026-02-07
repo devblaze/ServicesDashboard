@@ -41,4 +41,5 @@ public class GitRepository
     // Navigation properties
     public GitProviderConnection GitProviderConnection { get; set; } = null!;
     public ICollection<Deployment> Deployments { get; set; } = new List<Deployment>();
+    public ICollection<GitBranch> Branches { get; set; } = new List<GitBranch>();
 }

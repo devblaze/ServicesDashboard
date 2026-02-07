@@ -1,44 +1,65 @@
 services:
-  database:
-    image: postgres:16
-    environment:
-      POSTGRES_DB: servicesdashboard
-      POSTGRES_USER: ${DB_USER:-admin}
-      POSTGRES_PASSWORD: ${DB_PASSWORD:-admin123}
-    volumes:
-      - postgres_data:/var/lib/postgresql/data
-    networks:
-      - app_network
-    restart: unless-stopped
-    healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U ${DB_USER:-admin} -d servicesdashboard"]
-      interval: 30s
-      timeout: 10s
-      retries: 3
+#  database:
+#    image: postgres:16
+#    ports:
+#      - "${DB_PORT:-5432}:5432"
+#    environment:
+#      POSTGRES_DB: servicesdashboard
+#      POSTGRES_USER: ${DB_USER:-admin}
+#      POSTGRES_PASSWORD: ${DB_PASSWORD:-admin123}
+#    volumes:
+#      - postgres_data:/var/lib/postgresql/data
+#    networks:
+#      - app_network
+#    restart: unless-stopped
+#    healthcheck:
+#      test: ["CMD-SHELL", "pg_isready -U ${DB_USER:-admin} -d servicesdashboard"]
+#      interval: 30s
+#      timeout: 10s
+#      retries: 3
 
   servicesdashboard:
-    image: ${DOCKER_USERNAME:-yourusername}/servicesdashboard-backend:${VERSION:-latest}
+    build:
+      context: ./ServicesDashboard
+      dockerfile: Dockerfile
+    image: ${DOCKER_USERNAME:-devblaze}/servicesdashboard-backend:${VERSION:-latest}
+    ports:
+      - "${BACKEND_PORT:-5051}:5050"
     environment:
       - ASPNETCORE_ENVIRONMENT=Production
-      - ASPNETCORE_URLS=http://+:8080
+      # Database provider: PostgreSQL, SqlServer, or SQLite
+      - DatabaseProvider=${DATABASE_PROVIDER:-PostgreSQL}
+      # PostgreSQL connection
       - ConnectionStrings__DefaultConnection=Host=database;Database=servicesdashboard;Username=${DB_USER:-admin};Password=${DB_PASSWORD:-admin123}
-      - AppSettings__DefaultOllamaBaseUrl=${OLLAMA_URL:-http://host.docker.internal:11434}
+      # SQL Server connection (used when DATABASE_PROVIDER=SqlServer)
+      - ConnectionStrings__SqlServerConnection=Server=${SQLSERVER_HOST:-sqlserver};Database=servicesdashboard;User Id=${DB_USER:-sa};Password=${DB_PASSWORD:-Admin123!};TrustServerCertificate=true
+      # Ollama settings (disabled by default in production)
+      - AppSettings__Ollama__BaseUrl=${OLLAMA_URL:-}
+      - AppSettings__Ollama__Enabled=${OLLAMA_ENABLED:-false}
+      - AppSettings__Ollama__EnableServiceRecognition=${OLLAMA_ENABLE_SERVICE_RECOGNITION:-false}
+      - AppSettings__Ollama__Model=${OLLAMA_MODEL:-llama3.2:3b}
     networks:
       - app_network
-    depends_on:
-      database:
-        condition: service_healthy
+#    depends_on:
+#      database:
+#        condition: service_healthy
     restart: unless-stopped
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:8080/health"]
-      interval: 30s
+      test: ["CMD-SHELL", "curl -f http://localhost:5050/api/health || exit 1"]
+      interval: 10s
       timeout: 10s
-      retries: 3
+      retries: 10
+      start_period: 60s
 
   frontend:
-    image: ${DOCKER_USERNAME:-yourusername}/servicesdashboard-frontend:${VERSION:-latest}
+    build:
+      context: ./services-dashboard-frontend
+      dockerfile: Dockerfile.prod
+    image: ${DOCKER_USERNAME:-devblaze}/servicesdashboard-frontend:${VERSION:-latest}
     ports:
-      - "${APP_PORT:-5050}:80"
+      - "${FRONTEND_PORT:-5050}:${FRONTEND_INTERNAL_PORT:-80}"
+    environment:
+      - BACKEND_URL=http://servicesdashboard:5050
     networks:
       - app_network
     depends_on:
@@ -46,7 +67,7 @@ services:
         condition: service_healthy
     restart: unless-stopped
     healthcheck:
-      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost/health"]
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:${FRONTEND_INTERNAL_PORT:-80}/health"]
       interval: 30s
       timeout: 10s
       retries: 3

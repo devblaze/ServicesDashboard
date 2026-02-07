@@ -1,5 +1,5 @@
 import React from 'react';
-import { Target, History, AlertCircle, X, Clock } from 'lucide-react';
+import { Target, History, AlertCircle, X, Clock, ExternalLink } from 'lucide-react';
 import { useNetworkDiscovery } from '../../hooks/useNetworkDiscovery.ts';
 import { ScanControls } from '../networkDiscovery/ScanControls.tsx';
 import { ServicesFilters } from '../networkDiscovery/ServicesFiltersComponent.tsx';
@@ -20,7 +20,7 @@ export const NetworkDiscovery: React.FC<NetworkDiscoveryProps> = ({ darkMode = t
     scanMode, setScanMode,
     fullScan, setFullScan,
     showHistory, setShowHistory,
-    
+
     // Filter state
     searchFilter, setSearchFilter,
     serviceTypeFilter, setServiceTypeFilter,
@@ -28,7 +28,7 @@ export const NetworkDiscovery: React.FC<NetworkDiscoveryProps> = ({ darkMode = t
     showOnlyAdded, setShowOnlyAdded,
     showOnlyActive, setShowOnlyActive,
     showFilters, setShowFilters,
-    
+
     // Data
     commonPorts,
     scanProgress,
@@ -37,20 +37,26 @@ export const NetworkDiscovery: React.FC<NetworkDiscoveryProps> = ({ darkMode = t
     currentTarget,
     uniqueServiceTypes,
     uniquePorts,
-    
+    recentScans,
+    sortBy,
+    setSortBy,
+    sortOrder,
+    setSortOrder,
+
     // Computed
     isScanning,
     error,
     hasActiveFilters,
     hasStoredServices,
-    
+
     // Functions
     handleScan,
     handleAddToServices,
     refetchRecentScans,
     cancelCurrentScan,
     resetFilters,
-    isServiceAdded
+    isServiceAdded,
+    loadHistoricalScan
   } = useNetworkDiscovery();
 
   return (
@@ -239,6 +245,109 @@ export const NetworkDiscovery: React.FC<NetworkDiscoveryProps> = ({ darkMode = t
             </div>
           </div>
         )}
+
+        {/* Recent Scans History Panel */}
+        {showHistory && (
+          <div className={`mt-6 p-4 rounded-xl border ${
+            darkMode
+              ? 'bg-gray-700/30 border-gray-600/50'
+              : 'bg-gray-50/50 border-gray-200/50'
+          }`}>
+            <div className="flex items-center justify-between mb-4">
+              <h3 className={`text-lg font-semibold ${
+                darkMode ? 'text-white' : 'text-gray-900'
+              }`}>
+                Recent Scans
+              </h3>
+              <button
+                onClick={() => setShowHistory(false)}
+                className={`p-2 rounded-lg transition-colors ${
+                  darkMode
+                    ? 'text-gray-400 hover:text-white hover:bg-gray-600/50'
+                    : 'text-gray-500 hover:text-gray-900 hover:bg-gray-200'
+                }`}
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            {recentScans && recentScans.length > 0 ? (
+              <div className="space-y-2">
+                {recentScans.map((scan) => (
+                  <div
+                    key={scan.id}
+                    onClick={() => loadHistoricalScan(scan)}
+                    className={`p-4 rounded-lg border cursor-pointer transition-all duration-200 hover:scale-[1.02] ${
+                      darkMode
+                        ? 'bg-gray-800/50 border-gray-600/50 hover:border-blue-500/50 hover:bg-gray-700/50'
+                        : 'bg-white/50 border-gray-200 hover:border-blue-400 hover:bg-blue-50/50'
+                    }`}
+                  >
+                    <div className="flex items-center justify-between">
+                      <div className="flex-1">
+                        <div className="flex items-center space-x-2 mb-1">
+                          <span className={`font-medium ${
+                            darkMode ? 'text-white' : 'text-gray-900'
+                          }`}>
+                            {scan.target}
+                          </span>
+                          <span className={`px-2 py-0.5 rounded-full text-xs font-medium ${
+                            scan.status === 'completed'
+                              ? darkMode
+                                ? 'bg-green-900/30 text-green-400 border border-green-700/50'
+                                : 'bg-green-100 text-green-700 border border-green-300'
+                              : scan.status === 'running'
+                              ? darkMode
+                                ? 'bg-blue-900/30 text-blue-400 border border-blue-700/50'
+                                : 'bg-blue-100 text-blue-700 border border-blue-300'
+                              : darkMode
+                              ? 'bg-red-900/30 text-red-400 border border-red-700/50'
+                              : 'bg-red-100 text-red-700 border border-red-300'
+                          }`}>
+                            {scan.status}
+                          </span>
+                          <span className={`text-xs px-2 py-0.5 rounded-full ${
+                            darkMode
+                              ? 'bg-gray-700 text-gray-300'
+                              : 'bg-gray-200 text-gray-700'
+                          }`}>
+                            {scan.scanType}
+                          </span>
+                        </div>
+                        <div className={`flex items-center space-x-4 text-sm ${
+                          darkMode ? 'text-gray-400' : 'text-gray-600'
+                        }`}>
+                          <span className="flex items-center">
+                            <Clock className="w-3 h-3 mr-1" />
+                            {new Date(scan.startedAt).toLocaleString()}
+                          </span>
+                          {scan.serviceCount && scan.serviceCount > 0 && (
+                            <span>
+                              {scan.serviceCount} service{scan.serviceCount !== 1 ? 's' : ''}
+                            </span>
+                          )}
+                        </div>
+                      </div>
+                      {scan.status === 'completed' && (
+                        <ExternalLink className={`w-4 h-4 ${
+                          darkMode ? 'text-gray-400' : 'text-gray-500'
+                        }`} />
+                      )}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <div className={`text-center py-8 ${
+                darkMode ? 'text-gray-400' : 'text-gray-600'
+              }`}>
+                <History className="w-12 h-12 mx-auto mb-3 opacity-50" />
+                <p>No recent scans found</p>
+                <p className="text-sm mt-1">Run a scan to see it here</p>
+              </div>
+            )}
+          </div>
+        )}
       </div>
 
       {/* Results Section */}
@@ -280,6 +389,10 @@ export const NetworkDiscovery: React.FC<NetworkDiscoveryProps> = ({ darkMode = t
               hasActiveFilters={Boolean(hasActiveFilters)}
               hasStoredServices={Boolean(hasStoredServices)}
               onResetFilters={resetFilters}
+              sortBy={sortBy}
+              setSortBy={setSortBy}
+              sortOrder={sortOrder}
+              setSortOrder={setSortOrder}
             />
           </div>
 

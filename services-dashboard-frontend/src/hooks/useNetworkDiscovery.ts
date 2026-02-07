@@ -97,6 +97,10 @@ export const useNetworkDiscovery = () => {
   const [showFilters, setShowFilters] = useState(false);
   const [showHistory, setShowHistory] = useState(false);
 
+  // Sorting states
+  const [sortBy, setSortBy] = useState<string>('ip');
+  const [sortOrder, setSortOrder] = useState<string>('asc');
+
   const queryClient = useQueryClient();
 
   // Update localStorage whenever currentScanId or currentTarget changes
@@ -249,7 +253,7 @@ export const useNetworkDiscovery = () => {
 
   const loadScanResults = useCallback(async (scanId: string) => {
     try {
-      const results = await networkDiscoveryApi.getScanResults(scanId);
+      const results = await networkDiscoveryApi.getScanResults(scanId, sortBy, sortOrder);
       setDiscoveredServices(results);
       setAddedServices(new Set());
       resetFilters();
@@ -258,11 +262,11 @@ export const useNetworkDiscovery = () => {
       console.error('Failed to load scan results:', error);
       setCurrentScanId(null); // Clear if results can't be loaded
     }
-  }, [resetFilters]);
+  }, [resetFilters, sortBy, sortOrder]);
 
   const loadLatestResults = useCallback(async (target: string) => {
     try {
-      const results = await networkDiscoveryApi.getLatestResults(target);
+      const results = await networkDiscoveryApi.getLatestResults(target, sortBy, sortOrder);
       if (results.length > 0) {
         setDiscoveredServices(results);
         resetFilters();
@@ -271,7 +275,7 @@ export const useNetworkDiscovery = () => {
       // Silently handle errors for latest results since this is not critical
       console.warn('Failed to load latest results (this is normal for first-time scans):', error);
     }
-  }, [resetFilters]);
+  }, [resetFilters, sortBy, sortOrder]);
 
   // Load scan results when scan completes
   useEffect(() => {
@@ -429,7 +433,7 @@ export const useNetworkDiscovery = () => {
     fullScan, setFullScan,
     discoveredServices,
     currentTarget,
-    
+
     // Filter state
     searchFilter, setSearchFilter,
     serviceTypeFilter, setServiceTypeFilter,
@@ -438,7 +442,11 @@ export const useNetworkDiscovery = () => {
     showOnlyActive, setShowOnlyActive,
     showFilters, setShowFilters,
     showHistory, setShowHistory,
-    
+
+    // Sorting state
+    sortBy, setSortBy,
+    sortOrder, setSortOrder,
+
     // Computed values
     commonPorts,
     recentScans,
@@ -451,7 +459,7 @@ export const useNetworkDiscovery = () => {
     error,
     hasActiveFilters,
     hasStoredServices,
-    
+
     // Functions
     handleScan,
     handleAddToServices,

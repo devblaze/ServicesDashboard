@@ -38,7 +38,10 @@ public class AddServerEndpoint : Endpoint<CreateUpdateServerRequest, ManagedServ
                 Type = Enum.Parse<ServerType>(req.Type ?? "Server"),
                 Group = Enum.Parse<ServerGroup>(req.Group ?? "Remote"),
                 Tags = req.Tags,
-                ParentServerId = req.ParentServerId
+                ParentServerId = req.ParentServerId,
+                MacAddress = req.MacAddress,
+                WakeOnLanPort = req.WakeOnLanPort,
+                SshCredentialId = req.SshCredentialId
             };
 
             var addedServer = await _serverManagementService.AddServerAsync(server);

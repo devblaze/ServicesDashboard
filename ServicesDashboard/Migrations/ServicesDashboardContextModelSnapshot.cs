@@ -274,6 +274,59 @@ namespace ServicesDashboard.Migrations
                     b.ToTable("DockerServiceArrangements");
                 });
 
+            modelBuilder.Entity("ServicesDashboard.Data.Entities.GitBranch", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("integer");
+
+                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<int>("Id"));
+
+                    b.Property<string>("CommitSha")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)");
+
+                    b.Property<int?>("DeploymentId")
+                        .HasColumnType("integer");
+
+                    b.Property<DateTime>("DetectedAt")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("timestamp with time zone")
+                        .HasDefaultValueSql("CURRENT_TIMESTAMP");
+
+                    b.Property<bool>("HasAutoDeployment")
+                        .HasColumnType("boolean");
+
+                    b.Property<DateTime>("LastCommitAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("Name")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("character varying(200)");
+
+                    b.Property<int>("RepositoryId")
+                        .HasColumnType("integer");
+
+                    b.Property<DateTime>("UpdatedAt")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("timestamp with time zone")
+                        .HasDefaultValueSql("CURRENT_TIMESTAMP");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("DeploymentId")
+                        .IsUnique();
+
+                    b.HasIndex("HasAutoDeployment");
+
+                    b.HasIndex("RepositoryId", "Name")
+                        .IsUnique();
+
+                    b.ToTable("GitBranches");
+                });
+
             modelBuilder.Entity("ServicesDashboard.Data.Entities.GitProviderConnection", b =>
                 {
                     b.Property<int>("Id")
@@ -396,39 +449,189 @@ namespace ServicesDashboard.Migrations
 
                     NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<int>("Id"));
 
-                    b.Property<DateTime>("AllocatedAt")
+                    b.Property<DateTime?>("AllocatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("AllocationType")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.Property<DateTime>("CreatedAt")
                         .ValueGeneratedOnAdd()
                         .HasColumnType("timestamp with time zone")
                         .HasDefaultValueSql("CURRENT_TIMESTAMP");
 
-                    b.Property<int>("DeploymentId")
+                    b.Property<int?>("DeploymentId")
                         .HasColumnType("integer");
 
                     b.Property<string>("Description")
                         .HasMaxLength(200)
                         .HasColumnType("character varying(200)");
 
-                    b.Property<bool>("IsActive")
-                        .HasColumnType("boolean");
-
                     b.Property<int>("Port")
                         .HasColumnType("integer");
+
+                    b.Property<DateTime?>("ReleasedAt")
+                        .HasColumnType("timestamp with time zone");
 
                     b.Property<int>("ServerId")
                         .HasColumnType("integer");
 
+                    b.Property<string>("ServiceId")
+                        .HasMaxLength(200)
+                        .HasColumnType("character varying(200)");
+
                     b.Property<string>("ServiceName")
-                        .HasMaxLength(100)
-                        .HasColumnType("character varying(100)");
+                        .HasMaxLength(200)
+                        .HasColumnType("character varying(200)");
+
+                    b.Property<string>("Status")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.Property<DateTime>("UpdatedAt")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("timestamp with time zone")
+                        .HasDefaultValueSql("CURRENT_TIMESTAMP");
 
                     b.HasKey("Id");
 
                     b.HasIndex("DeploymentId");
 
-                    b.HasIndex("ServerId", "Port")
-                        .IsUnique();
+                    b.HasIndex("ServiceId");
+
+                    b.HasIndex("ServerId", "Port", "Status");
 
                     b.ToTable("PortAllocations");
+                });
+
+            modelBuilder.Entity("ServicesDashboard.Models.CloudImage", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("integer");
+
+                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<int>("Id"));
+
+                    b.Property<string>("Checksum")
+                        .HasMaxLength(128)
+                        .HasColumnType("character varying(128)");
+
+                    b.Property<string>("ChecksumType")
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("timestamp with time zone")
+                        .HasDefaultValueSql("CURRENT_TIMESTAMP");
+
+                    b.Property<string>("DisplayName")
+                        .IsRequired()
+                        .HasMaxLength(255)
+                        .HasColumnType("character varying(255)");
+
+                    b.Property<string>("DownloadUrl")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.Property<string>("FileName")
+                        .IsRequired()
+                        .HasMaxLength(500)
+                        .HasColumnType("character varying(500)");
+
+                    b.Property<long?>("FileSizeBytes")
+                        .HasColumnType("bigint");
+
+                    b.Property<bool>("IsDownloaded")
+                        .HasColumnType("boolean");
+
+                    b.Property<DateTime?>("LastCheckedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<DateTime?>("LastDownloadedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("OsType")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.Property<DateTime>("UpdatedAt")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("timestamp with time zone")
+                        .HasDefaultValueSql("CURRENT_TIMESTAMP");
+
+                    b.Property<string>("Version")
+                        .HasMaxLength(50)
+                        .HasColumnType("character varying(50)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("OsType")
+                        .IsUnique();
+
+                    b.ToTable("CloudImages");
+                });
+
+            modelBuilder.Entity("ServicesDashboard.Models.ContainerMetricsHistory", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("integer");
+
+                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<int>("Id"));
+
+                    b.Property<long>("BlockReadBytes")
+                        .HasColumnType("bigint");
+
+                    b.Property<long>("BlockWriteBytes")
+                        .HasColumnType("bigint");
+
+                    b.Property<string>("ContainerId")
+                        .IsRequired()
+                        .HasMaxLength(64)
+                        .HasColumnType("character varying(64)");
+
+                    b.Property<string>("ContainerName")
+                        .IsRequired()
+                        .HasMaxLength(255)
+                        .HasColumnType("character varying(255)");
+
+                    b.Property<float>("CpuPercentage")
+                        .HasColumnType("real");
+
+                    b.Property<long>("MemoryLimitBytes")
+                        .HasColumnType("bigint");
+
+                    b.Property<float>("MemoryPercentage")
+                        .HasColumnType("real");
+
+                    b.Property<long>("MemoryUsageBytes")
+                        .HasColumnType("bigint");
+
+                    b.Property<long>("NetworkRxBytes")
+                        .HasColumnType("bigint");
+
+                    b.Property<long>("NetworkTxBytes")
+                        .HasColumnType("bigint");
+
+                    b.Property<int>("ServerId")
+                        .HasColumnType("integer");
+
+                    b.Property<DateTime>("Timestamp")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("timestamp with time zone")
+                        .HasDefaultValueSql("CURRENT_TIMESTAMP");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("Timestamp");
+
+                    b.HasIndex("ServerId", "Timestamp");
+
+                    b.HasIndex("ServerId", "ContainerId", "Timestamp");
+
+                    b.ToTable("ContainerMetricsHistory");
                 });
 
             modelBuilder.Entity("ServicesDashboard.Models.DeviceHistory", b =>
@@ -474,6 +677,70 @@ namespace ServicesDashboard.Migrations
                     b.HasIndex("NetworkDeviceId", "EventTime");
 
                     b.ToTable("DeviceHistories");
+                });
+
+            modelBuilder.Entity("ServicesDashboard.Models.DiskMetricsHistory", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("integer");
+
+                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<int>("Id"));
+
+                    b.Property<string>("Device")
+                        .HasMaxLength(50)
+                        .HasColumnType("character varying(50)");
+
+                    b.Property<string>("DiskName")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)");
+
+                    b.Property<string>("DiskType")
+                        .IsRequired()
+                        .HasMaxLength(50)
+                        .HasColumnType("character varying(50)");
+
+                    b.Property<long>("FreeBytes")
+                        .HasColumnType("bigint");
+
+                    b.Property<string>("MountPoint")
+                        .HasMaxLength(255)
+                        .HasColumnType("character varying(255)");
+
+                    b.Property<int>("ServerId")
+                        .HasColumnType("integer");
+
+                    b.Property<string>("Status")
+                        .HasMaxLength(50)
+                        .HasColumnType("character varying(50)");
+
+                    b.Property<float?>("Temperature")
+                        .HasColumnType("real");
+
+                    b.Property<DateTime>("Timestamp")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("timestamp with time zone")
+                        .HasDefaultValueSql("CURRENT_TIMESTAMP");
+
+                    b.Property<long>("TotalBytes")
+                        .HasColumnType("bigint");
+
+                    b.Property<float>("UsagePercentage")
+                        .HasColumnType("real");
+
+                    b.Property<long>("UsedBytes")
+                        .HasColumnType("bigint");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("Timestamp");
+
+                    b.HasIndex("ServerId", "Timestamp");
+
+                    b.HasIndex("ServerId", "DiskName", "Timestamp");
+
+                    b.ToTable("DiskMetricsHistory");
                 });
 
             modelBuilder.Entity("ServicesDashboard.Models.HostedService", b =>
@@ -624,6 +891,10 @@ namespace ServicesDashboard.Migrations
                     b.Property<DateTime?>("LastCheckTime")
                         .HasColumnType("timestamp with time zone");
 
+                    b.Property<string>("MacAddress")
+                        .HasMaxLength(17)
+                        .HasColumnType("character varying(17)");
+
                     b.Property<string>("Name")
                         .IsRequired()
                         .HasMaxLength(100)
@@ -666,6 +937,9 @@ namespace ServicesDashboard.Migrations
                     b.Property<string>("Username")
                         .HasMaxLength(100)
                         .HasColumnType("character varying(100)");
+
+                    b.Property<int>("WakeOnLanPort")
+                        .HasColumnType("integer");
 
                     b.HasKey("Id");
 
@@ -778,6 +1052,55 @@ namespace ServicesDashboard.Migrations
                     b.HasIndex("IpAddress", "MacAddress");
 
                     b.ToTable("NetworkDevices");
+                });
+
+            modelBuilder.Entity("ServicesDashboard.Models.NetworkInterfaceMetricsHistory", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("integer");
+
+                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<int>("Id"));
+
+                    b.Property<string>("InterfaceName")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)");
+
+                    b.Property<string>("InterfaceType")
+                        .IsRequired()
+                        .HasMaxLength(50)
+                        .HasColumnType("character varying(50)");
+
+                    b.Property<long>("RxBytes")
+                        .HasColumnType("bigint");
+
+                    b.Property<long>("RxBytesPerSec")
+                        .HasColumnType("bigint");
+
+                    b.Property<int>("ServerId")
+                        .HasColumnType("integer");
+
+                    b.Property<DateTime>("Timestamp")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("timestamp with time zone")
+                        .HasDefaultValueSql("CURRENT_TIMESTAMP");
+
+                    b.Property<long>("TxBytes")
+                        .HasColumnType("bigint");
+
+                    b.Property<long>("TxBytesPerSec")
+                        .HasColumnType("bigint");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("Timestamp");
+
+                    b.HasIndex("ServerId", "Timestamp");
+
+                    b.HasIndex("ServerId", "InterfaceName", "Timestamp");
+
+                    b.ToTable("NetworkInterfaceMetricsHistory");
                 });
 
             modelBuilder.Entity("ServicesDashboard.Models.NetworkScanSession", b =>
@@ -1318,6 +1641,49 @@ namespace ServicesDashboard.Migrations
                     b.ToTable("Subnets");
                 });
 
+            modelBuilder.Entity("ServicesDashboard.Models.SystemMetricsHistory", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("integer");
+
+                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<int>("Id"));
+
+                    b.Property<float?>("CpuTemperature")
+                        .HasColumnType("real");
+
+                    b.Property<float?>("GpuTemperature")
+                        .HasColumnType("real");
+
+                    b.Property<long>("NetworkRxBytes")
+                        .HasColumnType("bigint");
+
+                    b.Property<long>("NetworkRxBytesPerSec")
+                        .HasColumnType("bigint");
+
+                    b.Property<long>("NetworkTxBytes")
+                        .HasColumnType("bigint");
+
+                    b.Property<long>("NetworkTxBytesPerSec")
+                        .HasColumnType("bigint");
+
+                    b.Property<int>("ServerId")
+                        .HasColumnType("integer");
+
+                    b.Property<DateTime>("Timestamp")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("timestamp with time zone")
+                        .HasDefaultValueSql("CURRENT_TIMESTAMP");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("Timestamp");
+
+                    b.HasIndex("ServerId", "Timestamp");
+
+                    b.ToTable("SystemMetricsHistory");
+                });
+
             modelBuilder.Entity("ServicesDashboard.Models.TaskExecution", b =>
                 {
                     b.Property<int>("Id")
@@ -1411,18 +1777,120 @@ namespace ServicesDashboard.Migrations
                     b.ToTable("UpdateReports");
                 });
 
+            modelBuilder.Entity("ServicesDashboard.Models.VMOperation", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("integer");
+
+                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<int>("Id"));
+
+                    b.Property<DateTime?>("CompletedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("timestamp with time zone")
+                        .HasDefaultValueSql("CURRENT_TIMESTAMP");
+
+                    b.Property<int?>("CreatedServerId")
+                        .HasColumnType("integer");
+
+                    b.Property<string>("CurrentStage")
+                        .HasMaxLength(255)
+                        .HasColumnType("character varying(255)");
+
+                    b.Property<int>("DiskSizeGb")
+                        .HasColumnType("integer");
+
+                    b.Property<string>("EncryptedPassword")
+                        .HasColumnType("text");
+
+                    b.Property<string>("ErrorMessage")
+                        .HasColumnType("text");
+
+                    b.Property<int>("HostServerId")
+                        .HasColumnType("integer");
+
+                    b.Property<string>("IpAddress")
+                        .HasMaxLength(45)
+                        .HasColumnType("character varying(45)");
+
+                    b.Property<Guid>("OperationId")
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("OperationLog")
+                        .HasColumnType("text");
+
+                    b.Property<string>("OperationType")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.Property<string>("OsType")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.Property<string>("Preset")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.Property<int>("ProgressPercent")
+                        .HasColumnType("integer");
+
+                    b.Property<int>("RamMb")
+                        .HasColumnType("integer");
+
+                    b.Property<string>("SshConnectionString")
+                        .HasMaxLength(255)
+                        .HasColumnType("character varying(255)");
+
+                    b.Property<string>("Status")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.Property<DateTime>("UpdatedAt")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("timestamp with time zone")
+                        .HasDefaultValueSql("CURRENT_TIMESTAMP");
+
+                    b.Property<string>("Username")
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)");
+
+                    b.Property<int>("VCpus")
+                        .HasColumnType("integer");
+
+                    b.Property<string>("VMName")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("CreatedAt");
+
+                    b.HasIndex("CreatedServerId");
+
+                    b.HasIndex("OperationId")
+                        .IsUnique();
+
+                    b.HasIndex("HostServerId", "Status");
+
+                    b.ToTable("VMOperations");
+                });
+
             modelBuilder.Entity("ServicesDashboard.Data.Entities.Deployment", b =>
                 {
                     b.HasOne("ServicesDashboard.Data.Entities.GitRepository", "GitRepository")
                         .WithMany("Deployments")
                         .HasForeignKey("GitRepositoryId")
-                        .OnDelete(DeleteBehavior.Cascade)
+                        .OnDelete(DeleteBehavior.NoAction)
                         .IsRequired();
 
                     b.HasOne("ServicesDashboard.Models.ManagedServer", "Server")
                         .WithMany()
                         .HasForeignKey("ServerId")
-                        .OnDelete(DeleteBehavior.Restrict)
+                        .OnDelete(DeleteBehavior.NoAction)
                         .IsRequired();
 
                     b.Navigation("GitRepository");
@@ -1435,7 +1903,7 @@ namespace ServicesDashboard.Migrations
                     b.HasOne("ServicesDashboard.Data.Entities.Deployment", "Deployment")
                         .WithMany("Environments")
                         .HasForeignKey("DeploymentId")
-                        .OnDelete(DeleteBehavior.Cascade)
+                        .OnDelete(DeleteBehavior.NoAction)
                         .IsRequired();
 
                     b.Navigation("Deployment");
@@ -1446,10 +1914,28 @@ namespace ServicesDashboard.Migrations
                     b.HasOne("ServicesDashboard.Models.ManagedServer", "Server")
                         .WithMany()
                         .HasForeignKey("ServerId")
-                        .OnDelete(DeleteBehavior.Cascade)
+                        .OnDelete(DeleteBehavior.NoAction)
                         .IsRequired();
 
                     b.Navigation("Server");
+                });
+
+            modelBuilder.Entity("ServicesDashboard.Data.Entities.GitBranch", b =>
+                {
+                    b.HasOne("ServicesDashboard.Data.Entities.Deployment", "Deployment")
+                        .WithOne()
+                        .HasForeignKey("ServicesDashboard.Data.Entities.GitBranch", "DeploymentId")
+                        .OnDelete(DeleteBehavior.NoAction);
+
+                    b.HasOne("ServicesDashboard.Data.Entities.GitRepository", "Repository")
+                        .WithMany("Branches")
+                        .HasForeignKey("RepositoryId")
+                        .OnDelete(DeleteBehavior.NoAction)
+                        .IsRequired();
+
+                    b.Navigation("Deployment");
+
+                    b.Navigation("Repository");
                 });
 
             modelBuilder.Entity("ServicesDashboard.Data.Entities.GitRepository", b =>
@@ -1457,7 +1943,7 @@ namespace ServicesDashboard.Migrations
                     b.HasOne("ServicesDashboard.Data.Entities.GitProviderConnection", "GitProviderConnection")
                         .WithMany("Repositories")
                         .HasForeignKey("GitProviderConnectionId")
-                        .OnDelete(DeleteBehavior.Cascade)
+                        .OnDelete(DeleteBehavior.NoAction)
                         .IsRequired();
 
                     b.Navigation("GitProviderConnection");
@@ -1468,16 +1954,26 @@ namespace ServicesDashboard.Migrations
                     b.HasOne("ServicesDashboard.Data.Entities.Deployment", "Deployment")
                         .WithMany("AllocatedPorts")
                         .HasForeignKey("DeploymentId")
-                        .OnDelete(DeleteBehavior.Cascade)
-                        .IsRequired();
+                        .OnDelete(DeleteBehavior.NoAction);
 
                     b.HasOne("ServicesDashboard.Models.ManagedServer", "Server")
                         .WithMany()
                         .HasForeignKey("ServerId")
-                        .OnDelete(DeleteBehavior.Cascade)
+                        .OnDelete(DeleteBehavior.NoAction)
                         .IsRequired();
 
                     b.Navigation("Deployment");
+
+                    b.Navigation("Server");
+                });
+
+            modelBuilder.Entity("ServicesDashboard.Models.ContainerMetricsHistory", b =>
+                {
+                    b.HasOne("ServicesDashboard.Models.ManagedServer", "Server")
+                        .WithMany()
+                        .HasForeignKey("ServerId")
+                        .OnDelete(DeleteBehavior.NoAction)
+                        .IsRequired();
 
                     b.Navigation("Server");
                 });
@@ -1487,10 +1983,21 @@ namespace ServicesDashboard.Migrations
                     b.HasOne("ServicesDashboard.Models.NetworkDevice", "NetworkDevice")
                         .WithMany("History")
                         .HasForeignKey("NetworkDeviceId")
-                        .OnDelete(DeleteBehavior.Cascade)
+                        .OnDelete(DeleteBehavior.NoAction)
                         .IsRequired();
 
                     b.Navigation("NetworkDevice");
+                });
+
+            modelBuilder.Entity("ServicesDashboard.Models.DiskMetricsHistory", b =>
+                {
+                    b.HasOne("ServicesDashboard.Models.ManagedServer", "Server")
+                        .WithMany()
+                        .HasForeignKey("ServerId")
+                        .OnDelete(DeleteBehavior.NoAction)
+                        .IsRequired();
+
+                    b.Navigation("Server");
                 });
 
             modelBuilder.Entity("ServicesDashboard.Models.HostedService", b =>
@@ -1507,12 +2014,12 @@ namespace ServicesDashboard.Migrations
                     b.HasOne("ServicesDashboard.Models.NetworkDevice", "NetworkDevice")
                         .WithMany()
                         .HasForeignKey("NetworkDeviceId")
-                        .OnDelete(DeleteBehavior.SetNull);
+                        .OnDelete(DeleteBehavior.NoAction);
 
                     b.HasOne("ServicesDashboard.Models.Subnet", "Subnet")
                         .WithMany("Reservations")
                         .HasForeignKey("SubnetId")
-                        .OnDelete(DeleteBehavior.SetNull);
+                        .OnDelete(DeleteBehavior.NoAction);
 
                     b.Navigation("NetworkDevice");
 
@@ -1524,7 +2031,7 @@ namespace ServicesDashboard.Migrations
                     b.HasOne("ServicesDashboard.Models.ManagedServer", "ParentServer")
                         .WithMany("ChildServers")
                         .HasForeignKey("ParentServerId")
-                        .OnDelete(DeleteBehavior.SetNull);
+                        .OnDelete(DeleteBehavior.NoAction);
 
                     b.HasOne("ServicesDashboard.Models.SshCredential", "SshCredential")
                         .WithMany("ServersUsingCredential")
@@ -1540,16 +2047,27 @@ namespace ServicesDashboard.Migrations
                     b.HasOne("ServicesDashboard.Models.ManagedServer", "ManagedServer")
                         .WithMany()
                         .HasForeignKey("ManagedServerId")
-                        .OnDelete(DeleteBehavior.SetNull);
+                        .OnDelete(DeleteBehavior.NoAction);
 
                     b.HasOne("ServicesDashboard.Models.Subnet", "Subnet")
                         .WithMany("Devices")
                         .HasForeignKey("SubnetId")
-                        .OnDelete(DeleteBehavior.SetNull);
+                        .OnDelete(DeleteBehavior.NoAction);
 
                     b.Navigation("ManagedServer");
 
                     b.Navigation("Subnet");
+                });
+
+            modelBuilder.Entity("ServicesDashboard.Models.NetworkInterfaceMetricsHistory", b =>
+                {
+                    b.HasOne("ServicesDashboard.Models.ManagedServer", "Server")
+                        .WithMany()
+                        .HasForeignKey("ServerId")
+                        .OnDelete(DeleteBehavior.NoAction)
+                        .IsRequired();
+
+                    b.Navigation("Server");
                 });
 
             modelBuilder.Entity("ServicesDashboard.Models.ScheduledTaskServer", b =>
@@ -1557,13 +2075,13 @@ namespace ServicesDashboard.Migrations
                     b.HasOne("ServicesDashboard.Models.ScheduledTask", "ScheduledTask")
                         .WithMany("TaskServers")
                         .HasForeignKey("ScheduledTaskId")
-                        .OnDelete(DeleteBehavior.Cascade)
+                        .OnDelete(DeleteBehavior.NoAction)
                         .IsRequired();
 
                     b.HasOne("ServicesDashboard.Models.ManagedServer", "Server")
                         .WithMany()
                         .HasForeignKey("ServerId")
-                        .OnDelete(DeleteBehavior.Cascade)
+                        .OnDelete(DeleteBehavior.NoAction)
                         .IsRequired();
 
                     b.Navigation("ScheduledTask");
@@ -1576,7 +2094,7 @@ namespace ServicesDashboard.Migrations
                     b.HasOne("ServicesDashboard.Models.ManagedServer", "Server")
                         .WithMany("Alerts")
                         .HasForeignKey("ServerId")
-                        .OnDelete(DeleteBehavior.Cascade)
+                        .OnDelete(DeleteBehavior.NoAction)
                         .IsRequired();
 
                     b.Navigation("Server");
@@ -1587,7 +2105,7 @@ namespace ServicesDashboard.Migrations
                     b.HasOne("ServicesDashboard.Models.ManagedServer", "Server")
                         .WithMany("HealthChecks")
                         .HasForeignKey("ServerId")
-                        .OnDelete(DeleteBehavior.Cascade)
+                        .OnDelete(DeleteBehavior.NoAction)
                         .IsRequired();
 
                     b.Navigation("Server");
@@ -1598,10 +2116,21 @@ namespace ServicesDashboard.Migrations
                     b.HasOne("ServicesDashboard.Models.NetworkScanSession", "ScanSession")
                         .WithMany("DiscoveredServices")
                         .HasForeignKey("ScanId")
-                        .OnDelete(DeleteBehavior.Cascade)
+                        .OnDelete(DeleteBehavior.NoAction)
                         .IsRequired();
 
                     b.Navigation("ScanSession");
+                });
+
+            modelBuilder.Entity("ServicesDashboard.Models.SystemMetricsHistory", b =>
+                {
+                    b.HasOne("ServicesDashboard.Models.ManagedServer", "Server")
+                        .WithMany()
+                        .HasForeignKey("ServerId")
+                        .OnDelete(DeleteBehavior.NoAction)
+                        .IsRequired();
+
+                    b.Navigation("Server");
                 });
 
             modelBuilder.Entity("ServicesDashboard.Models.TaskExecution", b =>
@@ -1609,13 +2138,13 @@ namespace ServicesDashboard.Migrations
                     b.HasOne("ServicesDashboard.Models.ScheduledTask", "ScheduledTask")
                         .WithMany("Executions")
                         .HasForeignKey("ScheduledTaskId")
-                        .OnDelete(DeleteBehavior.Cascade)
+                        .OnDelete(DeleteBehavior.NoAction)
                         .IsRequired();
 
                     b.HasOne("ServicesDashboard.Models.ManagedServer", "Server")
                         .WithMany()
                         .HasForeignKey("ServerId")
-                        .OnDelete(DeleteBehavior.Restrict)
+                        .OnDelete(DeleteBehavior.NoAction)
                         .IsRequired();
 
                     b.Navigation("ScheduledTask");
@@ -1628,10 +2157,28 @@ namespace ServicesDashboard.Migrations
                     b.HasOne("ServicesDashboard.Models.ManagedServer", "Server")
                         .WithMany("UpdateReports")
                         .HasForeignKey("ServerId")
-                        .OnDelete(DeleteBehavior.Cascade)
+                        .OnDelete(DeleteBehavior.NoAction)
                         .IsRequired();
 
                     b.Navigation("Server");
+                });
+
+            modelBuilder.Entity("ServicesDashboard.Models.VMOperation", b =>
+                {
+                    b.HasOne("ServicesDashboard.Models.ManagedServer", "CreatedServer")
+                        .WithMany()
+                        .HasForeignKey("CreatedServerId")
+                        .OnDelete(DeleteBehavior.NoAction);
+
+                    b.HasOne("ServicesDashboard.Models.ManagedServer", "HostServer")
+                        .WithMany()
+                        .HasForeignKey("HostServerId")
+                        .OnDelete(DeleteBehavior.NoAction)
+                        .IsRequired();
+
+                    b.Navigation("CreatedServer");
+
+                    b.Navigation("HostServer");
                 });
 
             modelBuilder.Entity("ServicesDashboard.Data.Entities.Deployment", b =>
@@ -1648,6 +2195,8 @@ namespace ServicesDashboard.Migrations
 
             modelBuilder.Entity("ServicesDashboard.Data.Entities.GitRepository", b =>
                 {
+                    b.Navigation("Branches");
+
                     b.Navigation("Deployments");
                 });
 

@@ -21,12 +21,32 @@ public class GiteaApiClient : IGitApiClient
 
     public async Task<string> GetCurrentUserAsync()
     {
-        var response = await _httpClient.GetAsync($"{_baseUrl}/user");
-        response.EnsureSuccessStatusCode();
+        var url = $"{_baseUrl}/user";
+        _logger.LogInformation("Testing Gitea connection at: {Url}", url);
 
-        var content = await response.Content.ReadAsStringAsync();
-        var json = JsonDocument.Parse(content);
-        return json.RootElement.GetProperty("username").GetString() ?? "unknown";
+        try
+        {
+            var response = await _httpClient.GetAsync(url);
+
+            if (!response.IsSuccessStatusCode)
+            {
+                var errorContent = await response.Content.ReadAsStringAsync();
+                _logger.LogWarning("Gitea API returned {StatusCode} for {Url}. Response: {Response}",
+                    response.StatusCode, url, errorContent);
+                throw new HttpRequestException($"Gitea API returned {response.StatusCode}. URL: {url}. Check that your Gitea URL is correct (e.g., http://gitea.example.com without /api/v1)");
+            }
+
+            response.EnsureSuccessStatusCode();
+
+            var content = await response.Content.ReadAsStringAsync();
+            var json = JsonDocument.Parse(content);
+            return json.RootElement.GetProperty("username").GetString() ?? "unknown";
+        }
+        catch (HttpRequestException ex)
+        {
+            _logger.LogError(ex, "Failed to connect to Gitea at {Url}", url);
+            throw new HttpRequestException($"Cannot connect to Gitea at {url}. Ensure the URL is correct and Gitea is running.", ex);
+        }
     }
 
     public async Task<int> GetRepositoryCountAsync()

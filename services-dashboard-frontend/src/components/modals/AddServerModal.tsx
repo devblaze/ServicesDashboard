@@ -110,11 +110,21 @@ export const AddServerModal: React.FC<AddServerModalProps> = ({
     mutationFn: async (data: CreateServerDto) => {
       return await serverManagementApi.addServer(data);
     },
-    onSuccess: () => {
+    onSuccess: async (newServer) => {
       // Invalidate and refetch servers list
       queryClient.invalidateQueries({ queryKey: ['managed-servers'] });
       queryClient.invalidateQueries({ queryKey: ['server-alerts'] });
-      
+
+      // Trigger immediate health check for the new server to get accurate status
+      try {
+        await serverManagementApi.performHealthCheck(newServer.id);
+        // Invalidate queries again to update with health check results
+        queryClient.invalidateQueries({ queryKey: ['managed-servers'] });
+      } catch (error) {
+        console.error('Initial health check failed:', error);
+        // Don't block modal closing if health check fails
+      }
+
       // Reset form and close modal
       handleClose();
     },
@@ -257,11 +267,11 @@ export const AddServerModal: React.FC<AddServerModalProps> = ({
       hostAddress: formData.hostAddress.trim(),
       sshPort: parseInt(formData.sshPort),
       username: username,
-      password: password, // Will be encrypted by backend
+      password: password,
       type: formData.type,
       group: formData.group,
       tags: formData.tags.trim() || null,
-      // TODO: Add credentialId support to CreateServerDto
+      sshCredentialId: formData.useCredential && formData.credentialId ? formData.credentialId : null,
     };
 
     testConnectionMutation.mutate(serverData);
@@ -290,14 +300,13 @@ export const AddServerModal: React.FC<AddServerModalProps> = ({
       hostAddress: formData.hostAddress.trim(),
       sshPort: parseInt(formData.sshPort),
       username: username,
-      password: password, // Will be encrypted by backend
+      password: password,
       type: formData.type,
       group: formData.group,
       tags: formData.tags.trim() || null,
       parentServerId: formData.parentServerId,
-      // TODO: Add credentialId to CreateServerDto type
-      ...(formData.useCredential && formData.credentialId ? { credentialId: formData.credentialId } : {})
-    } as CreateServerDto;
+      sshCredentialId: formData.useCredential && formData.credentialId ? formData.credentialId : null,
+    };
 
     addServerMutation.mutate(serverData);
   }, [formData, validateForm, addServerMutation, credentials]);

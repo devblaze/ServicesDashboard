@@ -399,12 +399,12 @@ public class DeploymentService : IDeploymentService
         {
             Id = port.Id,
             ServerId = port.ServerId,
-            DeploymentId = port.DeploymentId,
+            DeploymentId = port.DeploymentId ?? 0,
             Port = port.Port,
             ServiceName = port.ServiceName,
             Description = port.Description,
-            IsActive = port.IsActive,
-            AllocatedAt = port.AllocatedAt
+            IsActive = port.Status == PortAllocationStatus.InUse,
+            AllocatedAt = port.AllocatedAt ?? DateTime.UtcNow
         };
     }
 }

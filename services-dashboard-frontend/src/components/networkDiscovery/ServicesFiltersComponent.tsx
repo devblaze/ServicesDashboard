@@ -1,5 +1,5 @@
 import React from 'react';
-import { Search, Filter, X } from 'lucide-react';
+import { Search, Filter, X, ArrowUpDown } from 'lucide-react';
 
 interface ServicesFiltersProps {
   darkMode?: boolean;
@@ -20,6 +20,10 @@ interface ServicesFiltersProps {
   hasActiveFilters: boolean;
   hasStoredServices: boolean;
   onResetFilters: () => void;
+  sortBy?: string;
+  setSortBy?: (value: string) => void;
+  sortOrder?: string;
+  setSortOrder?: (value: string) => void;
 }
 
 export const ServicesFilters: React.FC<ServicesFiltersProps> = ({
@@ -40,7 +44,11 @@ export const ServicesFilters: React.FC<ServicesFiltersProps> = ({
   uniquePorts,
   hasActiveFilters,
   hasStoredServices,
-  onResetFilters
+  onResetFilters,
+  sortBy = 'ip',
+  setSortBy,
+  sortOrder = 'asc',
+  setSortOrder
 }) => {
   return (
     <div className="space-y-4">
@@ -106,7 +114,7 @@ export const ServicesFilters: React.FC<ServicesFiltersProps> = ({
             ? 'bg-gray-700/30 border-gray-600/50'
             : 'bg-gray-50/50 border-gray-200/50'
         }`}>
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
             {/* Service Type Filter */}
             <div className="space-y-2">
               <label className={`block text-sm font-medium ${
@@ -152,6 +160,54 @@ export const ServicesFilters: React.FC<ServicesFiltersProps> = ({
                 ))}
               </select>
             </div>
+
+            {/* Sort By */}
+            {setSortBy && (
+              <div className="space-y-2">
+                <label className={`flex items-center text-sm font-medium ${
+                  darkMode ? 'text-gray-300' : 'text-gray-700'
+                }`}>
+                  <ArrowUpDown className="w-4 h-4 mr-1" />
+                  Sort By
+                </label>
+                <select
+                  value={sortBy}
+                  onChange={(e) => setSortBy(e.target.value)}
+                  className={`w-full px-3 py-2 border rounded-lg transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-blue-500 ${
+                    darkMode
+                      ? 'bg-gray-700/50 border-gray-600 text-white'
+                      : 'bg-white/50 border-gray-300 text-gray-900'
+                  }`}
+                >
+                  <option value="ip">IP Address</option>
+                  <option value="port">Port</option>
+                  <option value="responseTime">Response Time</option>
+                </select>
+              </div>
+            )}
+
+            {/* Sort Order */}
+            {setSortOrder && (
+              <div className="space-y-2">
+                <label className={`block text-sm font-medium ${
+                  darkMode ? 'text-gray-300' : 'text-gray-700'
+                }`}>
+                  Order
+                </label>
+                <select
+                  value={sortOrder}
+                  onChange={(e) => setSortOrder(e.target.value)}
+                  className={`w-full px-3 py-2 border rounded-lg transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-blue-500 ${
+                    darkMode
+                      ? 'bg-gray-700/50 border-gray-600 text-white'
+                      : 'bg-white/50 border-gray-300 text-gray-900'
+                  }`}
+                >
+                  <option value="asc">Ascending</option>
+                  <option value="desc">Descending</option>
+                </select>
+              </div>
+            )}
           </div>
 
           {/* Toggle Filters */}

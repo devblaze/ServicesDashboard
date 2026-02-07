@@ -68,7 +68,7 @@ export const ServerDetailsModal: React.FC<ServerDetailsModalProps> = ({
       'Online': 'text-green-400',
       'Warning': 'text-yellow-400',
       'Critical': 'text-red-400',
-      'Offline': 'text-gray-400',
+      'Offline': 'text-orange-400',
     };
     return colors[status as keyof typeof colors] || 'text-gray-400';
   };

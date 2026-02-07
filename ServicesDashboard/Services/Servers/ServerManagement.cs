@@ -30,6 +30,7 @@ public interface IServerManagementService
     Task<string> GetServerLogsAsync(ManagedServer server, int? lines = 100);
     Task<LogAnalysisResult> AnalyzeLogsWithAiAsync(int serverId, string logs);
     Task<CommandResult> ExecuteCommandAsync(int serverId, string command);
+    Task<TerminalOutputResult> GetTerminalOutputAsync(int serverId);
     Task<bool> CleanupTerminalSessionAsync(int serverId);
     Task<TmuxAvailabilityResult> CheckTmuxAvailabilityAsync(int serverId);
     Task<bool> InstallTmuxAsync(int serverId);
@@ -44,6 +45,7 @@ public interface IServerManagementService
     Task<IpConflictCheckResult> CheckIpConflictAsync(string ipAddress, int? excludeDeviceId = null);
     Task<DockerNetworkMigrationAnalysis> AnalyzeDockerNetworksAsync(int serverId);
     Task<IpSuggestionResult> SuggestIpsForMigrationAsync(IpSuggestionRequest request);
+    Task<WakeOnLanResult> SendWakeOnLanAsync(int serverId);
 }
 
 public class ServerManagement : IServerManagementService
@@ -470,6 +472,62 @@ If some information cannot be determined, use null or reasonable defaults. Focus
         if (server == null)
             return false;
 
+        // Remove related entities that have NoAction delete behavior.
+        // Order matters: remove children of deployments before deployments.
+
+        // Deployment children first
+        var deploymentIds = await _context.Deployments
+            .Where(d => d.ServerId == id)
+            .Select(d => d.Id)
+            .ToListAsync();
+
+        if (deploymentIds.Count > 0)
+        {
+            _context.DeploymentEnvironments.RemoveRange(
+                _context.DeploymentEnvironments.Where(e => deploymentIds.Contains(e.DeploymentId)));
+            _context.PortAllocations.RemoveRange(
+                _context.PortAllocations.Where(p => p.DeploymentId != null && deploymentIds.Contains(p.DeploymentId.Value)));
+        }
+
+        // Direct server references
+        _context.ServerHealthChecks.RemoveRange(
+            _context.ServerHealthChecks.Where(h => h.ServerId == id));
+        _context.UpdateReports.RemoveRange(
+            _context.UpdateReports.Where(u => u.ServerId == id));
+        _context.ServerAlerts.RemoveRange(
+            _context.ServerAlerts.Where(a => a.ServerId == id));
+        _context.DockerServiceArrangements.RemoveRange(
+            _context.DockerServiceArrangements.Where(d => d.ServerId == id));
+        _context.ScheduledTaskServers.RemoveRange(
+            _context.ScheduledTaskServers.Where(s => s.ServerId == id));
+        _context.TaskExecutions.RemoveRange(
+            _context.TaskExecutions.Where(e => e.ServerId == id));
+        _context.PortAllocations.RemoveRange(
+            _context.PortAllocations.Where(p => p.ServerId == id));
+        _context.Deployments.RemoveRange(
+            _context.Deployments.Where(d => d.ServerId == id));
+        _context.ContainerMetricsHistory.RemoveRange(
+            _context.ContainerMetricsHistory.Where(c => c.ServerId == id));
+        _context.SystemMetricsHistory.RemoveRange(
+            _context.SystemMetricsHistory.Where(s => s.ServerId == id));
+        _context.DiskMetricsHistory.RemoveRange(
+            _context.DiskMetricsHistory.Where(d => d.ServerId == id));
+        _context.NetworkInterfaceMetricsHistory.RemoveRange(
+            _context.NetworkInterfaceMetricsHistory.Where(n => n.ServerId == id));
+
+        // Clear nullable FK references
+        var childServers = _context.ManagedServers.Where(s => s.ParentServerId == id);
+        await foreach (var child in childServers.AsAsyncEnumerable())
+        {
+            child.ParentServerId = null;
+        }
+
+        var linkedDevices = _context.NetworkDevices.Where(d => d.ManagedServerId == id);
+        await foreach (var device in linkedDevices.AsAsyncEnumerable())
+        {
+            device.ManagedServerId = null;
+        }
+
         _context.ManagedServers.Remove(server);
         await _context.SaveChangesAsync();
         return true;
@@ -831,6 +889,63 @@ If some information cannot be determined, use null or reasonable defaults. Focus
             _logger.LogError(ex, "Failed to execute command on server {ServerId}: {Command}", serverId, command);
             result.Error = ex.Message;
             result.ExitCode = -1;
+            return result;
+        }
+    }
+
+    public async Task<TerminalOutputResult> GetTerminalOutputAsync(int serverId)
+    {
+        var result = new TerminalOutputResult
+        {
+            CapturedAt = DateTime.UtcNow
+        };
+
+        try
+        {
+            var server = await _context.ManagedServers.FindAsync(serverId);
+            if (server == null)
+            {
+                result.SessionExists = false;
+                return result;
+            }
+
+            using var client = CreateSshClient(server);
+            client.Connect();
+
+            if (!client.IsConnected)
+            {
+                result.SessionExists = false;
+                return result;
+            }
+
+            var sessionName = $"servicesdashboard_{serverId}";
+
+            // Check if session exists
+            var checkSessionCmd = client.CreateCommand($"tmux has-session -t {sessionName} 2>/dev/null; echo $?");
+            var checkResult = checkSessionCmd.Execute().Trim();
+
+            if (checkResult != "0")
+            {
+                result.SessionExists = false;
+                client.Disconnect();
+                return result;
+            }
+
+            result.SessionExists = true;
+
+            // Capture the pane output with scrollback history
+            var captureCmd = client.CreateCommand($"tmux capture-pane -t {sessionName} -p -S -100");
+            var output = captureCmd.Execute();
+
+            result.Output = output ?? "";
+
+            client.Disconnect();
+            return result;
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Failed to get terminal output for server {ServerId}", serverId);
+            result.SessionExists = false;
             return result;
         }
     }
@@ -2930,6 +3045,109 @@ Example: {{""recommendation"": ""Apply security updates immediately, schedule ot
         {
             _logger.LogError(ex, "Failed to suggest IPs for migration");
             result.ErrorMessage = ex.Message;
+        }
+
+        return result;
+    }
+
+    public async Task<WakeOnLanResult> SendWakeOnLanAsync(int serverId)
+    {
+        var result = new WakeOnLanResult
+        {
+            Success = false,
+            SentAt = DateTime.UtcNow
+        };
+
+        try
+        {
+            // Get server from database
+            var server = await GetServerAsync(serverId);
+            if (server == null)
+            {
+                result.ErrorMessage = "Server not found";
+                return result;
+            }
+
+            result.TargetHost = server.HostAddress;
+
+            // Validate MAC address
+            if (string.IsNullOrWhiteSpace(server.MacAddress))
+            {
+                result.ErrorMessage = "Server does not have a MAC address configured. Please add a MAC address to enable Wake-on-LAN.";
+                return result;
+            }
+
+            result.MacAddress = server.MacAddress;
+            result.Port = server.WakeOnLanPort;
+
+            _logger.LogInformation("🔌 Sending Wake-on-LAN packet to {ServerName} (MAC: {MacAddress}, Port: {Port})",
+                server.Name, server.MacAddress, server.WakeOnLanPort);
+
+            // Parse MAC address (remove separators)
+            var macString = server.MacAddress.Replace(":", "").Replace("-", "").Replace(".", "");
+
+            if (macString.Length != 12)
+            {
+                result.ErrorMessage = "Invalid MAC address format. Expected format: XX:XX:XX:XX:XX:XX";
+                return result;
+            }
+
+            // Convert MAC address to byte array
+            byte[] macBytes = new byte[6];
+            for (int i = 0; i < 6; i++)
+            {
+                macBytes[i] = Convert.ToByte(macString.Substring(i * 2, 2), 16);
+            }
+
+            // Create magic packet: 6 bytes of 0xFF followed by 16 repetitions of the MAC address
+            byte[] magicPacket = new byte[102]; // 6 + (16 * 6) = 102 bytes
+
+            // First 6 bytes are 0xFF
+            for (int i = 0; i < 6; i++)
+            {
+                magicPacket[i] = 0xFF;
+            }
+
+            // Repeat MAC address 16 times
+            for (int i = 1; i <= 16; i++)
+            {
+                for (int j = 0; j < 6; j++)
+                {
+                    magicPacket[i * 6 + j] = macBytes[j];
+                }
+            }
+
+            // Send magic packet via UDP to broadcast address
+            using var udpClient = new System.Net.Sockets.UdpClient();
+            udpClient.EnableBroadcast = true;
+
+            // Try to determine the broadcast address from the server's host address
+            string broadcastAddress = "255.255.255.255"; // Default to limited broadcast
+
+            // If the server has an IP address, try to calculate the broadcast address
+            if (System.Net.IPAddress.TryParse(server.HostAddress, out var serverIp))
+            {
+                // For simplicity, we'll use the subnet broadcast (assuming /24)
+                var ipParts = server.HostAddress.Split('.');
+                if (ipParts.Length == 4)
+                {
+                    broadcastAddress = $"{ipParts[0]}.{ipParts[1]}.{ipParts[2]}.255";
+                }
+            }
+
+            var endpoint = new System.Net.IPEndPoint(System.Net.IPAddress.Parse(broadcastAddress), server.WakeOnLanPort);
+            await udpClient.SendAsync(magicPacket, magicPacket.Length, endpoint);
+
+            result.Success = true;
+            result.Message = $"Wake-on-LAN packet sent successfully to {server.Name} ({server.MacAddress}) via {broadcastAddress}:{server.WakeOnLanPort}";
+
+            _logger.LogInformation("✅ Wake-on-LAN packet sent successfully to {ServerName} ({MacAddress}) via {BroadcastAddress}:{Port}",
+                server.Name, server.MacAddress, broadcastAddress, server.WakeOnLanPort);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Failed to send Wake-on-LAN packet for server {ServerId}", serverId);
+            result.ErrorMessage = $"Failed to send Wake-on-LAN packet: {ex.Message}";
         }
 
         return result;

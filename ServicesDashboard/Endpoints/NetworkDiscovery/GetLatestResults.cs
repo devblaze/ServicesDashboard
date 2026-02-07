@@ -7,6 +7,8 @@ namespace ServicesDashboard.Endpoints.NetworkDiscovery;
 public class GetLatestResultsRequest
 {
     public string Target { get; set; } = string.Empty;
+    public string SortBy { get; set; } = "ip";
+    public string SortOrder { get; set; } = "asc";
 }
 
 public class GetLatestResultsEndpoint : Endpoint<GetLatestResultsRequest, IEnumerable<StoredDiscoveredService>>
@@ -32,7 +34,7 @@ public class GetLatestResultsEndpoint : Endpoint<GetLatestResultsRequest, IEnume
     {
         try
         {
-            var results = await _backgroundScanService.GetLatestDiscoveredServicesAsync(req.Target);
+            var results = await _backgroundScanService.GetLatestDiscoveredServicesAsync(req.Target, req.SortBy, req.SortOrder);
             await Send.OkAsync(results, ct);
         }
         catch (Exception ex)

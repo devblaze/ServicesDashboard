@@ -10,16 +10,17 @@ import { UpdateNotification } from './components/UpdateNotification';
 import { VersionFooter } from './components/ui/VersionFooter';
 
 // Lazy load page components for better code splitting
-const ServicesList = lazy(() => import('./components/pages/ServicesList.tsx').then(module => ({ default: module.ServicesList })));
+const MonitoringDashboard = lazy(() => import('./components/pages/MonitoringDashboard.tsx').then(module => ({ default: module.MonitoringDashboard })));
 const ServerManagement = lazy(() => import('./components/pages/ServerManagement.tsx').then(module => ({ default: module.ServerManagement })));
 const DockerServices = lazy(() => import('./components/pages/DockerServicesManager.tsx').then(module => ({ default: module.DockerServices })));
 const NetworkDiscovery = lazy(() => import('./components/pages/NetworkDiscovery.tsx').then(module => ({ default: module.NetworkDiscovery })));
 const ScheduledTasksPage = lazy(() => import('./components/pages/ScheduledTasksPage.tsx').then(module => ({ default: module.ScheduledTasksPage })));
 const DeploymentsManagement = lazy(() => import('./components/pages/DeploymentsManagement.tsx').then(module => ({ default: module.DeploymentsManagement })));
+const SelfHostedServices = lazy(() => import('./components/pages/SelfHostedServices.tsx').then(module => ({ default: module.SelfHostedServices })));
 const ApplicationSettings = lazy(() => import('./components/pages/ApplicationSettings.tsx').then(module => ({ default: module.ApplicationSettings })));
 const IpManagementPage = lazy(() => import('./pages/IpManagementPage'));
+const VirtualMachines = lazy(() => import('./components/pages/VirtualMachines.tsx').then(module => ({ default: module.VirtualMachines })));
 import {
-  Monitor,
   Server,
   Container,
   Network,
@@ -32,22 +33,23 @@ import {
   Globe,
   ChevronDown,
   Layers,
-  Zap
+  Zap,
+  Monitor
 } from 'lucide-react';
 import './App.css';
 
-type TabType = 'services' | 'servers' | 'docker' | 'network' | 'ip-management' | 'tasks' | 'deployments' | 'connection' | 'settings';
+type TabType = 'monitoring' | 'servers' | 'virtual-machines' | 'docker' | 'self-hosted' | 'network' | 'ip-management' | 'tasks' | 'deployments' | 'connection' | 'settings';
 
 interface MenuItem {
   id: TabType;
   name: string;
-  icon: typeof Monitor;
+  icon: typeof Activity;
 }
 
 interface MenuGroup {
   id: string;
   name: string;
-  icon: typeof Monitor;
+  icon: typeof Activity;
   items: MenuItem[];
 }
 
@@ -67,7 +69,7 @@ function App() {
   // Get current tab from URL path
   const getCurrentTab = (): TabType => {
     const path = location.pathname.substring(1); // Remove leading slash
-    return (path || 'services') as TabType;
+    return (path || 'monitoring') as TabType;
   };
 
   const activeTab = getCurrentTab();
@@ -85,14 +87,16 @@ function App() {
   }, []);
 
   const mainNavigation: NavItem[] = [
-    { id: 'services' as const, name: 'Services', icon: Monitor },
+    { id: 'monitoring' as const, name: 'Monitoring', icon: Activity },
     {
       id: 'infrastructure',
       name: 'Infrastructure',
       icon: Layers,
       items: [
         { id: 'servers' as const, name: 'Servers', icon: Server },
+        { id: 'virtual-machines' as const, name: 'Virtual Machines', icon: Monitor },
         { id: 'docker' as const, name: 'Docker Services', icon: Container },
+        { id: 'self-hosted' as const, name: 'Self-Hosted Services', icon: Server },
         { id: 'network' as const, name: 'Network Discovery', icon: Network },
         { id: 'ip-management' as const, name: 'IP Management', icon: Globe },
       ],
@@ -133,8 +137,6 @@ function App() {
         enableServerConnectivity={true}
         enableServerHealth={true}
         enableServiceHealth={true}
-        connectivityInterval={1} // 1 minute
-        healthInterval={5} // 5 minutes
       >
         <div className={`min-h-screen transition-colors duration-300 ${
           darkMode 
@@ -311,16 +313,18 @@ function App() {
           <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
             <Suspense fallback={loadingFallback}>
               <Routes>
-                <Route path="/" element={<Navigate to="/services" replace />} />
-                <Route path="/services" element={<ServicesList darkMode={darkMode} />} />
+                <Route path="/" element={<Navigate to="/monitoring" replace />} />
+                <Route path="/monitoring" element={<MonitoringDashboard darkMode={darkMode} />} />
                 <Route path="/servers" element={<ServerManagement darkMode={darkMode} />} />
+                <Route path="/virtual-machines" element={<VirtualMachines darkMode={darkMode} />} />
                 <Route path="/docker" element={<DockerServices darkMode={darkMode} />} />
+                <Route path="/self-hosted" element={<SelfHostedServices darkMode={darkMode} />} />
                 <Route path="/network" element={<NetworkDiscovery darkMode={darkMode} />} />
                 <Route path="/ip-management" element={<IpManagementPage darkMode={darkMode} />} />
                 <Route path="/tasks" element={<ScheduledTasksPage darkMode={darkMode} />} />
                 <Route path="/deployments" element={<DeploymentsManagement darkMode={darkMode} />} />
                 <Route path="/settings" element={<ApplicationSettings darkMode={darkMode} />} />
-                <Route path="*" element={<Navigate to="/services" replace />} />
+                <Route path="*" element={<Navigate to="/monitoring" replace />} />
               </Routes>
             </Suspense>
           </div>

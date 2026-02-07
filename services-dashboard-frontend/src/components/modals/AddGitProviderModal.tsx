@@ -87,9 +87,9 @@ export const AddGitProviderModal: React.FC<AddGitProviderModalProps> = ({
     },
     onSuccess: (result) => {
       setConnectionTestResult({
-        success: result.isSuccessful,
+        success: result.success,
         message: result.message,
-        userInfo: result.userInfo,
+        userInfo: result.username,
       });
       setIsTestingConnection(false);
     },

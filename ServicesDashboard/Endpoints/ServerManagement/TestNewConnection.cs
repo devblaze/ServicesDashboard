@@ -1,4 +1,5 @@
 using FastEndpoints;
+using ServicesDashboard.Data;
 using ServicesDashboard.Models.Requests;
 using ServicesDashboard.Services.Servers;
 
@@ -8,13 +9,16 @@ public class TestNewConnectionEndpoint : Endpoint<ConnectionTestRequest, bool>
 {
     private readonly IServerManagementService _serverManagementService;
     private readonly ILogger<TestNewConnectionEndpoint> _logger;
+    private readonly ServicesDashboardContext _dbContext;
 
     public TestNewConnectionEndpoint(
         IServerManagementService serverManagementService,
-        ILogger<TestNewConnectionEndpoint> logger)
+        ILogger<TestNewConnectionEndpoint> logger,
+        ServicesDashboardContext dbContext)
     {
         _serverManagementService = serverManagementService;
         _logger = logger;
+        _dbContext = dbContext;
     }
 
     public override void Configure()
@@ -27,11 +31,25 @@ public class TestNewConnectionEndpoint : Endpoint<ConnectionTestRequest, bool>
     {
         try
         {
+            var username = req.Username;
+            var password = req.Password;
+
+            // If using saved credentials, look up username/password from the credential
+            if (req.SshCredentialId.HasValue)
+            {
+                var credential = await _dbContext.SshCredentials.FindAsync(new object[] { req.SshCredentialId.Value }, ct);
+                if (credential != null)
+                {
+                    username = credential.Username;
+                    password = credential.Password;
+                }
+            }
+
             var canConnect = await _serverManagementService.TestConnectionAsync(
                 req.HostAddress,
                 req.SshPort,
-                req.Username,
-                req.Password
+                username,
+                password
             );
             await Send.OkAsync(canConnect, ct);
         }

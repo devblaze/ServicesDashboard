@@ -29,6 +29,13 @@
   animation: pulse-slow 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
 }
 
+/* Pause all animations when the browser tab is hidden to save CPU */
+.tab-hidden .pulse-slow,
+.tab-hidden .animate-pulse,
+.tab-hidden .animate-spin {
+  animation-play-state: paused !important;
+}
+
 /* Custom gradient backgrounds */
 .gradient-bg-light {
   background: linear-gradient(135deg, #f9fafb 0%, #f3f4f6 100%);

@@ -5,7 +5,13 @@ import type {
   TestConnectionRequest,
   TestConnectionResponse,
   MigrateDatabaseRequest,
-  MigrateDatabaseResponse
+  MigrateDatabaseResponse,
+  DatabaseExportResponse,
+  DatabaseImportRequest,
+  DatabaseImportResponse,
+  GenerateSyncTokenResponse,
+  RemoteSyncRequest,
+  RemoteSyncResponse
 } from '../types/database';
 
 class DatabaseApi extends BaseApiClient {
@@ -28,6 +34,22 @@ class DatabaseApi extends BaseApiClient {
   async migrateDatabase(request: MigrateDatabaseRequest): Promise<MigrateDatabaseResponse> {
     return await this.request<MigrateDatabaseResponse>('post', '/database/migrate', request);
   }
+
+  async exportDatabase(): Promise<DatabaseExportResponse> {
+    return await this.request<DatabaseExportResponse>('get', '/database/export');
+  }
+
+  async importDatabase(request: DatabaseImportRequest): Promise<DatabaseImportResponse> {
+    return await this.request<DatabaseImportResponse>('post', '/database/import', request);
+  }
+
+  async generateSyncToken(): Promise<GenerateSyncTokenResponse> {
+    return await this.request<GenerateSyncTokenResponse>('post', '/database/generate-sync-token');
+  }
+
+  async remoteSync(request: RemoteSyncRequest): Promise<RemoteSyncResponse> {
+    return await this.request<RemoteSyncResponse>('post', '/database/remote-sync', request);
+  }
 }
 
 const databaseApiInstance = new DatabaseApi();
@@ -47,5 +69,21 @@ export const databaseApi = {
 
   migrateDatabase: (request: MigrateDatabaseRequest): Promise<MigrateDatabaseResponse> => {
     return databaseApiInstance.migrateDatabase(request);
+  },
+
+  exportDatabase: (): Promise<DatabaseExportResponse> => {
+    return databaseApiInstance.exportDatabase();
+  },
+
+  importDatabase: (request: DatabaseImportRequest): Promise<DatabaseImportResponse> => {
+    return databaseApiInstance.importDatabase(request);
+  },
+
+  generateSyncToken: (): Promise<GenerateSyncTokenResponse> => {
+    return databaseApiInstance.generateSyncToken();
+  },
+
+  remoteSync: (request: RemoteSyncRequest): Promise<RemoteSyncResponse> => {
+    return databaseApiInstance.remoteSync(request);
   }
 };

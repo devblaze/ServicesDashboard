@@ -72,9 +72,11 @@ public class PortAllocationService : IPortAllocationService
             ServerId = request.ServerId,
             DeploymentId = request.DeploymentId,
             Port = allocatedPort,
+            Status = PortAllocationStatus.InUse,
+            AllocationType = PortAllocationType.Deployment,
             ServiceName = request.ServiceName,
             Description = request.Description,
-            IsActive = true
+            AllocatedAt = DateTime.UtcNow
         };
 
         _context.PortAllocations.Add(allocation);
@@ -95,7 +97,7 @@ public class PortAllocationService : IPortAllocationService
     public async Task<List<PortAllocationDto>> GetAllocatedPortsAsync(int serverId)
     {
         var allocations = await _context.PortAllocations
-            .Where(p => p.ServerId == serverId && p.IsActive)
+            .Where(p => p.ServerId == serverId && p.Status == PortAllocationStatus.InUse)
             .OrderBy(p => p.Port)
             .ToListAsync();
 
@@ -103,19 +105,19 @@ public class PortAllocationService : IPortAllocationService
         {
             Id = a.Id,
             ServerId = a.ServerId,
-            DeploymentId = a.DeploymentId,
+            DeploymentId = a.DeploymentId ?? 0,
             Port = a.Port,
             ServiceName = a.ServiceName,
             Description = a.Description,
-            IsActive = a.IsActive,
-            AllocatedAt = a.AllocatedAt
+            IsActive = a.Status == PortAllocationStatus.InUse,
+            AllocatedAt = a.AllocatedAt ?? DateTime.UtcNow
         }).ToList();
     }
 
     public async Task<List<int>> FindAvailablePortsAsync(int serverId, int count = 1, int startPort = 3000, int endPort = 9999)
     {
         var allocatedPorts = await _context.PortAllocations
-            .Where(p => p.ServerId == serverId && p.IsActive)
+            .Where(p => p.ServerId == serverId && p.Status == PortAllocationStatus.InUse)
             .Select(p => p.Port)
             .ToListAsync();
 
@@ -139,7 +141,7 @@ public class PortAllocationService : IPortAllocationService
             return false;
 
         var isAllocated = await _context.PortAllocations
-            .AnyAsync(p => p.ServerId == serverId && p.Port == port && p.IsActive);
+            .AnyAsync(p => p.ServerId == serverId && p.Port == port && p.Status == PortAllocationStatus.InUse);
 
         return !isAllocated;
     }
@@ -150,7 +152,9 @@ public class PortAllocationService : IPortAllocationService
         if (allocation == null)
             return false;
 
-        allocation.IsActive = false;
+        allocation.Status = PortAllocationStatus.Available;
+        allocation.ReleasedAt = DateTime.UtcNow;
+        allocation.UpdatedAt = DateTime.UtcNow;
         await _context.SaveChangesAsync();
 
         _logger.LogInformation("Released port {Port} on server {ServerId}", allocation.Port, allocation.ServerId);
@@ -161,12 +165,14 @@ public class PortAllocationService : IPortAllocationService
     public async Task<bool> ReleaseDeploymentPortsAsync(int deploymentId)
     {
         var allocations = await _context.PortAllocations
-            .Where(p => p.DeploymentId == deploymentId && p.IsActive)
+            .Where(p => p.DeploymentId == deploymentId && p.Status == PortAllocationStatus.InUse)
             .ToListAsync();
 
         foreach (var allocation in allocations)
         {
-            allocation.IsActive = false;
+            allocation.Status = PortAllocationStatus.Available;
+            allocation.ReleasedAt = DateTime.UtcNow;
+            allocation.UpdatedAt = DateTime.UtcNow;
         }
 
         await _context.SaveChangesAsync();

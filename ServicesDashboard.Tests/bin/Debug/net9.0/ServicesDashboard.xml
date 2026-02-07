@@ -172,6 +172,54 @@
         <member name="M:ServicesDashboard.Migrations.AddIpManagementTables.BuildTargetModel(Microsoft.EntityFrameworkCore.ModelBuilder)">
             <inheritdoc />
         </member>
+        <member name="T:ServicesDashboard.Migrations.AddWakeOnLanSupport">
+            <inheritdoc />
+        </member>
+        <member name="M:ServicesDashboard.Migrations.AddWakeOnLanSupport.Up(Microsoft.EntityFrameworkCore.Migrations.MigrationBuilder)">
+            <inheritdoc />
+        </member>
+        <member name="M:ServicesDashboard.Migrations.AddWakeOnLanSupport.Down(Microsoft.EntityFrameworkCore.Migrations.MigrationBuilder)">
+            <inheritdoc />
+        </member>
+        <member name="M:ServicesDashboard.Migrations.AddWakeOnLanSupport.BuildTargetModel(Microsoft.EntityFrameworkCore.ModelBuilder)">
+            <inheritdoc />
+        </member>
+        <member name="T:ServicesDashboard.Migrations.UpdatePortAllocationAndAddGitBranch">
+            <inheritdoc />
+        </member>
+        <member name="M:ServicesDashboard.Migrations.UpdatePortAllocationAndAddGitBranch.Up(Microsoft.EntityFrameworkCore.Migrations.MigrationBuilder)">
+            <inheritdoc />
+        </member>
+        <member name="M:ServicesDashboard.Migrations.UpdatePortAllocationAndAddGitBranch.Down(Microsoft.EntityFrameworkCore.Migrations.MigrationBuilder)">
+            <inheritdoc />
+        </member>
+        <member name="M:ServicesDashboard.Migrations.UpdatePortAllocationAndAddGitBranch.BuildTargetModel(Microsoft.EntityFrameworkCore.ModelBuilder)">
+            <inheritdoc />
+        </member>
+        <member name="T:ServicesDashboard.Migrations.AddContainerMetricsHistory">
+            <inheritdoc />
+        </member>
+        <member name="M:ServicesDashboard.Migrations.AddContainerMetricsHistory.Up(Microsoft.EntityFrameworkCore.Migrations.MigrationBuilder)">
+            <inheritdoc />
+        </member>
+        <member name="M:ServicesDashboard.Migrations.AddContainerMetricsHistory.Down(Microsoft.EntityFrameworkCore.Migrations.MigrationBuilder)">
+            <inheritdoc />
+        </member>
+        <member name="M:ServicesDashboard.Migrations.AddContainerMetricsHistory.BuildTargetModel(Microsoft.EntityFrameworkCore.ModelBuilder)">
+            <inheritdoc />
+        </member>
+        <member name="T:ServicesDashboard.Migrations.AddSystemMetrics">
+            <inheritdoc />
+        </member>
+        <member name="M:ServicesDashboard.Migrations.AddSystemMetrics.Up(Microsoft.EntityFrameworkCore.Migrations.MigrationBuilder)">
+            <inheritdoc />
+        </member>
+        <member name="M:ServicesDashboard.Migrations.AddSystemMetrics.Down(Microsoft.EntityFrameworkCore.Migrations.MigrationBuilder)">
+            <inheritdoc />
+        </member>
+        <member name="M:ServicesDashboard.Migrations.AddSystemMetrics.BuildTargetModel(Microsoft.EntityFrameworkCore.ModelBuilder)">
+            <inheritdoc />
+        </member>
         <member name="T:ServicesDashboard.Models.Subnet">
             <summary>
             Represents a subnet/network segment
@@ -197,9 +245,30 @@
             Stores Omada Controller connection information
             </summary>
         </member>
+        <member name="T:ServicesDashboard.Models.SystemMetricsHistory">
+            <summary>
+            System-level metrics including network totals and temperatures
+            </summary>
+        </member>
+        <member name="T:ServicesDashboard.Models.DiskMetricsHistory">
+            <summary>
+            Per-disk metrics for array, cache, and system disks
+            </summary>
+        </member>
+        <member name="T:ServicesDashboard.Models.NetworkInterfaceMetricsHistory">
+            <summary>
+            Per-network-interface metrics
+            </summary>
+        </member>
         <member name="T:ServicesDashboard.Services.IpManagement.SubnetSummary">
             <summary>
             Summary statistics for a subnet
+            </summary>
+        </member>
+        <member name="M:ServicesDashboard.Services.NetworkDiscovery.BackgroundNetworkScan.ConvertIpToSortableString(System.String)">
+            <summary>
+            Converts an IP address to a sortable string format.
+            Pads each octet to 3 digits so sorting works correctly: "192.168.001.001"
             </summary>
         </member>
     </members>

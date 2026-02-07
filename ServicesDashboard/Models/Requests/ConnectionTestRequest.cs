@@ -8,4 +8,5 @@ public class ConnectionTestRequest
     public string? Password { get; set; }
     public string? Type { get; set; }
     public string? Tags { get; set; }
+    public int? SshCredentialId { get; set; }
 }
