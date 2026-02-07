@@ -17,10 +17,21 @@ export interface ServerMonitoringEvent {
   data: any;
 }
 
+export interface VMOperationUpdate {
+  operationId: string;
+  status: string;
+  progress: number;
+  stage: string;
+  ipAddress?: string;
+  sshConnectionString?: string;
+  errorMessage?: string;
+}
+
 class SignalRService {
   private hubConnection: signalR.HubConnection | null = null;
   private notificationCallbacks: ((notification: ScanNotification) => void)[] = [];
   private monitoringCallbacks: ((event: ServerMonitoringEvent) => void)[] = [];
+  private vmOperationCallbacks: ((update: VMOperationUpdate) => void)[] = [];
   private connectionState: 'disconnected' | 'connecting' | 'connected' | 'error' = 'disconnected';
 
   constructor() {
@@ -149,6 +160,28 @@ class SignalRService {
       });
     });
 
+    // Handle VM operation updates (from VMCreationWorker)
+    this.hubConnection.on('ReceiveVMOperationUpdate', (
+      operationId: string,
+      status: string,
+      progress: number,
+      stage: string,
+      ipAddress: string | null,
+      sshConnectionString: string | null,
+      errorMessage: string | null
+    ) => {
+      console.log(`VM Operation Update: ${operationId} - ${status} (${progress}%) - ${stage}`);
+      this.notifyVMOperationCallbacks({
+        operationId,
+        status,
+        progress,
+        stage,
+        ipAddress: ipAddress ?? undefined,
+        sshConnectionString: sshConnectionString ?? undefined,
+        errorMessage: errorMessage ?? undefined
+      });
+    });
+
     // Handle reconnecting
     this.hubConnection.onreconnecting((error) => {
       console.log('SignalR reconnecting...', error);
@@ -176,6 +209,16 @@ class SignalRService {
         callback(event);
       } catch (error) {
         console.error('Error in monitoring callback:', error);
+      }
+    });
+  }
+
+  private notifyVMOperationCallbacks(update: VMOperationUpdate) {
+    this.vmOperationCallbacks.forEach(callback => {
+      try {
+        callback(update);
+      } catch (error) {
+        console.error('Error in VM operation callback:', error);
       }
     });
   }
@@ -232,6 +275,17 @@ class SignalRService {
       const index = this.monitoringCallbacks.indexOf(callback);
       if (index > -1) {
         this.monitoringCallbacks.splice(index, 1);
+      }
+    };
+  }
+
+  public onVMOperationUpdate(callback: (update: VMOperationUpdate) => void): () => void {
+    this.vmOperationCallbacks.push(callback);
+
+    return () => {
+      const index = this.vmOperationCallbacks.indexOf(callback);
+      if (index > -1) {
+        this.vmOperationCallbacks.splice(index, 1);
       }
     };
   }

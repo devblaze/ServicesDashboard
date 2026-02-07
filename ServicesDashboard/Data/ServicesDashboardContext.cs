@@ -46,6 +46,10 @@ public class ServicesDashboardContext : DbContext
     public DbSet<DiskMetricsHistory> DiskMetricsHistory { get; set; }
     public DbSet<NetworkInterfaceMetricsHistory> NetworkInterfaceMetricsHistory { get; set; }
 
+    // Virtual Machine Management
+    public DbSet<VMOperation> VMOperations { get; set; }
+    public DbSet<CloudImage> CloudImages { get; set; }
+
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
         base.OnModelCreating(modelBuilder);
@@ -502,6 +506,43 @@ public class ServicesDashboardContext : DbContext
             entity.HasIndex(e => e.Timestamp);
             entity.HasIndex(e => new { e.ServerId, e.Timestamp });
             entity.HasIndex(e => new { e.ServerId, e.InterfaceName, e.Timestamp });
+        });
+
+        // Configure VMOperation
+        modelBuilder.Entity<VMOperation>(entity =>
+        {
+            entity.HasKey(e => e.Id);
+            entity.HasIndex(e => e.OperationId).IsUnique();
+            entity.HasIndex(e => new { e.HostServerId, e.Status });
+            entity.HasIndex(e => e.CreatedAt);
+            entity.Property(e => e.OperationType).HasConversion<string>();
+            entity.Property(e => e.Status).HasConversion<string>();
+            entity.Property(e => e.Preset).HasConversion<string>();
+            entity.Property(e => e.OsType).HasConversion<string>();
+            entity.Property(e => e.VMName).IsRequired().HasMaxLength(100);
+            entity.Property(e => e.CreatedAt).HasDefaultValueSql("CURRENT_TIMESTAMP");
+            entity.Property(e => e.UpdatedAt).HasDefaultValueSql("CURRENT_TIMESTAMP");
+            entity.HasOne(e => e.HostServer)
+                  .WithMany()
+                  .HasForeignKey(e => e.HostServerId)
+                  .OnDelete(DeleteBehavior.NoAction);
+            entity.HasOne(e => e.CreatedServer)
+                  .WithMany()
+                  .HasForeignKey(e => e.CreatedServerId)
+                  .OnDelete(DeleteBehavior.NoAction);
+        });
+
+        // Configure CloudImage
+        modelBuilder.Entity<CloudImage>(entity =>
+        {
+            entity.HasKey(e => e.Id);
+            entity.Property(e => e.OsType).HasConversion<string>();
+            entity.HasIndex(e => e.OsType).IsUnique();
+            entity.Property(e => e.DisplayName).IsRequired().HasMaxLength(255);
+            entity.Property(e => e.DownloadUrl).IsRequired();
+            entity.Property(e => e.FileName).IsRequired().HasMaxLength(500);
+            entity.Property(e => e.CreatedAt).HasDefaultValueSql("CURRENT_TIMESTAMP");
+            entity.Property(e => e.UpdatedAt).HasDefaultValueSql("CURRENT_TIMESTAMP");
         });
     }
 }

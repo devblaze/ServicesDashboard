@@ -139,6 +139,11 @@ builder.Services.AddScoped<ServicesDashboard.Services.IpManagement.IOmadaControl
 // AI Error Analysis Service
 builder.Services.AddScoped<ServicesDashboard.Services.AI.IAIErrorAnalysisService, ServicesDashboard.Services.AI.AIErrorAnalysisService>();
 
+// Virtual Machine Management Services
+builder.Services.AddSingleton<ServicesDashboard.Services.VirtualMachines.VMOperationQueue>();
+builder.Services.AddScoped<ServicesDashboard.Services.VirtualMachines.IVMManagementService, ServicesDashboard.Services.VirtualMachines.VMManagementService>();
+builder.Services.AddHostedService<ServicesDashboard.Services.VirtualMachines.VMCreationWorker>();
+
 // Add SignalR for real-time notifications
 builder.Services.AddSignalR();
 

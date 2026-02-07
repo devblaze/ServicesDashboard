@@ -15,6 +15,16 @@ public interface IDiscoveryNotificationClient
     // Server monitoring events (pushed by ServerMonitoringWorker)
     Task ReceiveServerStatusUpdate(int serverId, string status, string lastCheckTime);
     Task ReceiveServerHealthUpdate(int serverId, object healthCheck);
+
+    // VM operation events (pushed by VMCreationWorker)
+    Task ReceiveVMOperationUpdate(
+        string operationId,
+        string status,
+        int progress,
+        string stage,
+        string? ipAddress,
+        string? sshConnectionString,
+        string? errorMessage);
 }
 
 public class DiscoveryNotificationHub : Hub<IDiscoveryNotificationClient>
